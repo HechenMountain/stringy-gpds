@@ -1,16 +1,38 @@
-# Import necessary libraries
+# # Dependencies
 import pandas as pd
 import numpy as np
 import matplotlib.pyplot as plt
-from scipy.integrate import quad
 from scipy.integrate import trapezoid
 from joblib import Parallel, delayed
-from matplotlib.ticker import LogLocator, FuncFormatter
 from scipy.special import gamma, digamma
 import re
 import os
+############################################
+############################################
+# Set up dictionaries
+# Add some colors
+saturated_pink = (1.0, 0.1, 0.6)  # Higher red, some blue, minimal green
 
-# MSTW PDF data
+# Define a dictionary that maps publication IDs to a color
+def initialize_dictionaries():
+    global publication_mapping 
+    publication_mapping = {
+        "2305.11117": "cyan",
+        "0705.4295": "orange",
+        "1908.10706": saturated_pink
+    # Add more publication IDs and corresponding colors here
+    }
+    # Define dictionary that maps conformal moments names and types to expressions
+    global moment_to_function
+    moment_to_function = {
+    ("NonSingletIsovector", "A"): uv_minus_dv_Regge,
+    #("NonSingletIsovector", "A"): u_minus_d_Regge,
+    ("NonSingletIsoscalar", "A"): uv_plus_dv_Regge,
+    #("NonSingletIsoscalar", "A"): u_plus_d_Regge
+    }
+############################################
+############################################
+# Import MSTW PDF data
 # Base path to main data directory
 base_path = "/mnt/c/Users/flori/Documents/PostDoc/Jupyter/Data/GPD/"
 # Define the file path to the .dat file and extract its content
@@ -38,18 +60,6 @@ with open(MSTW_path, "r") as file:
 
 # Create a DataFrame from the parsed data
 MSTWpdf = pd.DataFrame(data, columns=columns)
-
-# Load Lattice data
-# Add some colors
-saturated_pink = (1.0, 0.1, 0.6)  # Higher red, some blue, minimal green
-
-# Define a dictionary that maps publication IDs to a color
-publication_mapping = {
-        "2305.11117": "cyan",
-        "0705.4295": "orange",
-        "1908.10706": saturated_pink
-    # Add more publication IDs and corresponding colors here
-}
 
 def load_lattice_data(moment_type, moment_label, pub_id):
     """
@@ -786,12 +796,7 @@ def RGE_non_singlet(GPD_in,j,mu2):
    return result
 
 
-moment_to_function = {
-    ("NonSingletIsovector", "A"): uv_minus_dv_Regge,
-    #("NonSingletIsovector", "A"): u_minus_d_Regge,
-    ("NonSingletIsoscalar", "A"): uv_plus_dv_Regge,
-    #("NonSingletIsoscalar", "A"): u_plus_d_Regge
-}
+initialize_dictionaries()
 
 def plot_moments(moment_type, moment_label, y_label, t_max=3, n_t=50, num_columns=3):
     """
@@ -804,6 +809,7 @@ def plot_moments(moment_type, moment_label, y_label, t_max=3, n_t=50, num_column
         n_t (int, optional): Number of points for t_fine (default is 50).
         num_columns (int, optional): Number of columns for the grid layout (default is 3).
     """
+
     # Define the finer grid for t-values
     t_fine = np.linspace(-t_max, 0, n_t)
     
