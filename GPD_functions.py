@@ -28,7 +28,7 @@ def initialize_dictionaries():
     ("NonSingletIsovector", "A"): uv_minus_dv_Regge,
     #("NonSingletIsovector", "A"): u_minus_d_Regge,
     ("NonSingletIsoscalar", "A"): uv_plus_dv_Regge,
-    #("NonSingletIsoscalar", "A"): u_plus_d_Regge
+    #("NonSingletIsoscalar", "A"): u_plus_d_Regge,
     }
 ############################################
 ############################################
@@ -378,7 +378,7 @@ def RGE_alpha_S(mu2):
     Note that the MSTW best fit obtains alpha_S(mu2=1 GeV**2)=0.68183, different from the world average
     
     Arguments:
-    mu -- The momentum scale of the process
+    mu2 -- The squared momentum scale of the process
     
     Returns:
     The evolved value of alpha_s at mu**2
@@ -463,6 +463,19 @@ def int_uv_Regge(j,eta,alpha_p,t, error_type="central"):
     return result
 
 def int_dv_Regge(j,eta,alpha_p,t, error_type="central"):
+    """
+    Compute the integral of the Reggeized dv(x) PDF based on the given LO parameters and selected errors.
+    
+    Arguments:
+    j -- conformal spin,
+    eta -- skewness (scalar or array)(placeholder for now),
+    alpha_p -- Regge slope,
+    t -- Mandelstam t (scalar or array),
+    error_type -- A string indicating whether to use 'central', 'plus', or 'minus' errors. Default is 'central'.
+    
+    Returns:
+    The value of the Reggeized integral of dv(x) based on the selected parameters and error type.
+    """
     # Define a dictionary that maps the error_type to column indices
     error_mapping = {
         "central": 0,  # The column with the central value
@@ -509,6 +522,19 @@ def int_dv_Regge(j,eta,alpha_p,t, error_type="central"):
     return result
 
 def int_sv_Regge(j,eta,alpha_p,t, error_type="central"):
+    """
+    Compute the integral of the Reggeized sv(x) PDF based on the given LO parameters and selected errors.
+    
+    Arguments:
+    j -- conformal spin,
+    eta -- skewness (scalar or array)(placeholder for now),
+    alpha_p -- Regge slope,
+    t -- Mandelstam t (scalar or array),
+    error_type -- A string indicating whether to use 'central', 'plus', or 'minus' errors. Default is 'central'.
+    
+    Returns:
+    The value of the Reggeized integral of sv(x) based on the selected parameters and error type.
+    """
     error_mapping = {
         "central": 0,
         "plus": 1,
@@ -546,6 +572,19 @@ def int_sv_Regge(j,eta,alpha_p,t, error_type="central"):
     return result
 
 def int_Sv_Regge(j,eta,alpha_p,t, error_type="central"):
+    """
+    Compute the integral of the Reggeized Sv(x) PDF based on the given LO parameters and selected errors.
+    
+    Arguments:
+    j -- conformal spin,
+    eta -- skewness (scalar or array)(placeholder for now),
+    alpha_p -- Regge slope,
+    t -- Mandelstam t (scalar or array),
+    error_type -- A string indicating whether to use 'central', 'plus', or 'minus' errors. Default is 'central'.
+    
+    Returns:
+    The value of the Reggeized integral of Sv(x) based on the selected parameters and error type.
+    """
     error_mapping = {
         "central": 0,
         "plus": 1,
@@ -584,6 +623,19 @@ def int_Sv_Regge(j,eta,alpha_p,t, error_type="central"):
         return result.item()  # Return a scalar if the result is a single value
     return result
 def int_s_plus_Regge(j,eta,alpha_p,t, error_type="central"):
+    """
+    Compute the integral of the Reggeized s_+(x) PDF based on the given LO parameters and selected errors.
+    
+    Arguments:
+    j -- conformal spin,
+    eta -- skewness (scalar or array)(placeholder for now),
+    alpha_p -- Regge slope,
+    t -- Mandelstam t (scalar or array),
+    error_type -- A string indicating whether to use 'central', 'plus', or 'minus' errors. Default is 'central'.
+    
+    Returns:
+    The value of the Reggeized integral of s_+(x) based on the selected parameters and error type.
+    """
     error_mapping = {
         "central": 0,
         "plus": 1,
@@ -625,7 +677,17 @@ def int_s_plus_Regge(j,eta,alpha_p,t, error_type="central"):
 
 def int_Delta_Regge(j,eta,alpha_p,t, error_type="central"):
     """
-    Compute the Delta(x)=dbar-ubar PDF based on the given LO parameters and selected errors.
+    Compute the integral of the Reggeized Delta(x)=ubar(x)-dbar(x) PDF based on the given LO parameters and selected errors.
+    
+    Arguments:
+    j -- conformal spin,
+    eta -- skewness (scalar or array)(placeholder for now),
+    alpha_p -- Regge slope,
+    t -- Mandelstam t (scalar or array),
+    error_type -- A string indicating whether to use 'central', 'plus', or 'minus' errors. Default is 'central'.
+    
+    Returns:
+    The value of the Reggeized integral of Delta(x) based on the selected parameters and error type.
     """
      # Define a dictionary that maps the error_type to column indices
     error_mapping = {
@@ -671,6 +733,19 @@ def int_Delta_Regge(j,eta,alpha_p,t, error_type="central"):
     return result
 
 def int_gv_Regge(j,eta,alpha_p,t, error_type="central"):
+    """
+    Compute the integral of the Reggeized g(x) PDF based on the given LO parameters and selected errors.
+    
+    Arguments:
+    j -- conformal spin,
+    eta -- skewness (scalar or array)(placeholder for now),
+    alpha_p -- Regge slope,
+    t -- Mandelstam t (scalar or array),
+    error_type -- A string indicating whether to use 'central', 'plus', or 'minus' errors. Default is 'central'.
+    
+    Returns:
+    The value of the Reggeized integral of g(x) based on the selected parameters and error type.
+    """
      # Define a dictionary that maps the error_type to column indices
     error_mapping = {
         "central": 0,  # The column with the central value
@@ -707,7 +782,7 @@ def int_gv_Regge(j,eta,alpha_p,t, error_type="central"):
 
     # Analytical result of the integral
     frac_1 = epsilon_g*gamma(delta_g+j-alpha_p*t -.5)/(gamma(delta_g+eta_g+j-alpha_p*t+.5))
-    frac_2 = (delta_g+eta_g-gamma_g+delta_g*gamma_g+j*(1+gamma_g)-(1+gamma_g)*alpha_p*t)*gamma(delta_g+j-alpha_p*t-1)/gamma(1+delta_g+eta_g+j-alpha_p*t)
+    frac_2 = (delta_g+eta_g-gamma_g+delta_g*gamma_g+j*(1+gamma_g)-(1+gamma_g)*alpha_p*t)*gamma(delta_g+j-alpha_p*t-1)/gamma(delta_g+eta_g+j-alpha_p*t+1)
     result = A_g*gamma(1+eta_g)*(frac_1+frac_2)
      # Return the result while preserving the original dimensions
     if result.size == 1:
@@ -755,7 +830,7 @@ def gamma_qq(j):
    Arguments:
    j -- conformal spin
    """
-   if j < 0:
+   if j.real < 0:
     raise ValueError("j must be positive.")
 
    Nc = 3
@@ -764,21 +839,21 @@ def gamma_qq(j):
 
    return result
 
-def RGE_non_singlet(GPD_in,j,mu2):
+def RGE_non_singlet(GPD_in,j,mu2,Nf = 3):
    """
-   Evolve the conformal moment F_{u-d}^{(-)}(j) from some input scale mu2_in to some other scale mu2.
+   Evolve the conformal moment F_{u+-d}^{(-)}(j) from some input scale mu2_in to some other scale mu2.
    Note that the MSTW best fit obtains alpha_S(mu2=1 GeV**2)=0.68183, different from the world average
 
    Arguments:
    j -- conformal spin
    mu -- The momentum scale of the process
+   Nf -- Number of active flavors (default Nf = 3)
 
    Returns:
-   The evolved value of F_{u-d}^{(-)}(j) at mu2
+   The evolved value of F_{u+-d}^{(-)}(j) at mu2
    """
    # Set parameters
    Nc = 3
-   Nf = 3
    beta_0 = 11/3 * Nc - 2/3* Nf
 
    # Extract value of alpha_S at the renormalization point of mu_R**2 = 1 GeV**2
@@ -787,11 +862,6 @@ def RGE_non_singlet(GPD_in,j,mu2):
 
    anomalous_dim = gamma_qq(j-1)
    result = GPD_in * (alpha_S_in/RGE_alpha_S(mu2))**(anomalous_dim/beta_0)
-   
-   # Debug
-   #print(GPD_in)
-   #print((alpha_S_in/RGE_alpha_S(mu2)))
-   #print(anomalous_dim/beta_0)
 
    return result
 
@@ -855,7 +925,7 @@ def plot_moments(moment_type, moment_label, y_label, t_max=3, n_t=50, num_column
             continue
         
         # Plot the RGE functions
-        ax.plot(-t_fine, x_RGE_evolved_moment, color="blue", linewidth=2, label="This work")
+        ax.plont(-t_fine, x_RGE_evolved_moment, color="blue", linewidth=2, label="This work")
         ax.fill_between(-t_fine, x_minus_RGE_evolved_moment, x_plus_RGE_evolved_moment, color="blue", alpha=0.2)
         
         # Plot data from publications
