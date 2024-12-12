@@ -5,6 +5,7 @@ import matplotlib.pyplot as plt
 from scipy.integrate import trapezoid
 from joblib import Parallel, delayed
 from scipy.special import gamma, digamma
+import mpmath as mp
 import re
 import os
 ############################################
@@ -12,7 +13,6 @@ import os
 # Set up dictionaries
 # Add some colors
 saturated_pink = (1.0, 0.1, 0.6)  # Higher red, some blue, minimal green
-
 # Define a dictionary that maps publication IDs to a color
 def initialize_dictionaries():
     global publication_mapping 
@@ -372,13 +372,13 @@ def gv(x, error_type="central"):
     
     return result 
 
-def RGE_alpha_S(mu2):
+def evolve_alpha_s(mu):
     """
-    Evolve alpha_S=g**/(4pi) from some input scale mu2_in to some other scale mu2.
-    Note that the MSTW best fit obtains alpha_S(mu2=1 GeV**2)=0.68183, different from the world average
+    Evolve alpha_S=g**/(4pi) from some input scale mu_in to some other scale mu.
+    Note that the MSTW best fit obtains alpha_S(mu=1 GeV**2)=0.68183, different from the world average
     
     Arguments:
-    mu2 -- The squared momentum scale of the process
+    mu -- The momentum scale of the process
     
     Returns:
     The evolved value of alpha_s at mu**2
@@ -388,19 +388,19 @@ def RGE_alpha_S(mu2):
     Nf = 3
     mu_R2 = 1 # 1 GeV**2
     # Extract value of alpha_S at the renormalization point of mu_R**2 = 1 GeV**2
-    index_alpha_S=MSTWpdf[MSTWpdf["Parameter"] == "alpha_S(Q0^2)"].index[0]
-    alpha_S_in = MSTWpdf_LO.iloc[index_alpha_S,0][0]
+    index_alpha_s=MSTWpdf[MSTWpdf["Parameter"] == "alpha_S(Q0^2)"].index[0]
+    alpha_s_in = MSTWpdf_LO.iloc[index_alpha_s,0][0]
     beta_0 = 11/3 * Nc - 2/3* Nf
 
      # Evolve using LO RGE
-    log_term = np.log(mu2 / mu_R2)
-    denominator = 1 + (alpha_S_in / (4 * np.pi)) * beta_0 * log_term
+    log_term = np.log(mu**2 / mu_R2)
+    denominator = 1 + (alpha_s_in / (4 * np.pi)) * beta_0 * log_term
     
     # Debug:
-    # print(index_alpha_S)
-    # print(alpha_S_in)
+    # print(index_alpha_s)
+    # print(alpha_s_in)
 
-    result = alpha_S_in / denominator
+    result = alpha_s_in / denominator
 
     return result
 
@@ -792,9 +792,9 @@ def int_gv_Regge(j,eta,alpha_p,t, error_type="central"):
 # Define Reggeized conformal moments
 def uv_minus_dv_Regge(j,eta,t, error_type="central"):
    # Value from the paper
-   # alpha_prime = 1.069
+   alpha_prime = 1.069
    # Value optmized for range -t < 5 GeV
-   alpha_prime = 0.650439
+   # alpha_prime = 0.650439
    # Normalize to 1 at t = 0
    #return 1.006*(uv(x,error_type)-dv(x,error_type))*x**(j-1-alpha_prime*t)
    return 1.006*(int_uv_Regge(j,eta,alpha_prime,t,error_type)-int_dv_Regge(j,eta,alpha_prime,t,error_type))
@@ -808,9 +808,9 @@ def u_minus_d_Regge(j,eta,t, error_type="central"):
 
 def uv_plus_dv_Regge(j,eta,t, error_type="central"):
    # Value from the paper
-   # alpha_prime = 0.891
+   alpha_prime = 0.891
    # Value optmized for range -t < 5 GeV
-   alpha_prime = 0.953598
+   #alpha_prime = 0.953598
    # Normalize to 1 at t = 0
    #return 1.002*(uv(x,error_type)+dv(x,error_type))*x**(j-1-alpha_prime*t)
    return 1.002*(int_uv_Regge(j,eta,alpha_prime,t,error_type)+int_dv_Regge(j,eta,alpha_prime,t,error_type))
@@ -821,6 +821,85 @@ def u_plus_d_Regge(j,eta,t, error_type="central"):
    # Normalize to 1 at t = 0
    #return 0.973*(uv(x,error_type)+dv(x,error_type)+Delta(x,error_type))*x**(j-1-alpha_prime*t)
    return 0.973*(int_uv_Regge(j,eta,alpha_prime,t,error_type)+int_dv_Regge(j,eta,alpha_prime,t,error_type)+int_Delta_Regge(j,alpha_prime,t,error_type))
+
+
+
+def d_hat(j,eta,t):
+    m_N = 0.93827
+    return mp.hyp2f1(-j/2, -(j-1)/2, 1/2 - j, - 4 * m_N**2/t * eta**2)
+
+def quark_singlet_Regge(j,eta,t, Nf=3, error_type="central"):
+    alpha_prime_ud = 0.891
+    alpha_prime_s = 1.828
+    uv = int_uv_Regge(j,eta,alpha_prime_ud,t,error_type) 
+    dv = int_dv_Regge(j,eta,alpha_prime_ud,t,error_type)
+    Delta = int_Delta_Regge(j,eta,alpha_prime_ud,t,error_type)
+    # Sv = int_Sv_Regge(j,eta,alpha_prime_s,t,error_type)
+    Sv = int_Sv_Regge(j,eta,alpha_prime_ud,t,error_type)
+    s_plus = int_s_plus_Regge(j,eta,alpha_prime_ud,t,error_type)
+
+    uv_s = int_uv_Regge(j,eta,alpha_prime_s,t,error_type) 
+    dv_s = int_dv_Regge(j,eta,alpha_prime_s,t,error_type)
+    Sv_s = int_Sv_Regge(j,eta,alpha_prime_s,t,error_type)
+    s_plus_s = int_s_plus_Regge(j,eta,alpha_prime_s,t,error_type)
+    Delta_s = int_Delta_Regge(j,eta,alpha_prime_s,t,error_type)
+
+    if Nf == 3:
+        #term_1 = uv + dv + Sv 
+        term_1 = uv + dv + Sv 
+        term_2 = uv_s + dv_s + Sv_s 
+        term_3 = (d_hat(j,eta,t)-1)*(term_1-term_2)
+        return term_1 + eta**2*term_3
+    elif Nf == 2:
+        term_1 = uv + dv + Sv - s_plus
+        term_2 = uv_s + dv_s + Sv_s - s_plus_s
+        term_3 = (d_hat(j,eta,t)-1)*(term_1-term_2)
+        return term_1 + eta**2*term_3
+    elif Nf == 1:
+        term_1 = .5*(Sv-s_plus+2*uv-2*Delta)
+        term_2 = .5*(Sv_s-s_plus_s+2*uv_s-2*Delta_s)
+        term_3 = (d_hat(j,eta,t)-1)*(term_1-term_2)
+        return term_1 + eta**2*term_3
+    else :
+        raise ValueError("Currently only inte 1 <= Nf <= 3 supported")
+    
+def quark_singlet_Regge_A(j,eta,t, Nf=3, error_type="central"):
+    alpha_prime_ud = 0.891
+    uv = int_uv_Regge(j,eta,alpha_prime_ud,t,error_type) 
+    dv = int_dv_Regge(j,eta,alpha_prime_ud,t,error_type)
+    Delta = int_Delta_Regge(j,eta,alpha_prime_ud,t,error_type)
+    Sv = int_Sv_Regge(j,eta,alpha_prime_ud,t,error_type)
+    s_plus = int_s_plus_Regge(j,eta,alpha_prime_ud,t,error_type)
+    if Nf == 3:
+        #term_1 = uv + dv + Sv 
+        term_1 = uv + dv + Sv 
+        return term_1
+    elif Nf == 2:
+        term_1 = uv + dv + Sv - s_plus
+        return term_1
+    elif Nf == 1:
+        term_1 = .5*(Sv-s_plus+2*uv-2*Delta)
+        return term_1
+    else :
+        raise ValueError("Currently only integer 1 <= Nf <= 3 supported")
+    
+def quark_singlet_Regge_D(j,eta,t, Nf=3, error_type="central"):
+    return (d_hat(j,eta,t)-1)/eta**2*(quark_singlet_Regge(j,eta,t,Nf,error_type)-quark_singlet_Regge_A(j,eta,t,Nf,error_type))
+    
+def g_Regge_A(j,eta,t, error_type="central"):
+    alpha_prime_T = 0.627
+    return int_gv_Regge(j,eta,alpha_prime_T,t,error_type)
+
+def g_Regge_D(j,eta,t, error_type="central"):
+    alpha_prime_S = 4.277
+    return (d_hat(j,eta,t)-1)/eta**2*(int_gv_Regge(j,eta,alpha_prime_S,t,error_type)-g_Regge_A(j,eta,t,error_type))
+
+def g_Regge(j,eta,t, error_type="central"):
+    term_1= g_Regge_A(j,eta,t,error_type)
+    term_2 = g_Regge_D(j,eta,t,error_type)
+    return term_1+eta**2*term_2
+
+
 
 # RGEs of moments
 def gamma_qq(j):
@@ -839,34 +918,126 @@ def gamma_qq(j):
 
    return result
 
-def RGE_non_singlet(GPD_in,j,mu2,Nf = 3):
-   """
-   Evolve the conformal moment F_{u+-d}^{(-)}(j) from some input scale mu2_in to some other scale mu2.
-   Note that the MSTW best fit obtains alpha_S(mu2=1 GeV**2)=0.68183, different from the world average
 
-   Arguments:
-   j -- conformal spin
-   mu -- The momentum scale of the process
-   Nf -- Number of active flavors (default Nf = 3)
+def gamma_qg(j, Nf=3, evolve_type = "vector"):
+    """
+    Compute off-diagonal gq anomalous dimension
+    Parameters:
+    j -- conformal spin
+    Nf -- Number of active flavors (default Nf = 3 )
+    evolve_type -- "vector" or "axial"
+    Returns:
+    Value of anomalous dimension
+    """
+    Tf = 1/2
+    if evolve_type == "vector":
+        result = -24*Nf*Tf*(j**2+3*j+4)/(j*(j+1)*(j+2)*(j+3))
+    elif evolve_type == "axial":
+        result = -24*Nf*Tf/((j+1)*(j+2))
+    else:
+        raise ValueError("Type must be axial or vector")
+    return result
 
-   Returns:
-   The evolved value of F_{u+-d}^{(-)}(j) at mu2
-   """
-   # Set parameters
-   Nc = 3
-   beta_0 = 11/3 * Nc - 2/3* Nf
+def gamma_gq(j, evolve_type = "vector"):
+    """
+    Compute off-diagonal gq anomalous dimension
+    Parameters:
+    j -- conformal spin
+    evolve_type -- "vector" or "axial"
+    Returns:
+    Value of anomalous dimension
+    """
+    Nc = 3
+    Cf = (Nc**2-1)/(2*Nc)
+    if evolve_type == "vector":
+        result = -Cf*(j**2+3*j+4)/(3*(j+1)*(j+2))
+    elif evolve_type == "axial":
+        result = -Cf*j*(j+3)/(3*(j+1)*(j+2))
+    else:
+        raise ValueError("Type must be axial or vector")
+    return result
 
-   # Extract value of alpha_S at the renormalization point of mu_R**2 = 1 GeV**2
-   index_alpha_S=MSTWpdf[MSTWpdf["Parameter"] == "alpha_S(Q0^2)"].index[0]
-   alpha_S_in = MSTWpdf_LO.iloc[index_alpha_S,0][0]
+def gamma_gg(j, Nf = 3, evolve_type = "vector"):
+    """
+    Compute off-diagonal gq anomalous dimension
+    Parameters:
+    j -- conformal spin
+    evolve_type -- "vector" or "axial"
+    Nf -- Number of active flavors (default Nf = 3 )
+    Returns:
+    Value of anomalous dimension
+    """
+    Nc = 3
+    Ca = Nc
+    beta_0 = 11/3 * Nc - 2/3* Nf
+    if evolve_type == "vector":
+        result = -Ca*(-4*digamma(j+2)+4*digamma(1)+8*(j**2+3*j+3)/(j*(j+1)*(j+2)*(j+3))-beta_0/Ca)
+    elif evolve_type == "axial":
+        result = -Ca*(-4*digamma(j+2)+4*digamma(1)+8/((j+1)*(j+2))-beta_0/Ca)
+    else:
+        raise ValueError("Type must be axial or vector")
+    return result
 
-   anomalous_dim = gamma_qq(j-1)
-   result = GPD_in * (alpha_S_in/RGE_alpha_S(mu2))**(anomalous_dim/beta_0)
+def gamma_pm(j, Nf = 3, evolve_type = "vector",solution="+"):
+    """ Compute the (+) and (-) eigenvalues of the LO evolution equation of the coupled singlet quark and gluon GPD
+    Arguments:
+    j -- conformal spin,
+    evolve_type -- "vector" or "axial"
+    Nf -- Number of active flavors (default Nf = 3 )
+    Returns:
+    The eigenvalues (+) and (-) in terms of an array
+    """
+    base = gamma_qq(j)+gamma_gg(j,Nf,evolve_type)
+    root = np.sqrt((gamma_qq(j)-gamma_gg(j,Nf,evolve_type))**2+4*gamma_gq(j,evolve_type)*gamma_qg(j,Nf,evolve_type))
+    if solution == "+":
+        return (base + root)/2
+    elif solution == "-":
+        return (base - root)/2
+    else:
+        raise ValueError("Invalid solution evolve_type. Use '+' or '-'.")
 
-   return result
+def Gamma_pm(j,Nf=3,evolve_type="vector",solution="+"):
+    result = 1-gamma_pm(j,Nf,evolve_type,solution)/gamma_qq(j)
+    return result
 
+def evolve_conformal_moment(GPD_in,j,mu,Nf = 3,evolve_type="NonSinglet",solution="+"):
+    """
+    Evolve the conformal moment F_{j}^{+-} from some input scale mu_in to some other scale mu.
+    Note that the MSTW best fit obtains alpha_S(mu=1 GeV**2)=0.68183, different from the world average
+
+    Arguments:
+    j -- conformal spin
+    mu -- The momentum scale of the process
+    Nf -- Number of active flavors (default Nf = 3)
+    evolve_type -- Vector or Axial singlet conformal moment or any non-singlet conformal moment
+
+    Returns:
+    The evolved value of the conformal moment at mu
+    """
+    # Set parameters
+    Nc = 3
+    beta_0 = 11/3 * Nc - 2/3* Nf
+
+    # Extract value of alpha_S at the renormalization point of mu_R**2 = 1 GeV**2
+    index_alpha_S=MSTWpdf[MSTWpdf["Parameter"] == "alpha_S(Q0^2)"].index[0]
+    alpha_s_in = MSTWpdf_LO.iloc[index_alpha_S,0][0]
+        
+    if evolve_type in ["vector","axial"]:
+        anomalous_dim = gamma_pm(j,Nf,evolve_type,solution)
+    elif evolve_type == "NonSinglet":
+        anomalous_dim = gamma_qq(j)   
+    else : 
+        raise ValueError("Evolve type must be vector, axial or NonSinglet")
+    result = GPD_in * (alpha_s_in/evolve_alpha_s(mu))**(anomalous_dim/beta_0)
+
+    return result
 
 initialize_dictionaries()
+
+def evolve_quark_non_singlet(j,eta,t,mu,Nf=3,evolve_type="NonSingletIsovector",error_type="central"):
+    GPD_in = moment_to_function.get((evolve_type, "A"), None)
+    result = evolve_conformal_moment(GPD_in(j,eta,t, error_type),j-1,mu,Nf,"NonSinglet")
+    return result
 
 def plot_moments(moment_type, moment_label, y_label, t_max=3, n_t=50, num_columns=3):
     """
@@ -910,22 +1081,27 @@ def plot_moments(moment_type, moment_label, y_label, t_max=3, n_t=50, num_column
         ax = axes[n - 1]  # Select the appropriate axis
         function = moment_to_function.get((moment_type, moment_label), None)
         
+    #def evolve_quark_non_singlet(j,eta,t,mu,Nf=3,evolve_type="NonSingletIsovector",error_type="central"):
+    # GPD_in = moment_to_function.get((evolve_type, "A"), None)
+    # result = evolve_conformal_moment(GPD_in(j,eta,t, error_type),j-1,mu,Nf,"NonSinglet")
+    # return result
+
         if function:
-            x_RGE_evolved_moment = RGE_non_singlet(
-                function(n, 0, t_fine, error_type="central"), n, 2**2
+            x_RGE_evolved_moment = evolve_conformal_moment(
+               function(n, 0, t_fine, error_type="central"), n-1, 2,evolve_type="NonSinglet"
             )[0, :]
-            x_plus_RGE_evolved_moment = RGE_non_singlet(
-                function(n, 0, t_fine, error_type="plus"), n, 2**2
+            x_plus_RGE_evolved_moment = evolve_conformal_moment(
+               function(n, 0, t_fine, error_type="plus"), n-1, 2,evolve_type="NonSinglet"
             )[ 0, :]
-            x_minus_RGE_evolved_moment = RGE_non_singlet(
-                function(n, 0, t_fine, error_type="minus"), n, 2**2
+            x_minus_RGE_evolved_moment = evolve_conformal_moment(
+               function(n, 0, t_fine, error_type="minus"), n-1, 2,evolve_type="NonSinglet"
             )[0, :]
         else:
             print(f"Function for {moment_type} and {moment_label} not found.")
             continue
         
         # Plot the RGE functions
-        ax.plont(-t_fine, x_RGE_evolved_moment, color="blue", linewidth=2, label="This work")
+        ax.plot(-t_fine, x_RGE_evolved_moment, color="blue", linewidth=2, label="This work")
         ax.fill_between(-t_fine, x_minus_RGE_evolved_moment, x_plus_RGE_evolved_moment, color="blue", alpha=0.2)
         
         # Plot data from publications
@@ -987,7 +1163,7 @@ def ft_moment(moment_type, moment_label, n, b_vec, Delta_max = 11,num_points=100
             x_int_moment = function(n, 0, t, error_type)
             # Debug shapes
             #print(f"x_integrated_moment shape: {x_int_moment.shape}")
-            result = RGE_non_singlet(x_int_moment, n, 2**2)*np.exp(exponent)/(2*np.pi**2)
+            result = evolve_conformal_moment(x_int_moment, n-1, 2,evolve_type="NonSinglet")*np.exp(exponent)/(2*np.pi**2)
             return result
         
         # Compute the integrand for each pair of (Delta_x, Delta_y) values
