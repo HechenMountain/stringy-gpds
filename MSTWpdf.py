@@ -11,7 +11,7 @@ pd.set_option('display.max_colwidth', None) # Show full content of each column
 ############################################
 # Import MSTW PDF data
 # Base path to main data directory
-base_path = "/mnt/c/Users/flori/Documents/PostDoc/Jupyter/Data/GPD/"
+base_path = "/mnt/c/Users/flori/Documents/PostDoc/Data/GPD/"
 # Define the file path to the .dat file and extract its content
 MSTW_path = f"{base_path}MSTW_Table_4.dat"
 # Read the .dat file into a DataFrame

@@ -3,7 +3,7 @@ import numpy as np
 import re
 import os
 
-base_path = "/mnt/c/Users/flori/Documents/PostDoc/Jupyter/Data/GPD/"
+base_path = "/mnt/c/Users/flori/Documents/PostDoc/Data/GPD/"
 
 # Set up dictionary
 # Add some colors
