@@ -445,11 +445,24 @@ def u_plus_d_PDF_Regge(j,eta,t, error_type="central"):
    # Normalize to 1 at t = 0
    return 0.973*(int_uv_PDF_Regge(j,eta,alpha_prime,t,error_type)+int_dv_PDF_Regge(j,eta,alpha_prime,t,error_type)+int_Delta_PDF_Regge(j,alpha_prime,t,error_type))
 
-
-
 def d_hat(j,eta,t):
-    m_N = 0.93827
-    return mp.hyp2f1(-j/2, -(j-1)/2, 1/2 - j, 4 * m_N**2/t * eta**2)
+    """
+    Compute the skewness dependent kinematical factor for Reggeized
+    spin-j exchanges.
+    Parameters:
+    - j (complex): conformal spin 
+    - eta (float): skewness 
+    - t (float < 0): Mandelstam t 
+
+    Returns:
+    The value of d_hat (= 1 for eta == 0)
+    """
+    m_N = 0.93827 # Nucleon mass in GeV
+    if eta == 0:
+        result = 1
+    else :
+        result = mp.hyp2f1(-j/2, -(j-1)/2, 1/2 - j, 4 * m_N**2/t * eta**2)
+    return result
 
 def quark_singlet_Regge(j,eta,t, Nf=3, error_type="central"):
     alpha_prime_ud = 0.891
@@ -507,7 +520,16 @@ def quark_singlet_Regge_A(j,eta,t, Nf=3, error_type="central"):
         raise ValueError("Currently only integer 1 <= Nf <= 3 supported")
     
 def quark_singlet_Regge_D(j,eta,t, Nf=3, error_type="central"):
-    return (d_hat(j,eta,t)-1)/eta**2*(quark_singlet_Regge(j,eta,t,Nf,error_type)-quark_singlet_Regge_A(j,eta,t,Nf,error_type))
+    if eta == 0:
+        m_N = 0.93827
+        term_1 = -2 *(j-1) * j / (2*j-1) * m_N**2/t 
+    else :
+        term_1 = (d_hat(j,eta,t)-1)/eta**2
+
+    term_2 = quark_singlet_Regge(j,eta,t,Nf,error_type)
+    term_3 = quark_singlet_Regge_A(j,eta,t,Nf,error_type)
+    result = term_1 * (term_2-term_3)
+    return result
     
 def gluon_Regge_A(j,eta,t, error_type="central"):
     alpha_prime_T = 0.627
@@ -515,14 +537,24 @@ def gluon_Regge_A(j,eta,t, error_type="central"):
 
 def gluon_Regge_D(j,eta,t, error_type="central"):
     alpha_prime_S = 4.277
-    return (d_hat(j,eta,t)-1)/eta**2*(int_gluon_PDF_Regge(j,eta,alpha_prime_S,t,error_type)-gluon_Regge_A(j,eta,t,error_type))
+    if eta == 0:
+        m_N = 0.93827
+        term_1 = -2 *(j-1) * j / (2*j-1) * m_N**2/t 
+    else :
+        term_1 = (d_hat(j,eta,t)-1)/eta**2
+    term_2 = int_gluon_PDF_Regge(j,eta,alpha_prime_S,t,error_type)
+    term_3 = gluon_Regge_A(j,eta,t,error_type)
+    result =term_1 * (term_2-term_3)
+    return result
 
 def gluon_Regge(j,eta,t, error_type="central"):
     term_1= gluon_Regge_A(j,eta,t,error_type)
-    term_2 = gluon_Regge_D(j,eta,t,error_type)
-    return term_1+eta**2*term_2
-
-
+    if eta == 0:
+        result = term_1
+    else :
+        term_2 = gluon_Regge_D(j,eta,t,error_type)
+        result = term_1+eta**2*term_2
+    return result
 
 # RGEs of moments
 def gamma_qq(j):
