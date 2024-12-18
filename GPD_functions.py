@@ -461,16 +461,30 @@ def d_hat(j,eta,t):
     if eta == 0:
         result = 1
     else :
-        result = mp.hyp2f1(-j/2, -(j-1)/2, 1/2 - j, 4 * m_N**2/t * eta**2)
+        result = mp.hyp2f1(-j/2, -(j-1)/2, 1/2 - j, - 4 * m_N**2/t * eta**2)
     return result
-
-def quark_singlet_Regge(j,eta,t, Nf=3, error_type="central"):
-    alpha_prime_ud = 0.891
-    alpha_prime_s = 1.828
+    
+def quark_singlet_Regge_A(j,eta,t, Nf=3, alpha_prime_ud=0.891, error_type="central"):
     uv = int_uv_PDF_Regge(j,eta,alpha_prime_ud,t,error_type) 
     dv = int_dv_PDF_Regge(j,eta,alpha_prime_ud,t,error_type)
     Delta = int_Delta_PDF_Regge(j,eta,alpha_prime_ud,t,error_type)
-    # Sv = int_Sv_PDF_Regge(j,eta,alpha_prime_s,t,error_type)
+    Sv = int_Sv_PDF_Regge(j,eta,alpha_prime_ud,t,error_type)
+    s_plus = int_s_plus_PDF_Regge(j,eta,alpha_prime_ud,t,error_type)
+
+    if Nf == 3 or Nf == 4:
+        result = uv + dv + Sv 
+    elif Nf == 2:
+        result = uv + dv + Sv - s_plus
+    elif Nf == 1:
+        result = .5*(Sv-s_plus+2*uv-2*Delta)
+    else :
+        raise ValueError("Currently only (integer) 1 <= Nf <= 3 supported")
+    return result
+    
+def quark_singlet_Regge_D(j,eta,t, Nf=3, alpha_prime_ud=0.891,alpha_prime_s=1.828, error_type="central"):
+    uv = int_uv_PDF_Regge(j,eta,alpha_prime_ud,t,error_type) 
+    dv = int_dv_PDF_Regge(j,eta,alpha_prime_ud,t,error_type)
+    Delta = int_Delta_PDF_Regge(j,eta,alpha_prime_ud,t,error_type)
     Sv = int_Sv_PDF_Regge(j,eta,alpha_prime_ud,t,error_type)
     s_plus = int_s_plus_PDF_Regge(j,eta,alpha_prime_ud,t,error_type)
 
@@ -480,80 +494,54 @@ def quark_singlet_Regge(j,eta,t, Nf=3, error_type="central"):
     s_plus_s = int_s_plus_PDF_Regge(j,eta,alpha_prime_s,t,error_type)
     Delta_s = int_Delta_PDF_Regge(j,eta,alpha_prime_s,t,error_type)
 
-    if Nf == 3:
-        #term_1 = uv + dv + Sv 
+    if eta == 0:
+        return 0
+
+    if Nf == 3 or Nf == 4:
         term_1 = uv + dv + Sv 
         term_2 = uv_s + dv_s + Sv_s 
-        term_3 = (d_hat(j,eta,t)-1)*(term_1-term_2)
-        return term_1 + eta**2*term_3
     elif Nf == 2:
         term_1 = uv + dv + Sv - s_plus
         term_2 = uv_s + dv_s + Sv_s - s_plus_s
-        term_3 = (d_hat(j,eta,t)-1)*(term_1-term_2)
-        return term_1 + eta**2*term_3
     elif Nf == 1:
         term_1 = .5*(Sv-s_plus+2*uv-2*Delta)
         term_2 = .5*(Sv_s-s_plus_s+2*uv_s-2*Delta_s)
-        term_3 = (d_hat(j,eta,t)-1)*(term_1-term_2)
-        return term_1 + eta**2*term_3
     else :
-        raise ValueError("Currently only inte 1 <= Nf <= 3 supported")
+        raise ValueError("Currently only (integer) 1 <= Nf <= 3 supported")
     
-def quark_singlet_Regge_A(j,eta,t, Nf=3, error_type="central"):
-    alpha_prime_ud = 0.891
-    uv = int_uv_PDF_Regge(j,eta,alpha_prime_ud,t,error_type) 
-    dv = int_dv_PDF_Regge(j,eta,alpha_prime_ud,t,error_type)
-    Delta = int_Delta_PDF_Regge(j,eta,alpha_prime_ud,t,error_type)
-    Sv = int_Sv_PDF_Regge(j,eta,alpha_prime_ud,t,error_type)
-    s_plus = int_s_plus_PDF_Regge(j,eta,alpha_prime_ud,t,error_type)
-    if Nf == 3:
-        #term_1 = uv + dv + Sv 
-        term_1 = uv + dv + Sv 
-        return term_1
-    elif Nf == 2:
-        term_1 = uv + dv + Sv - s_plus
-        return term_1
-    elif Nf == 1:
-        term_1 = .5*(Sv-s_plus+2*uv-2*Delta)
-        return term_1
-    else :
-        raise ValueError("Currently only integer 1 <= Nf <= 3 supported")
-    
-def quark_singlet_Regge_D(j,eta,t, Nf=3, error_type="central"):
-    if eta == 0:
-        m_N = 0.93827
-        term_1 = -2 *(j-1) * j / (2*j-1) * m_N**2/t 
-    else :
-        term_1 = (d_hat(j,eta,t)-1)/eta**2
-
-    term_2 = quark_singlet_Regge(j,eta,t,Nf,error_type)
-    term_3 = quark_singlet_Regge_A(j,eta,t,Nf,error_type)
-    result = term_1 * (term_2-term_3)
+    result = (d_hat(j,eta,t)-1)*(term_1-term_2)
     return result
-    
-def gluon_Regge_A(j,eta,t, error_type="central"):
-    alpha_prime_T = 0.627
+
+def quark_singlet_Regge(j,eta,t,Nf=3,error_type="central"):
+    alpha_prime_ud = 0.891
+    alpha_prime_s = 1.828
+    term_1 = quark_singlet_Regge_A(j,eta,t,Nf,alpha_prime_ud,error_type)
+    term_2 = quark_singlet_Regge_D(j,eta,t,Nf,alpha_prime_ud,alpha_prime_s,error_type)
+    result = term_1 + term_2
+    return result
+
+def gluon_Regge_A(j,eta,t, alpha_prime_T = 0.627, error_type="central"):
     return int_gluon_PDF_Regge(j,eta,alpha_prime_T,t,error_type)
 
-def gluon_Regge_D(j,eta,t, error_type="central"):
-    alpha_prime_S = 4.277
+def gluon_Regge_D(j,eta,t, alpha_prime_T = 0.627, alpha_prime_S = 4.277, error_type="central"):
     if eta == 0:
-        m_N = 0.93827
-        term_1 = -2 *(j-1) * j / (2*j-1) * m_N**2/t 
+        return 0
     else :
-        term_1 = (d_hat(j,eta,t)-1)/eta**2
-    term_2 = int_gluon_PDF_Regge(j,eta,alpha_prime_S,t,error_type)
-    term_3 = gluon_Regge_A(j,eta,t,error_type)
-    result =term_1 * (term_2-term_3)
-    return result
+        term_1 = (d_hat(j,eta,t)-1)
+        term_2 = gluon_Regge_A(j,eta,t,alpha_prime_T,error_type)
+        term_3 = int_gluon_PDF_Regge(j,eta,t,alpha_prime_S,error_type)
+        result =term_1 * (term_2-term_3)
+        return result
 
 def gluon_Regge(j,eta,t, error_type="central"):
-    term_1= gluon_Regge_A(j,eta,t,error_type)
+    alpha_prime_T = 0.627
+    alpha_prime_S = 4.277
+    term_1= gluon_Regge_A(j,eta,t,alpha_prime_T,error_type)
     if eta == 0:
         result = term_1
     else :
-        term_2 = gluon_Regge_D(j,eta,t,error_type)
-        result = term_1+eta**2*term_2
+        term_2 = gluon_Regge_D(j,eta,t,alpha_prime_T,alpha_prime_S,error_type)
+        result = term_1 + term_2
     return result
 
 # RGEs of moments
@@ -564,8 +552,6 @@ def gamma_qq(j):
    Arguments:
    j -- conformal spin
    """
-   if j.real < 0:
-    raise ValueError("j must be positive.")
 
    Nc = 3
    Cf = (Nc**2-1)/(2*Nc)
@@ -573,7 +559,7 @@ def gamma_qq(j):
 
    return result
 
-def evolve_alpha_s(mu):
+def evolve_alpha_s(mu, Nf = 3):
     """
     Evolve alpha_S=g**/(4pi) from some input scale mu_in to some other scale mu.
     Note that the MSTW best fit obtains alpha_S(mu=1 GeV**2)=0.68183, different from the world average
@@ -586,16 +572,15 @@ def evolve_alpha_s(mu):
     """
     # Set parameters
     Nc = 3
-    Nf = 3
     mu_R2 = 1 # 1 GeV**2
     # Extract value of alpha_S at the renormalization point of mu_R**2 = 1 GeV**2
     index_alpha_s=MSTWpdf[MSTWpdf["Parameter"] == "alpha_S(Q0^2)"].index[0]
     alpha_s_in = MSTWpdf_LO.iloc[index_alpha_s,0][0]
-    beta_0 = 11/3 * Nc - 2/3* Nf
+    beta_0 = 2/3* Nf - 11/3 * Nc
 
      # Evolve using LO RGE
     log_term = np.log(mu**2 / mu_R2)
-    denominator = 1 + (alpha_s_in / (4 * np.pi)) * beta_0 * log_term
+    denominator = 1 - (alpha_s_in / (4 * np.pi)) * beta_0 * log_term
     
     # Debug:
     # print(index_alpha_s)
@@ -607,7 +592,7 @@ def evolve_alpha_s(mu):
 
 def gamma_qg(j, Nf=3, evolve_type = "vector"):
     """
-    Compute off-diagonal gq anomalous dimension
+    Compute off-diagonal qg anomalous dimension
     Parameters:
     j -- conformal spin
     Nf -- Number of active flavors (default Nf = 3 )
@@ -615,11 +600,12 @@ def gamma_qg(j, Nf=3, evolve_type = "vector"):
     Returns:
     Value of anomalous dimension
     """
+    # Note addition factor of j/6 (see (K.1) in 0504030)
     Tf = 1/2
     if evolve_type == "vector":
-        result = -24*Nf*Tf*(j**2+3*j+4)/(j*(j+1)*(j+2)*(j+3))
+        result = -24*Nf*Tf*(j**2+3*j+4)/(j*(j+1)*(j+2)*(j+3))*j/6
     elif evolve_type == "axial":
-        result = -24*Nf*Tf/((j+1)*(j+2))
+        result = -24*Nf*Tf/((j+1)*(j+2))*j/6
     else:
         raise ValueError("Type must be axial or vector")
     return result
@@ -636,16 +622,16 @@ def gamma_gq(j, evolve_type = "vector"):
     Nc = 3
     Cf = (Nc**2-1)/(2*Nc)
     if evolve_type == "vector":
-        result = -Cf*(j**2+3*j+4)/(3*(j+1)*(j+2))
+        result = -Cf*(j**2+3*j+4)/(3*(j+1)*(j+2))*6/j
     elif evolve_type == "axial":
-        result = -Cf*j*(j+3)/(3*(j+1)*(j+2))
+        result = -Cf*j*(j+3)/(3*(j+1)*(j+2))*6/j
     else:
         raise ValueError("Type must be axial or vector")
     return result
 
 def gamma_gg(j, Nf = 3, evolve_type = "vector"):
     """
-    Compute off-diagonal gq anomalous dimension
+    Compute diagonal gg anomalous dimension
     Parameters:
     j -- conformal spin
     evolve_type -- "vector" or "axial"
@@ -655,7 +641,7 @@ def gamma_gg(j, Nf = 3, evolve_type = "vector"):
     """
     Nc = 3
     Ca = Nc
-    beta_0 = 11/3 * Nc - 2/3* Nf
+    beta_0 = 2/3* Nf - 11/3 * Nc
     if evolve_type == "vector":
         result = -Ca*(-4*digamma(j+2)+4*digamma(1)+8*(j**2+3*j+3)/(j*(j+1)*(j+2)*(j+3))-beta_0/Ca)
     elif evolve_type == "axial":
@@ -702,7 +688,7 @@ def evolve_conformal_moment(GPD_in,j,mu,Nf = 3,evolve_type="NonSinglet",solution
     """
     # Set parameters
     Nc = 3
-    beta_0 = 11/3 * Nc - 2/3* Nf
+    beta_0 = 2/3* Nf - 11/3 * Nc
 
     # Extract value of alpha_S at the renormalization point of mu_R**2 = 1 GeV**2
     index_alpha_S=MSTWpdf[MSTWpdf["Parameter"] == "alpha_S(Q0^2)"].index[0]
@@ -714,7 +700,7 @@ def evolve_conformal_moment(GPD_in,j,mu,Nf = 3,evolve_type="NonSinglet",solution
         anomalous_dim = gamma_qq(j)   
     else : 
         raise ValueError("Evolve type must be vector, axial or NonSinglet")
-    result = GPD_in * (alpha_s_in/evolve_alpha_s(mu))**(anomalous_dim/beta_0)
+    result = GPD_in * (alpha_s_in/evolve_alpha_s(mu,Nf))**(anomalous_dim/beta_0)
 
     return result
 
