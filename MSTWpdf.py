@@ -1,6 +1,7 @@
 # Dependencies
 import pandas as pd
 import numpy as np
+import matplotlib.pyplot as plt
 
 # Set display options
 pd.set_option('display.max_columns', None)  # Show all columns
@@ -256,4 +257,40 @@ def gluon_PDF(x, error_type="central"):
     # At LO this is the full expression
     result = A_g * (x ** (delta_g - 1)) * ((1 - x) ** eta_g) * (1 + epsilon_g * np.sqrt(x) + gamma_g * x)
     
-    return result 
+    return result
+
+def uv_minus_dv_PDF(x,error_type="central"):
+    result = uv_PDF(x,error_type)-dv_PDF(x,error_type)
+    return result
+
+def uv_plus_dv_plus_S_PDF(x,error_type="central"):
+    result = uv_PDF(x,error_type) + dv_PDF(x,error_type) + Sv_PDF(x,error_type)
+    return result
+
+def plot_uv_minus_dv_PDF():
+    vectorized_uv_minus_dv_PDF = np.vectorize(uv_minus_dv_PDF)
+    x_vals = np.linspace(1e-2,1,100)
+    y_vals = vectorized_uv_minus_dv_PDF(x_vals)
+    y_vals_plus = abs(vectorized_uv_minus_dv_PDF(x_vals,"plus") - y_vals)
+    y_vals_minus = abs(y_vals - vectorized_uv_minus_dv_PDF(x_vals,"minus"))
+
+    plt.errorbar(
+            x_vals, y_vals,
+            yerr=(y_vals_minus, y_vals_plus),
+            fmt='o')
+    plt.grid(True)
+    plt.show()
+
+def plot_uv_plus_dv_plus_S_PDF():
+    vectorized_uv_plus_dv_plus_S_PDF = np.vectorize(uv_plus_dv_plus_S_PDF)
+    x_vals = np.linspace(1e-2,1,100)
+    y_vals = vectorized_uv_plus_dv_plus_S_PDF(x_vals)
+    y_vals_plus = abs(vectorized_uv_plus_dv_plus_S_PDF(x_vals,"plus") - y_vals)
+    y_vals_minus = abs(y_vals - vectorized_uv_plus_dv_plus_S_PDF(x_vals,"minus"))
+
+    plt.errorbar(
+            x_vals, y_vals,
+            yerr=(y_vals_minus, y_vals_plus),
+            fmt='o')
+    plt.grid(True)
+    plt.show()

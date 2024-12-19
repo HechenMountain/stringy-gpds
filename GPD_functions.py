@@ -249,6 +249,7 @@ def int_Sv_PDF_Regge(j,eta,alpha_p,t, error_type="central"):
     if result.size == 1:
         return result.item()  # Return a scalar if the result is a single value
     return result
+
 def int_s_plus_PDF_Regge(j,eta,alpha_p,t, error_type="central"):
     """
     Compute the integral of the Reggeized s_+(x) PDF based on the given LO parameters and selected errors.
