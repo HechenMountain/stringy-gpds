@@ -22,7 +22,7 @@ initialize_data_dictionary()
 
 def load_lattice_data(moment_type, moment_label, pub_id):
     """
-    Load data from a .dat file, extracting 'n' values from the header and associating them with rows.
+    Load data from a .csv file, extracting 'n' values from the header and associating them with rows.
 
     Args:
         moment_type (str): The type of moment (e.g., "Isovector").
@@ -30,24 +30,26 @@ def load_lattice_data(moment_type, moment_label, pub_id):
         pub_id (str): The publication ID.
 
     Returns:
-        tuple: A tuple containing the data, and a dictionary mapping 'n' values to row indices.
+        tuple: A tuple containing the data and a dictionary mapping 'n' values to row indices.
     """
-
-    filename = f"{moment_type}Moments{moment_label}{pub_id}.dat"
+    filename = f"{moment_type}Moments{moment_label}{pub_id}.csv"
     file_path = f"{base_path}{filename}"
 
     # Check if the file exists
     if not os.path.exists(file_path):
-        #print(f"No data available for {moment_type}{moment_label} in {pub_id}")
+        # print(f"No data available for {moment_type}{moment_label} in {pub_id}")
         return None, None
 
     with open(file_path, 'r') as f:
-        header = f.readline().strip()
-        data = np.loadtxt(f)
+        # Read and split the header by commas
+        header = f.readline().strip().split(',')
+
+        # Load the rest of the file as data using numpy
+        data = np.loadtxt(f, delimiter=',')
 
     # Extract 'n' values from the header
     n_values = []
-    for col_name in header.split():
+    for col_name in header:
         match = re.search(rf'{moment_label}(\d+)0_', col_name)
         if match:
             n_values.append(int(match.group(1)))

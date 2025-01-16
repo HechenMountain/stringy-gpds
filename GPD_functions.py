@@ -1,10 +1,10 @@
 # # Dependencies
 import numpy as np
+import mpmath as mp
 import matplotlib.pyplot as plt
 from scipy.integrate import quad, trapezoid
 from joblib import Parallel, delayed
 from scipy.special import gamma, digamma
-import mpmath as mp
 
 from MSTWpdf import *
 from GPD_data import *
@@ -20,16 +20,29 @@ def initialize_GPD_dictionary():
         "1908.10706": saturated_pink
     # Add more publication IDs and corresponding colors here
     }
+
     # Define dictionary that maps conformal moments names and types to expressions
     global moment_to_function
     moment_to_function = {
-    ("NonSingletIsovector", "A"): uv_minus_dv_PDF_Regge,
-    #("NonSingletIsovector", "A"): u_minus_d_Regge,
-    ("NonSingletIsoscalar", "A"): uv_plus_dv_PDF_Regge,
-    #("NonSingletIsoscalar", "A"): u_plus_d_Regge,
+    # Contains a Pair of Moment Typeand Moment Label to match input PDF and evolution type
+    ("NonSingletIsovector", "A"): (uv_minus_dv_PDF_Regge,"vector"),
+    #("NonSingletIsovector", "A"): (u_minus_d_Regge,"vector"),
+    ("NonSingletIsoscalar", "A"): (uv_plus_dv_PDF_Regge,"vector"),
+    #("NonSingletIsoscalar", "A"): (u_plus_d_Regge,"vector"),
+    ("Singlet","A"): (diagonal_singlet, "vector"),
+    ("Singlet","A_tilde"): (diagonal_singlet, "axial"),
     }
 ############################################
 ############################################
+
+def get_alpha_s():
+    """
+    Returns alpha_s at the input scale of 1 GeV from the MSTW PDF best fit.
+    Note that the MSTW best fit obtains alpha_S(mu=1 GeV**2)=0.68183, different from the world average
+    """
+    index_alpha_s=MSTWpdf[MSTWpdf["Parameter"] == "alpha_S(Q0^2)"].index[0]
+    alpha_s_in = MSTWpdf_LO.iloc[index_alpha_s,0][0]
+    return alpha_s_in
 
 def int_uv_PDF_Regge(j,eta,alpha_p,t, error_type="central"):
     """
@@ -412,6 +425,10 @@ def int_gluon_PDF_Regge(j,eta,alpha_p,t, error_type="central"):
     frac_1 = epsilon_g*gamma(delta_g+j-alpha_p*t -.5)/(gamma(delta_g+eta_g+j-alpha_p*t+.5))
     frac_2 = (delta_g+eta_g-gamma_g+delta_g*gamma_g+j*(1+gamma_g)-(1+gamma_g)*alpha_p*t)*gamma(delta_g+j-alpha_p*t-1)/gamma(delta_g+eta_g+j-alpha_p*t+1)
     result = A_g*gamma(1+eta_g)*(frac_1+frac_2)
+    #2025:
+    # frac_1 = epsilon_g*gamma(delta_g+j-alpha_p*t -1.5)/(gamma(delta_g+eta_g+j-alpha_p*t-.5))
+    # frac_2 = (-1+delta_g+eta_g-2*gamma_g+delta_g*gamma_g+j*(1+gamma_g)-(1+gamma_g)*alpha_p*t)*gamma(delta_g+j-alpha_p*t-2)/gamma(delta_g+eta_g+j-alpha_p*t)
+    # result = A_g*gamma(1+eta_g)*(frac_1+frac_2)
      # Return the result while preserving the original dimensions
     if result.size == 1:
         return result.item()  # Return a scalar if the result is a single value
@@ -545,21 +562,30 @@ def gluon_Regge(j,eta,t, error_type="central"):
         result = term_1 + term_2
     return result
 
+def diagonal_singlet(j,eta,t,Nf=3,evolve_type="vector",solution="+",error_type="central"):
+    # Switch sign
+    if solution == "+":
+        solution = "-"
+    elif solution == "-":
+        solution = "+"
+    else:
+        raise ValueError("Invalid solution type. Use '+' or '-'.")
+    if evolve_type == "vector":
+        quark_in = quark_singlet_Regge(j,eta,t,Nf,error_type)
+        # Note: j/6 already included in gamma_qg and gamma_gg definitions
+        gluon_prf = (gamma_qg(j-1,Nf,evolve_type)/
+                     (gamma_qq(j-1)-gamma_pm(j-1,Nf,evolve_type,solution)))
+        gluon_in = gluon_Regge(j,eta,t, error_type)
+        result = quark_in + gluon_prf * gluon_in
+        return result
+    elif evolve_type == "axial":
+        print("Axial is ToDo")
+        return 0
+    else:
+        raise ValueError("Type must be vector or axial")
+
+
 # RGEs of moments
-def gamma_qq(j):
-   """"
-   Return conformal spin-j anomalous dimension
-
-   Arguments:
-   j -- conformal spin
-   """
-
-   Nc = 3
-   Cf = (Nc**2-1)/(2*Nc)
-   result = - Cf * (-4*digamma(j+2)+4*digamma(1)+2/((j+1)*(j+2))+3)
-
-   return result
-
 def evolve_alpha_s(mu, Nf = 3):
     """
     Evolve alpha_S=g**/(4pi) from some input scale mu_in to some other scale mu.
@@ -573,14 +599,13 @@ def evolve_alpha_s(mu, Nf = 3):
     """
     # Set parameters
     Nc = 3
-    mu_R2 = 1 # 1 GeV**2
+    mu_R = 1 # 1 GeV
     # Extract value of alpha_S at the renormalization point of mu_R**2 = 1 GeV**2
-    index_alpha_s=MSTWpdf[MSTWpdf["Parameter"] == "alpha_S(Q0^2)"].index[0]
-    alpha_s_in = MSTWpdf_LO.iloc[index_alpha_s,0][0]
+    alpha_s_in = get_alpha_s()
     beta_0 = 2/3* Nf - 11/3 * Nc
 
      # Evolve using LO RGE
-    log_term = np.log(mu**2 / mu_R2)
+    log_term = np.log(mu**2 / mu_R**2)
     denominator = 1 - (alpha_s_in / (4 * np.pi)) * beta_0 * log_term
     
     # Debug:
@@ -590,6 +615,20 @@ def evolve_alpha_s(mu, Nf = 3):
     result = alpha_s_in / denominator
 
     return result
+
+def gamma_qq(j):
+   """
+   Return conformal spin-j anomalous dimension
+
+   Arguments:
+   j -- conformal spin
+   """
+
+   Nc = 3
+   Cf = (Nc**2-1)/(2*Nc)
+   result = - Cf * (-4*digamma(j+2)+4*digamma(1)+2/((j+1)*(j+2))+3)
+
+   return result
 
 def gamma_qg(j, Nf=3, evolve_type = "vector"):
     """
@@ -673,47 +712,120 @@ def Gamma_pm(j,Nf=3,evolve_type="vector",solution="+"):
     result = 1-gamma_pm(j,Nf,evolve_type,solution)/gamma_qq(j)
     return result
 
-def evolve_conformal_moment(GPD_in,j,mu,Nf = 3,evolve_type="NonSinglet",solution="+"):
+def evolve_conformal_moment(j,eta,t,mu,Nf = 3,particle="quark",moment_type="NonSingletIsovector",moment_label ="A", error_type = "central"):
     """
     Evolve the conformal moment F_{j}^{+-} from some input scale mu_in to some other scale mu.
     Note that the MSTW best fit obtains alpha_S(mu=1 GeV**2)=0.68183, different from the world average
 
     Arguments:
     j -- conformal spin
+    eta -- skewness
+    t -- Mandelstam t
+    mu -- Resolution scale
     mu -- The momentum scale of the process
     Nf -- Number of active flavors (default Nf = 3)
-    evolve_type -- Vector or Axial singlet conformal moment or any non-singlet conformal moment
-
+    moment_type -- NonSingletIsovector, NonSingletIsoscalar, or Singlet
+    moment_label -- A(Tilde) B(Tilde) depending on H(Tilde) or E(Tilde) GPD
+    error_type -- Choose central, upper or lower value for input PDF parameters
     Returns:
-    The evolved value of the conformal moment at mu
+    The value of the evolved conformal moment at scale mu
     """
+    if particle not in ["quark","gluon"]:
+        raise ValueError("Particle must be quark or gluon")
+    if particle == "gluon" and moment_type != "Singlet":
+        raise ValueError("Gluon is only Singlet")
     # Set parameters
     Nc = 3
     beta_0 = 2/3* Nf - 11/3 * Nc
 
     # Extract value of alpha_S at the renormalization point of mu_R**2 = 1 GeV**2
-    index_alpha_S=MSTWpdf[MSTWpdf["Parameter"] == "alpha_S(Q0^2)"].index[0]
-    alpha_s_in = MSTWpdf_LO.iloc[index_alpha_S,0][0]
-        
-    if evolve_type in ["vector","axial"]:
-        anomalous_dim = gamma_pm(j,Nf,evolve_type,solution)
-    elif evolve_type == "NonSinglet":
-        anomalous_dim = gamma_qq(j)   
-    else : 
-        raise ValueError("Evolve type must be vector, axial or NonSinglet")
-    result = GPD_in * (alpha_s_in/evolve_alpha_s(mu,Nf))**(anomalous_dim/beta_0)
+    alpha_s_in = get_alpha_s()
 
+    # Precompute alpha_s fraction:
+    alpha_frac  = (alpha_s_in/evolve_alpha_s(mu,Nf))    
+    GPD_in, evolve_type = moment_to_function.get((moment_type, moment_label))
+
+    if moment_type == "Singlet":
+        anomalous_dim_p = gamma_pm(j-1,Nf,evolve_type,"+")
+        anomalous_dim_m = gamma_pm(j-1,Nf,evolve_type,"-")
+        GPD_in_p = GPD_in(j,eta,t, Nf, evolve_type,"+",error_type)
+        GPD_in_m = GPD_in(j,eta,t, Nf, evolve_type,"-",error_type)
+        evolve_moment_p = GPD_in_p * alpha_frac**(anomalous_dim_p/beta_0)
+        evolve_moment_m = GPD_in_m *alpha_frac**(anomalous_dim_m/beta_0)
+        if particle == "quark":
+            # Manually fix the scale to 0.51 @ mu = 2 GeV from 2310.08484
+            A0 = 0.51/0.5618
+            term_1 = gamma_qq(j-1)/(gamma_pm(j-1,Nf,evolve_type,"+")-gamma_pm(j-1,Nf,evolve_type,"-"))
+            term_2 = Gamma_pm(j-1,Nf,evolve_type,"-") * evolve_moment_p
+            term_3 = Gamma_pm(j-1,Nf,evolve_type,"+") * evolve_moment_m
+        if particle == "gluon":
+            # Manually fix the scale to 0.501 @ mu = 2 GeV from 2310.08484
+            A0 = 0.501/0.43807
+            #2025
+            #A0 = 1
+            term_1 = gamma_gq(j-1,evolve_type)/(gamma_pm(j-1,Nf,evolve_type,"+")-gamma_pm(j-1,Nf,evolve_type,"-"))
+            term_2 = evolve_moment_p
+            term_3 = evolve_moment_m
+        result = A0*term_1*(term_2-term_3)
+
+    elif moment_type in ["NonSingletIsovector","NonSingletIsoscalar"]:
+        anomalous_dim = gamma_qq(j-1)
+        result = GPD_in(j,eta,t,error_type) * alpha_frac**(anomalous_dim/beta_0)   
+    else : 
+        raise ValueError("Moment Type must be Singlet, NonSingletIsovector or NonSingletIsoscalar")
+    
+    return result
+
+# Convenience functions
+def evolve_quark_non_singlet(j,eta,t,mu,Nf=3,moment_type="NonSingletIsovector",moment_label = "A",error_type="central"):
+    if moment_type not in ["NonSingletIsovector","NonSingletIsoscalar"]:
+        raise ValueError("GPD type must be NonSingletIsovector or NonSingletIsoscalar")
+    result = evolve_conformal_moment(j,eta,t,mu,Nf,"quark",moment_type,moment_label,error_type)
+    return result
+
+def evolve_quark_singlet(j,eta,t,mu,Nf=3,moment_label = "A",error_type="central"):
+    result = evolve_conformal_moment(j,eta,t,mu,Nf,"quark","Singlet",moment_label,error_type)
+    return result
+
+def evolve_gluon_singlet(j,eta,t,mu,Nf=3,moment_label = "A",error_type="central"):
+    result = evolve_conformal_moment(j,eta,t,mu,Nf,"gluon","Singlet",moment_label,error_type)
+    return result
+
+def evolve_quark_singlet_D(eta,t,mu,Nf=3,moment_label = "A",error_type="central"):
+    result = evolve_singlet_D(eta,t,mu,Nf,"quark",moment_label,error_type)
+    return result
+
+def evolve_gluon_singlet_D(j,eta,t,mu,Nf=3,moment_label = "A",error_type="central"):
+    result = evolve_singlet_D(eta,t,mu,Nf,"gluon",moment_label,error_type)
+    return result
+
+def evolve_singlet_D(j,eta,t,mu,Nf=3,particle="quark",moment_label="A",error_type="central"):
+    if particle not in ["quark","gluon"]:
+        raise ValueError("Particle must be quark or gluon")
+    if particle == "quark":
+        # Manually fix the scale to 1.3 @ mu = 2 GeV from 2310.08484
+        D0 = 1.3/1.0979
+    else :
+        # Manually fix the scale from holography (II.9) in 2204.08857
+        D0 = 2.57/3.0439
+        #2025
+        #D0 = 1
+
+    eta = 1 # Result is eta independent 
+    term_1 = evolve_conformal_moment(j,eta,t,mu,Nf,particle,"Singlet",moment_label,error_type)
+    term_2 = evolve_conformal_moment(j,0,t,mu,Nf,particle,"Singlet",moment_label,error_type)
+    result = D0 * (term_1-term_2)/eta**2
     return result
 
 initialize_data_dictionary()
 initialize_GPD_dictionary()
 
-def evolve_quark_non_singlet(j,eta,t,mu,Nf=3,evolve_type="NonSingletIsovector",error_type="central"):
-    GPD_in = moment_to_function.get((evolve_type, "A"), None)
+def evolve_non_singlet(j,eta,t,mu,Nf=3,evolve_type="NonSingletIsovector",error_type="central"):
+    GPD_in, _ = moment_to_function.get((evolve_type, "A"), None)
     result = evolve_conformal_moment(GPD_in(j,eta,t, error_type),j-1,mu,Nf,"NonSinglet")
     return result
 
-def plot_moments(moment_type, moment_label, y_label, t_max=3, n_t=50, num_columns=3):
+def plot_moments(eta,y_label,t_max=3,particle="quark",moment_type="NonSingletIsovector", moment_label="A", n_t=50, num_columns=3):
     """
     Generates plots of lattice data and RGE-evolved functions for a given moment type and label.
     
@@ -756,7 +868,10 @@ def plot_moments(moment_type, moment_label, y_label, t_max=3, n_t=50, num_column
         publication_data[pub_id] = num_n_values
     
     # Find the highest n value across all publications
-    max_n_value = max(publication_data.values())
+    if publication_data:
+        max_n_value = max(publication_data.values())
+    else:
+        max_n_value = 5
     
     # Calculate the number of rows needed for the grid layout
     num_rows = (max_n_value + num_columns - 1) // num_columns
@@ -766,42 +881,35 @@ def plot_moments(moment_type, moment_label, y_label, t_max=3, n_t=50, num_column
     axes = axes.flatten()
     
     # Loop through each n value up to the maximum n value
-    for n in range(1, max_n_value + 1):
+    if moment_type == "Singlet":
+        n_0 = 2
+    else:
+        n_0 = 1
+    for n in range(n_0, max_n_value + 1):
         ax = axes[n - 1]  # Select the appropriate axis
-        function = moment_to_function.get((moment_type, moment_label), None)
-        
-    #def evolve_quark_non_singlet(j,eta,t,mu,Nf=3,evolve_type="NonSingletIsovector",error_type="central"):
-    # GPD_in = moment_to_function.get((evolve_type, "A"), None)
-    # result = evolve_conformal_moment(GPD_in(j,eta,t, error_type),j-1,mu,Nf,"NonSinglet")
-    # return result
+        # All lattice data currently at mu = 2 GeV
+        evolve_moment_moment = Parallel(n_jobs=-1)(
+            delayed(evolve_conformal_moment)(n,eta,t,2,3,particle,moment_type,moment_label,"central") for t in t_fine)
+        evolve_moment_plus= Parallel(n_jobs=-1)(
+            delayed(evolve_conformal_moment)(n,eta,t,2,3,particle,moment_type,moment_label,"plus") for t in t_fine)
+        evolve_moment_minus = Parallel(n_jobs=-1)(
+            delayed(evolve_conformal_moment)(n,eta,t,2,3,particle,moment_type,moment_label,"minus") for t in t_fine)
 
-        if function:
-            x_RGE_evolved_moment = evolve_conformal_moment(
-               function(n, 0, t_fine, error_type="central"), n-1, 2,evolve_type="NonSinglet"
-            )[0, :]
-            x_plus_RGE_evolved_moment = evolve_conformal_moment(
-               function(n, 0, t_fine, error_type="plus"), n-1, 2,evolve_type="NonSinglet"
-            )[ 0, :]
-            x_minus_RGE_evolved_moment = evolve_conformal_moment(
-               function(n, 0, t_fine, error_type="minus"), n-1, 2,evolve_type="NonSinglet"
-            )[0, :]
-        else:
-            print(f"Function for {moment_type} and {moment_label} not found.")
-            continue
         
         # Plot the RGE functions
-        ax.plot(-t_fine, x_RGE_evolved_moment, color="blue", linewidth=2, label="This work")
-        ax.fill_between(-t_fine, x_minus_RGE_evolved_moment, x_plus_RGE_evolved_moment, color="blue", alpha=0.2)
+        ax.plot(-t_fine, evolve_moment_moment, color="blue", linewidth=2, label="This work")
+        ax.fill_between(-t_fine, evolve_moment_minus, evolve_moment_plus, color="blue", alpha=0.2)
         
         # Plot data from publications
-        for pub_id, color in publication_mapping.items():
-            data, n_to_row_map = load_lattice_data(moment_type, moment_label, pub_id)
-            if data is None or n not in n_to_row_map:
-                continue
-            t_vals = t_values(moment_type, moment_label, pub_id)
-            Fn0_vals = Fn0_values(n, moment_type, moment_label, pub_id)
-            Fn0_errs = Fn0_errors(n, moment_type, moment_label, pub_id)
-            ax.errorbar(t_vals, Fn0_vals, yerr=Fn0_errs, fmt='o', color=color, label=f"{pub_id}")
+        if publication_data:
+            for pub_id, color in publication_mapping.items():
+                data, n_to_row_map = load_lattice_data(moment_type, moment_label, pub_id)
+                if data is None or n not in n_to_row_map:
+                    continue
+                t_vals = t_values(moment_type, moment_label, pub_id)
+                Fn0_vals = Fn0_values(n, moment_type, moment_label, pub_id)
+                Fn0_errs = Fn0_errors(n, moment_type, moment_label, pub_id)
+                ax.errorbar(t_vals, Fn0_vals, yerr=Fn0_errs, fmt='o', color=color, label=f"{pub_id}")
         
         # Add labels and formatting
         ax.set_xlabel("$-t\,[\mathrm{GeV}^2]$", fontsize=14)
@@ -814,8 +922,16 @@ def plot_moments(moment_type, moment_label, y_label, t_max=3, n_t=50, num_column
     # Remove unused axes
     for i in range(max_n_value, len(axes)):
         fig.delaxes(axes[i])
+        
+    if moment_type == "Singlet":
+        fig.delaxes(axes[0])
     
-    plt.tight_layout()
+    # Adjust GridSpec to remove whitespace
+    gs = plt.GridSpec(num_rows, num_columns, figure=fig)
+    remaining_axes = fig.get_axes()  # Get all remaining axes
+
+    for i, ax in enumerate(remaining_axes):
+        ax.set_subplotspec(gs[i])  # Assign axes to new GridSpec slots
     plt.show()
 
 

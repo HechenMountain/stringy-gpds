@@ -1,5 +1,7 @@
 # Dependencies
 import pandas as pd
+import csv
+from ast import literal_eval
 import numpy as np
 import matplotlib.pyplot as plt
 
@@ -13,36 +15,47 @@ pd.set_option('display.max_colwidth', None) # Show full content of each column
 # Import MSTW PDF data
 # Base path to main data directory
 base_path = "/mnt/c/Users/flori/Documents/PostDoc/Data/GPD/"
-# Define the file path to the .dat file and extract its content
-MSTW_path = f"{base_path}MSTW_Table_4.dat"
-# Read the .dat file into a DataFrame
-columns = ["Parameter", "LO", "NLO", "NNLO"]
-data = []
+# Define the file path to the .csv file and extract its content
+MSTW_path = f"{base_path}MSTW_Table_4.csv"
 
-# Parsing the .dat file
-with open(MSTW_path, "r") as file:
-    for line in file:
-        # Skip header lines
-        if line.startswith("#") or line.strip() == "":
-            continue
+# Columns for the DataFrame
+columns = ["Parameter", "LO", "NLO", "NNLO"]
+
+# Read the CSV file and parse it
+data = []
+with open(MSTW_path, 'r',newline='') as file:
+    next(file) # Skip header
+    reader = csv.reader(file)  # Standard CSV reader
+    
+    # Read the first row (header) as a string, then parse the rest as lists
+    for row in reader:
+        parameter =row[0]  # The first column is the parameter (string)
+        # Convert the string representation of arrays into actual lists
+        lo_values = np.array([row[1],row[2],row[3]], dtype=float)
+        nlo_values = np.array([row[4],row[5],row[6]], dtype=float)
+        nnlo_values = np.array([row[7],row[8],row[9]], dtype=float)
         
-        # Split the line into columns
-        parts = line.split("\t")
-        parameter = parts[0]
-        lo_values = eval(parts[1].strip())  # Convert string "[...]" to a Python list
-        nlo_values = eval(parts[2].strip())
-        nnlo_values = eval(parts[3].strip())
-        
-        # Append to the data list
+        # Append the row as a list of data
         data.append([parameter, lo_values, nlo_values, nnlo_values])
+
+# Create the pandas DataFrame
+MSTWpdf = pd.DataFrame(data, columns=columns)
+
+# Create the pandas DataFrame
+MSTWpdf = pd.DataFrame(data, columns=columns)
+
+# Extract LO, NLO, and NNLO columns
+MSTWpdf_LO = MSTWpdf[["LO"]]
+MSTWpdf_NLO = MSTWpdf[["NLO"]]
+MSTWpdf_NNLO = MSTWpdf[["NNLO"]]
 
 # Create a DataFrame from the parsed data
 MSTWpdf = pd.DataFrame(data, columns=columns)
 
-# Extract LO, NLO and NLO columns
-MSTWpdf_LO=MSTWpdf[["LO"]]
-MSTWpdf_NLO=MSTWpdf[["NLO"]]
-MSTWpdf_NNLO=MSTWpdf[["NNLO"]]
+# Extract LO, NLO, and NNLO columns
+MSTWpdf_LO = MSTWpdf[["LO"]]
+MSTWpdf_NLO = MSTWpdf[["NLO"]]
+MSTWpdf_NNLO = MSTWpdf[["NNLO"]]
 
 ############################################
 ############################################
@@ -267,9 +280,9 @@ def uv_plus_dv_plus_S_PDF(x,error_type="central"):
     result = uv_PDF(x,error_type) + dv_PDF(x,error_type) + Sv_PDF(x,error_type)
     return result
 
-def plot_uv_minus_dv_PDF():
+def plot_uv_minus_dv_PDF(x_0=1e-2):
     vectorized_uv_minus_dv_PDF = np.vectorize(uv_minus_dv_PDF)
-    x_vals = np.linspace(1e-2,1,100)
+    x_vals = np.linspace(x_0,1,100)
     y_vals = vectorized_uv_minus_dv_PDF(x_vals)
     y_vals_plus = abs(vectorized_uv_minus_dv_PDF(x_vals,"plus") - y_vals)
     y_vals_minus = abs(y_vals - vectorized_uv_minus_dv_PDF(x_vals,"minus"))
@@ -281,12 +294,26 @@ def plot_uv_minus_dv_PDF():
     plt.grid(True)
     plt.show()
 
-def plot_uv_plus_dv_plus_S_PDF():
+def plot_uv_plus_dv_plus_S_PDF(x_0=1e-2):
     vectorized_uv_plus_dv_plus_S_PDF = np.vectorize(uv_plus_dv_plus_S_PDF)
-    x_vals = np.linspace(1e-2,1,100)
+    x_vals = np.linspace(x_0,1,100)
     y_vals = vectorized_uv_plus_dv_plus_S_PDF(x_vals)
     y_vals_plus = abs(vectorized_uv_plus_dv_plus_S_PDF(x_vals,"plus") - y_vals)
     y_vals_minus = abs(y_vals - vectorized_uv_plus_dv_plus_S_PDF(x_vals,"minus"))
+
+    plt.errorbar(
+            x_vals, y_vals,
+            yerr=(y_vals_minus, y_vals_plus),
+            fmt='o')
+    plt.grid(True)
+    plt.show()
+
+def plot_gluon_PDF(x_0=1e-2):
+    vectorized_gluon_PDF = np.vectorize(gluon_PDF)
+    x_vals = np.linspace(x_0,1,100)
+    y_vals = x_vals * vectorized_gluon_PDF(x_vals)
+    y_vals_plus = x_vals * abs(vectorized_gluon_PDF(x_vals,"plus") - y_vals)
+    y_vals_minus = x_vals * abs(y_vals - vectorized_gluon_PDF(x_vals,"minus"))
 
     plt.errorbar(
             x_vals, y_vals,
