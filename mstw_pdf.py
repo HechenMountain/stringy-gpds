@@ -1,7 +1,6 @@
 # Dependencies
 import pandas as pd
 import csv
-from ast import literal_eval
 import numpy as np
 import matplotlib.pyplot as plt
 
@@ -14,16 +13,16 @@ pd.set_option('display.max_colwidth', None) # Show full content of each column
 ############################################
 # Import MSTW PDF data
 # Base path to main data directory
-base_path = "/mnt/c/Users/flori/Documents/PostDoc/Data/GPD/"
+BASE_PATH = "/mnt/c/Users/flori/Documents/PostDoc/Data/GPD/"
 # Define the file path to the .csv file and extract its content
-MSTW_path = f"{base_path}MSTW_Table_4.csv"
+MSTW_PATH = f"{BASE_PATH}MSTW_Table_4.csv"
 
 # Columns for the DataFrame
 columns = ["Parameter", "LO", "NLO", "NNLO"]
 
 # Read the CSV file and parse it
 data = []
-with open(MSTW_path, 'r',newline='') as file:
+with open(MSTW_PATH, 'r',newline='') as file:
     next(file) # Skip header
     reader = csv.reader(file)  # Standard CSV reader
     
@@ -39,23 +38,23 @@ with open(MSTW_path, 'r',newline='') as file:
         data.append([parameter, lo_values, nlo_values, nnlo_values])
 
 # Create the pandas DataFrame
-MSTWpdf = pd.DataFrame(data, columns=columns)
+MSTW_PDF = pd.DataFrame(data, columns=columns)
 
 # Create the pandas DataFrame
-MSTWpdf = pd.DataFrame(data, columns=columns)
+MSTW_PDF = pd.DataFrame(data, columns=columns)
 
 # Extract LO, NLO, and NNLO columns
-MSTWpdf_LO = MSTWpdf[["LO"]]
-MSTWpdf_NLO = MSTWpdf[["NLO"]]
-MSTWpdf_NNLO = MSTWpdf[["NNLO"]]
+MSTW_PDF_LO = MSTW_PDF[["LO"]]
+MSTW_PDF_NLO = MSTW_PDF[["NLO"]]
+MSTW_PDF_NNLO = MSTW_PDF[["NNLO"]]
 
 # Create a DataFrame from the parsed data
-MSTWpdf = pd.DataFrame(data, columns=columns)
+MSTW_PDF = pd.DataFrame(data, columns=columns)
 
 # Extract LO, NLO, and NNLO columns
-MSTWpdf_LO = MSTWpdf[["LO"]]
-MSTWpdf_NLO = MSTWpdf[["NLO"]]
-MSTWpdf_NNLO = MSTWpdf[["NNLO"]]
+MSTW_PDF_LO = MSTW_PDF[["LO"]]
+MSTW_PDF_NLO = MSTW_PDF[["NLO"]]
+MSTW_PDF_NNLO = MSTW_PDF[["NNLO"]]
 
 ############################################
 ############################################
@@ -83,18 +82,18 @@ def uv_PDF(x, error_type="central"):
     error_col_index = error_mapping.get(error_type, 0)  # Default to 'central' if error_type is invalid
 
     # Get row index of entry
-    index_A_u=MSTWpdf[MSTWpdf["Parameter"] == "A_u"].index[0]
-    index_eta_1=MSTWpdf[MSTWpdf["Parameter"] == "eta_1"].index[0]
-    index_eta_2=MSTWpdf[MSTWpdf["Parameter"] == "eta_2"].index[0]
-    index_epsilon_u=MSTWpdf[MSTWpdf["Parameter"] == "epsilon_u"].index[0]
-    index_gamma_u=MSTWpdf[MSTWpdf["Parameter"] == "gamma_u"].index[0]
+    index_A_u=MSTW_PDF[MSTW_PDF["Parameter"] == "A_u"].index[0]
+    index_eta_1=MSTW_PDF[MSTW_PDF["Parameter"] == "eta_1"].index[0]
+    index_eta_2=MSTW_PDF[MSTW_PDF["Parameter"] == "eta_2"].index[0]
+    index_epsilon_u=MSTW_PDF[MSTW_PDF["Parameter"] == "epsilon_u"].index[0]
+    index_gamma_u=MSTW_PDF[MSTW_PDF["Parameter"] == "gamma_u"].index[0]
 
     # Extracting parameter values based on the error_type argument
-    A_u = MSTWpdf_LO.iloc[index_A_u,0][0] + int(error_col_index>0)*MSTWpdf_LO.iloc[index_A_u,0][error_col_index]
-    eta_1 = MSTWpdf_LO.iloc[index_eta_1,0][0] + int(error_col_index>0)*MSTWpdf_LO.iloc[index_eta_1,0][error_col_index]
-    eta_2 = MSTWpdf_LO.iloc[index_eta_2,0][0] + int(error_col_index>0)*MSTWpdf_LO.iloc[index_eta_2,0][error_col_index]
-    epsilon_u = MSTWpdf_LO.iloc[index_epsilon_u,0][0] + int(error_col_index>0)*MSTWpdf_LO.iloc[index_epsilon_u,0][error_col_index]
-    gamma_u = MSTWpdf_LO.iloc[index_gamma_u,0][0] + int(error_col_index>0)*MSTWpdf_LO.iloc[index_gamma_u,0][error_col_index]
+    A_u = MSTW_PDF_LO.iloc[index_A_u,0][0] + int(error_col_index>0)*MSTW_PDF_LO.iloc[index_A_u,0][error_col_index]
+    eta_1 = MSTW_PDF_LO.iloc[index_eta_1,0][0] + int(error_col_index>0)*MSTW_PDF_LO.iloc[index_eta_1,0][error_col_index]
+    eta_2 = MSTW_PDF_LO.iloc[index_eta_2,0][0] + int(error_col_index>0)*MSTW_PDF_LO.iloc[index_eta_2,0][error_col_index]
+    epsilon_u = MSTW_PDF_LO.iloc[index_epsilon_u,0][0] + int(error_col_index>0)*MSTW_PDF_LO.iloc[index_epsilon_u,0][error_col_index]
+    gamma_u = MSTW_PDF_LO.iloc[index_gamma_u,0][0] + int(error_col_index>0)*MSTW_PDF_LO.iloc[index_gamma_u,0][error_col_index]
     
     # Compute the uv(x) PDF
     result = A_u * (x ** (eta_1 - 1)) * ((1 - x) ** eta_2) * (1 + epsilon_u * np.sqrt(x) + gamma_u * x)
@@ -113,21 +112,21 @@ def dv_PDF(x, error_type="central"):
     error_col_index = error_mapping.get(error_type, 0)
 
     # Get row index of entry
-    index_A_d = MSTWpdf[MSTWpdf["Parameter"] == "A_d"].index[0]
-    index_eta_3 = MSTWpdf[MSTWpdf["Parameter"] == "eta_3"].index[0]
-    index_eta_2=MSTWpdf[MSTWpdf["Parameter"] == "eta_2"].index[0]
+    index_A_d = MSTW_PDF[MSTW_PDF["Parameter"] == "A_d"].index[0]
+    index_eta_3 = MSTW_PDF[MSTW_PDF["Parameter"] == "eta_3"].index[0]
+    index_eta_2=MSTW_PDF[MSTW_PDF["Parameter"] == "eta_2"].index[0]
     # Only eta_4-eta_2 given
-    index_eta_42 = MSTWpdf[MSTWpdf["Parameter"] == "eta_4-eta_2"].index[0]
-    index_epsilon_d = MSTWpdf[MSTWpdf["Parameter"] == "epsilon_d"].index[0]
-    index_gamma_d = MSTWpdf[MSTWpdf["Parameter"] == "gamma_d"].index[0]
+    index_eta_42 = MSTW_PDF[MSTW_PDF["Parameter"] == "eta_4-eta_2"].index[0]
+    index_epsilon_d = MSTW_PDF[MSTW_PDF["Parameter"] == "epsilon_d"].index[0]
+    index_gamma_d = MSTW_PDF[MSTW_PDF["Parameter"] == "gamma_d"].index[0]
 
     # Extracting parameter values based on the error_type argument
-    A_d = MSTWpdf_LO.iloc[index_A_d, 0][0] + int(error_col_index>0) * MSTWpdf_LO.iloc[index_A_d, 0][error_col_index]
-    eta_3 = MSTWpdf_LO.iloc[index_eta_3, 0][0] + int(error_col_index>0) * MSTWpdf_LO.iloc[index_eta_3, 0][error_col_index]
+    A_d = MSTW_PDF_LO.iloc[index_A_d, 0][0] + int(error_col_index>0) * MSTW_PDF_LO.iloc[index_A_d, 0][error_col_index]
+    eta_3 = MSTW_PDF_LO.iloc[index_eta_3, 0][0] + int(error_col_index>0) * MSTW_PDF_LO.iloc[index_eta_3, 0][error_col_index]
     # eta_4=(eta_4-eta_2) + eta_2, Add errors in quadrature
-    eta_4 = (MSTWpdf_LO.iloc[index_eta_42, 0][0] + MSTWpdf_LO.iloc[index_eta_2, 0][0]) + int(error_col_index>0) *np.sign(MSTWpdf_LO.iloc[index_eta_42, 0][error_col_index]) * np.sqrt(MSTWpdf_LO.iloc[index_eta_42, 0][error_col_index]**2+MSTWpdf_LO.iloc[index_eta_2, 0][error_col_index]**2)
-    epsilon_d = MSTWpdf_LO.iloc[index_epsilon_d, 0][0] + int(error_col_index>0) * MSTWpdf_LO.iloc[index_epsilon_d, 0][error_col_index]
-    gamma_d = MSTWpdf_LO.iloc[index_gamma_d, 0][0] + int(error_col_index>0) * MSTWpdf_LO.iloc[index_gamma_d, 0][error_col_index]
+    eta_4 = (MSTW_PDF_LO.iloc[index_eta_42, 0][0] + MSTW_PDF_LO.iloc[index_eta_2, 0][0]) + int(error_col_index>0) *np.sign(MSTW_PDF_LO.iloc[index_eta_42, 0][error_col_index]) * np.sqrt(MSTW_PDF_LO.iloc[index_eta_42, 0][error_col_index]**2+MSTW_PDF_LO.iloc[index_eta_2, 0][error_col_index]**2)
+    epsilon_d = MSTW_PDF_LO.iloc[index_epsilon_d, 0][0] + int(error_col_index>0) * MSTW_PDF_LO.iloc[index_epsilon_d, 0][error_col_index]
+    gamma_d = MSTW_PDF_LO.iloc[index_gamma_d, 0][0] + int(error_col_index>0) * MSTW_PDF_LO.iloc[index_gamma_d, 0][error_col_index]
     
     # Compute the dv(x) PDF
     result = A_d * (x ** (eta_3 - 1)) * ((1 - x) ** eta_4) * (1 + epsilon_d * np.sqrt(x) + gamma_d * x)
@@ -144,14 +143,14 @@ def sv_PDF(x, error_type="central"):
     error_col_index = error_mapping.get(error_type, 0)
 
     # delta_- fixed to 0.2
-    index_A_m = MSTWpdf[MSTWpdf["Parameter"] == "A_-"].index[0]
-    index_eta_m = MSTWpdf[MSTWpdf["Parameter"] == "eta_-"].index[0]
-    index_x_0 = MSTWpdf[MSTWpdf["Parameter"] == "x_0"].index[0]
+    index_A_m = MSTW_PDF[MSTW_PDF["Parameter"] == "A_-"].index[0]
+    index_eta_m = MSTW_PDF[MSTW_PDF["Parameter"] == "eta_-"].index[0]
+    index_x_0 = MSTW_PDF[MSTW_PDF["Parameter"] == "x_0"].index[0]
 
-    A_m = MSTWpdf_LO.iloc[index_A_m, 0][0] + int(error_col_index>0) * MSTWpdf_LO.iloc[index_A_m, 0][error_col_index]
+    A_m = MSTW_PDF_LO.iloc[index_A_m, 0][0] + int(error_col_index>0) * MSTW_PDF_LO.iloc[index_A_m, 0][error_col_index]
     delta_m = .2
-    eta_m = MSTWpdf_LO.iloc[index_eta_m, 0][0] + int(error_col_index>0) * MSTWpdf_LO.iloc[index_eta_m, 0][error_col_index]
-    x_0 = MSTWpdf_LO.iloc[index_x_0, 0][0] + int(error_col_index>0) * MSTWpdf_LO.iloc[index_x_0, 0][error_col_index]
+    eta_m = MSTW_PDF_LO.iloc[index_eta_m, 0][0] + int(error_col_index>0) * MSTW_PDF_LO.iloc[index_eta_m, 0][error_col_index]
+    x_0 = MSTW_PDF_LO.iloc[index_x_0, 0][0] + int(error_col_index>0) * MSTW_PDF_LO.iloc[index_x_0, 0][error_col_index]
 
     result = A_m * (x ** (delta_m - 1)) * ((1 - x) ** eta_m) * (1 -x/x_0)
     
@@ -166,17 +165,17 @@ def Sv_PDF(x, error_type="central"):
     
     error_col_index = error_mapping.get(error_type, 0)
 
-    index_A_S = MSTWpdf[MSTWpdf["Parameter"] == "A_S"].index[0]
-    index_delta_S = MSTWpdf[MSTWpdf["Parameter"] == "delta_S"].index[0]
-    index_eta_S = MSTWpdf[MSTWpdf["Parameter"] == "eta_S"].index[0]
-    index_epsilon_S = MSTWpdf[MSTWpdf["Parameter"] == "epsilon_S"].index[0]
-    index_gamma_S = MSTWpdf[MSTWpdf["Parameter"] == "gamma_S"].index[0]
+    index_A_S = MSTW_PDF[MSTW_PDF["Parameter"] == "A_S"].index[0]
+    index_delta_S = MSTW_PDF[MSTW_PDF["Parameter"] == "delta_S"].index[0]
+    index_eta_S = MSTW_PDF[MSTW_PDF["Parameter"] == "eta_S"].index[0]
+    index_epsilon_S = MSTW_PDF[MSTW_PDF["Parameter"] == "epsilon_S"].index[0]
+    index_gamma_S = MSTW_PDF[MSTW_PDF["Parameter"] == "gamma_S"].index[0]
 
-    A_S = MSTWpdf_LO.iloc[index_A_S, 0][0] + int(error_col_index>0) * MSTWpdf_LO.iloc[index_A_S, 0][error_col_index]
-    delta_S = MSTWpdf_LO.iloc[index_delta_S, 0][0] + int(error_col_index>0) * MSTWpdf_LO.iloc[index_delta_S, 0][error_col_index]
-    eta_S = MSTWpdf_LO.iloc[index_eta_S, 0][0] + int(error_col_index>0) * MSTWpdf_LO.iloc[index_eta_S, 0][error_col_index]
-    epsilon_S = MSTWpdf_LO.iloc[index_epsilon_S, 0][0] + int(error_col_index>0) * MSTWpdf_LO.iloc[index_epsilon_S, 0][error_col_index]
-    gamma_S = MSTWpdf_LO.iloc[index_gamma_S, 0][0] + int(error_col_index>0) * MSTWpdf_LO.iloc[index_gamma_S, 0][error_col_index]
+    A_S = MSTW_PDF_LO.iloc[index_A_S, 0][0] + int(error_col_index>0) * MSTW_PDF_LO.iloc[index_A_S, 0][error_col_index]
+    delta_S = MSTW_PDF_LO.iloc[index_delta_S, 0][0] + int(error_col_index>0) * MSTW_PDF_LO.iloc[index_delta_S, 0][error_col_index]
+    eta_S = MSTW_PDF_LO.iloc[index_eta_S, 0][0] + int(error_col_index>0) * MSTW_PDF_LO.iloc[index_eta_S, 0][error_col_index]
+    epsilon_S = MSTW_PDF_LO.iloc[index_epsilon_S, 0][0] + int(error_col_index>0) * MSTW_PDF_LO.iloc[index_epsilon_S, 0][error_col_index]
+    gamma_S = MSTW_PDF_LO.iloc[index_gamma_S, 0][0] + int(error_col_index>0) * MSTW_PDF_LO.iloc[index_gamma_S, 0][error_col_index]
 
     result = A_S * (x ** (delta_S - 1)) * ((1 - x) ** eta_S) * (1 + epsilon_S * np.sqrt(x) + gamma_S * x)
     
@@ -191,17 +190,17 @@ def s_plus_PDF(x, error_type="central"):
     
     error_col_index = error_mapping.get(error_type, 0)
 
-    index_A_p = MSTWpdf[MSTWpdf["Parameter"] == "A_+"].index[0]
-    index_delta_S = MSTWpdf[MSTWpdf["Parameter"] == "delta_S"].index[0]
-    index_eta_p = MSTWpdf[MSTWpdf["Parameter"] == "eta_+"].index[0]
-    index_epsilon_S = MSTWpdf[MSTWpdf["Parameter"] == "epsilon_S"].index[0]
-    index_gamma_S = MSTWpdf[MSTWpdf["Parameter"] == "gamma_S"].index[0]
+    index_A_p = MSTW_PDF[MSTW_PDF["Parameter"] == "A_+"].index[0]
+    index_delta_S = MSTW_PDF[MSTW_PDF["Parameter"] == "delta_S"].index[0]
+    index_eta_p = MSTW_PDF[MSTW_PDF["Parameter"] == "eta_+"].index[0]
+    index_epsilon_S = MSTW_PDF[MSTW_PDF["Parameter"] == "epsilon_S"].index[0]
+    index_gamma_S = MSTW_PDF[MSTW_PDF["Parameter"] == "gamma_S"].index[0]
 
-    A_p = MSTWpdf_LO.iloc[index_A_p, 0][0] + int(error_col_index>0) * MSTWpdf_LO.iloc[index_A_p, 0][error_col_index]
-    delta_S = MSTWpdf_LO.iloc[index_delta_S, 0][0] + int(error_col_index>0) * MSTWpdf_LO.iloc[index_delta_S, 0][error_col_index]
-    eta_p = MSTWpdf_LO.iloc[index_eta_p, 0][0] + int(error_col_index>0) * MSTWpdf_LO.iloc[index_eta_p, 0][error_col_index]
-    epsilon_S = MSTWpdf_LO.iloc[index_epsilon_S, 0][0] + int(error_col_index>0) * MSTWpdf_LO.iloc[index_epsilon_S, 0][error_col_index]
-    gamma_S = MSTWpdf_LO.iloc[index_gamma_S, 0][0] + int(error_col_index>0) * MSTWpdf_LO.iloc[index_gamma_S, 0][error_col_index]
+    A_p = MSTW_PDF_LO.iloc[index_A_p, 0][0] + int(error_col_index>0) * MSTW_PDF_LO.iloc[index_A_p, 0][error_col_index]
+    delta_S = MSTW_PDF_LO.iloc[index_delta_S, 0][0] + int(error_col_index>0) * MSTW_PDF_LO.iloc[index_delta_S, 0][error_col_index]
+    eta_p = MSTW_PDF_LO.iloc[index_eta_p, 0][0] + int(error_col_index>0) * MSTW_PDF_LO.iloc[index_eta_p, 0][error_col_index]
+    epsilon_S = MSTW_PDF_LO.iloc[index_epsilon_S, 0][0] + int(error_col_index>0) * MSTW_PDF_LO.iloc[index_epsilon_S, 0][error_col_index]
+    gamma_S = MSTW_PDF_LO.iloc[index_gamma_S, 0][0] + int(error_col_index>0) * MSTW_PDF_LO.iloc[index_gamma_S, 0][error_col_index]
 
     result = A_p * (x ** (delta_S - 1)) * ((1 - x) ** eta_p) * (1 + epsilon_S * np.sqrt(x) + gamma_S * x)
     
@@ -222,18 +221,18 @@ def Delta_PDF(x, error_type="central"):
     error_col_index = error_mapping.get(error_type, 0)  # Default to 'central' if error_type is invalid
 
     # Get row index of entry
-    index_A_Delta=MSTWpdf[MSTWpdf["Parameter"] == "A_Delta"].index[0]
-    index_eta_Delta=MSTWpdf[MSTWpdf["Parameter"] == "eta_Delta"].index[0]
-    index_eta_S=MSTWpdf[MSTWpdf["Parameter"] == "eta_S"].index[0]
-    index_gamma_Delta=MSTWpdf[MSTWpdf["Parameter"] == "gamma_Delta"].index[0]
-    index_delta_Delta=MSTWpdf[MSTWpdf["Parameter"] == "delta_Delta"].index[0]
+    index_A_Delta=MSTW_PDF[MSTW_PDF["Parameter"] == "A_Delta"].index[0]
+    index_eta_Delta=MSTW_PDF[MSTW_PDF["Parameter"] == "eta_Delta"].index[0]
+    index_eta_S=MSTW_PDF[MSTW_PDF["Parameter"] == "eta_S"].index[0]
+    index_gamma_Delta=MSTW_PDF[MSTW_PDF["Parameter"] == "gamma_Delta"].index[0]
+    index_delta_Delta=MSTW_PDF[MSTW_PDF["Parameter"] == "delta_Delta"].index[0]
 
     # Extracting parameter values based on the error_type argument
-    A_Delta = MSTWpdf_LO.iloc[index_A_Delta,0][0] + int(error_col_index>0)*MSTWpdf_LO.iloc[index_A_Delta,0][error_col_index]
-    eta_Delta = MSTWpdf_LO.iloc[index_eta_Delta,0][0] + int(error_col_index>0)*MSTWpdf_LO.iloc[index_eta_Delta,0][error_col_index]
-    eta_S = MSTWpdf_LO.iloc[index_eta_S,0][0] + int(error_col_index>0)*MSTWpdf_LO.iloc[index_eta_S,0][error_col_index]
-    gamma_Delta = MSTWpdf_LO.iloc[index_gamma_Delta,0][0] + int(error_col_index>0)*MSTWpdf_LO.iloc[index_gamma_Delta,0][error_col_index]
-    delta_Delta = MSTWpdf_LO.iloc[index_delta_Delta,0][0] + int(error_col_index>0)*MSTWpdf_LO.iloc[index_delta_Delta,0][error_col_index]
+    A_Delta = MSTW_PDF_LO.iloc[index_A_Delta,0][0] + int(error_col_index>0)*MSTW_PDF_LO.iloc[index_A_Delta,0][error_col_index]
+    eta_Delta = MSTW_PDF_LO.iloc[index_eta_Delta,0][0] + int(error_col_index>0)*MSTW_PDF_LO.iloc[index_eta_Delta,0][error_col_index]
+    eta_S = MSTW_PDF_LO.iloc[index_eta_S,0][0] + int(error_col_index>0)*MSTW_PDF_LO.iloc[index_eta_S,0][error_col_index]
+    gamma_Delta = MSTW_PDF_LO.iloc[index_gamma_Delta,0][0] + int(error_col_index>0)*MSTW_PDF_LO.iloc[index_gamma_Delta,0][error_col_index]
+    delta_Delta = MSTW_PDF_LO.iloc[index_delta_Delta,0][0] + int(error_col_index>0)*MSTW_PDF_LO.iloc[index_delta_Delta,0][error_col_index]
 
 
     # Compute the Delta(x) PDF
@@ -253,18 +252,18 @@ def gluon_PDF(x, error_type="central"):
     error_col_index = error_mapping.get(error_type, 0)  # Default to 'central' if error_type is invalid
 
     # Get row index of entry
-    index_A_g=MSTWpdf[MSTWpdf["Parameter"] == "A_g"].index[0]
-    index_delta_g=MSTWpdf[MSTWpdf["Parameter"] == "delta_g"].index[0]
-    index_eta_g=MSTWpdf[MSTWpdf["Parameter"] == "eta_g"].index[0]
-    index_epsilon_g=MSTWpdf[MSTWpdf["Parameter"] == "epsilon_g"].index[0]
-    index_gamma_g=MSTWpdf[MSTWpdf["Parameter"] == "gamma_g"].index[0]
+    index_A_g=MSTW_PDF[MSTW_PDF["Parameter"] == "A_g"].index[0]
+    index_delta_g=MSTW_PDF[MSTW_PDF["Parameter"] == "delta_g"].index[0]
+    index_eta_g=MSTW_PDF[MSTW_PDF["Parameter"] == "eta_g"].index[0]
+    index_epsilon_g=MSTW_PDF[MSTW_PDF["Parameter"] == "epsilon_g"].index[0]
+    index_gamma_g=MSTW_PDF[MSTW_PDF["Parameter"] == "gamma_g"].index[0]
 
     # Extracting parameter values based on the error_type argument
-    A_g = MSTWpdf_LO.iloc[index_A_g,0][0] + int(error_col_index>0)*MSTWpdf_LO.iloc[index_A_g,0][error_col_index]
-    delta_g = MSTWpdf_LO.iloc[index_delta_g,0][0] + int(error_col_index>0)*MSTWpdf_LO.iloc[index_delta_g,0][error_col_index]
-    eta_g = MSTWpdf_LO.iloc[index_eta_g,0][0] + int(error_col_index>0)*MSTWpdf_LO.iloc[index_eta_g,0][error_col_index]
-    epsilon_g = MSTWpdf_LO.iloc[index_epsilon_g,0][0] + int(error_col_index>0)*MSTWpdf_LO.iloc[index_epsilon_g,0][error_col_index]
-    gamma_g = MSTWpdf_LO.iloc[index_gamma_g,0][0] + int(error_col_index>0)*MSTWpdf_LO.iloc[index_gamma_g,0][error_col_index]
+    A_g = MSTW_PDF_LO.iloc[index_A_g,0][0] + int(error_col_index>0)*MSTW_PDF_LO.iloc[index_A_g,0][error_col_index]
+    delta_g = MSTW_PDF_LO.iloc[index_delta_g,0][0] + int(error_col_index>0)*MSTW_PDF_LO.iloc[index_delta_g,0][error_col_index]
+    eta_g = MSTW_PDF_LO.iloc[index_eta_g,0][0] + int(error_col_index>0)*MSTW_PDF_LO.iloc[index_eta_g,0][error_col_index]
+    epsilon_g = MSTW_PDF_LO.iloc[index_epsilon_g,0][0] + int(error_col_index>0)*MSTW_PDF_LO.iloc[index_epsilon_g,0][error_col_index]
+    gamma_g = MSTW_PDF_LO.iloc[index_gamma_g,0][0] + int(error_col_index>0)*MSTW_PDF_LO.iloc[index_gamma_g,0][error_col_index]
 
     # Compute the g(x) PDF
     # At LO this is the full expression
@@ -279,6 +278,10 @@ def uv_minus_dv_PDF(x,error_type="central"):
 def uv_plus_dv_plus_S_PDF(x,error_type="central"):
     result = uv_PDF(x,error_type) + dv_PDF(x,error_type) + Sv_PDF(x,error_type)
     return result
+
+######################
+### Plot Functions ###
+######################
 
 def plot_uv_minus_dv_PDF(x_0=1e-2):
     vectorized_uv_minus_dv_PDF = np.vectorize(uv_minus_dv_PDF)
