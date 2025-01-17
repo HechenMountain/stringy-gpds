@@ -140,6 +140,27 @@ def get_alpha_s():
     alpha_s_in = MSTW_PDF_LO.iloc[index_alpha_s,0][0]
     return alpha_s_in
 
+def check_error_type(error_type):
+    if error_type not in ["central","plus","minus"]:
+        raise ValueError("error_type must be central, plus or minus")
+
+def check_particle_type(particle):
+    if particle not in ["quark", "gluon"]:
+        raise ValueError("particle must be quark or gluon")
+    
+def check_moment_type_label(moment_type, moment_label):
+    initialize_dictionary()
+    if (moment_type, moment_label) not in moment_to_function:
+        raise ValueError(f"Unsupported moment_type and or label\n (moment_type, moment_label): {moment_type, moment_label} not in {moment_to_function}")
+
+def check_evolve_type(evolve_type):
+    if evolve_type not in ["vector","axial"]:
+        raise ValueError("evolve_type must be vector or axial.")
+    
+def check_parity(parity):
+    if parity not in ["even", "odd","none"]:
+        raise ValueError("Parity must be even, odd or none")
+
 #####################################
 ### Input for Evolution Equations ###
 #####################################
@@ -187,6 +208,9 @@ def int_uv_PDF_Regge(j,eta,alpha_p,t, error_type="central"):
     Returns:
     The value of the Reggeized integral of uv(x) based on the selected parameters and error type.
     """
+    # Check type
+    check_error_type(error_type)
+
      # Define a dictionary that maps the error_type to column indices
     error_mapping = {
         "central": 0,  # The column with the central value
@@ -245,6 +269,9 @@ def int_dv_PDF_Regge(j,eta,alpha_p,t, error_type="central"):
     Returns:
     The value of the Reggeized integral of dv(x) based on the selected parameters and error type.
     """
+    # Check type
+    check_error_type(error_type)
+
     # Define a dictionary that maps the error_type to column indices
     error_mapping = {
         "central": 0,  # The column with the central value
@@ -304,6 +331,9 @@ def int_sv_PDF_Regge(j,eta,alpha_p,t, error_type="central"):
     Returns:
     The value of the Reggeized integral of sv(x) based on the selected parameters and error type.
     """
+    # Check type
+    check_error_type(error_type)
+
     error_mapping = {
         "central": 0,
         "plus": 1,
@@ -354,6 +384,9 @@ def int_Sv_PDF_Regge(j,eta,alpha_p,t, error_type="central"):
     Returns:
     The value of the Reggeized integral of Sv(x) based on the selected parameters and error type.
     """
+    # Check type
+    check_error_type(error_type)
+    
     error_mapping = {
         "central": 0,
         "plus": 1,
@@ -406,6 +439,9 @@ def int_s_plus_PDF_Regge(j,eta,alpha_p,t, error_type="central"):
     Returns:
     The value of the Reggeized integral of s_+(x) based on the selected parameters and error type.
     """
+    # Check type
+    check_error_type(error_type)
+    
     error_mapping = {
         "central": 0,
         "plus": 1,
@@ -459,6 +495,9 @@ def int_Delta_PDF_Regge(j,eta,alpha_p,t, error_type="central"):
     Returns:
     The value of the Reggeized integral of Delta(x) based on the selected parameters and error type.
     """
+    # Check type
+    check_error_type(error_type)
+    
      # Define a dictionary that maps the error_type to column indices
     error_mapping = {
         "central": 0,  # The column with the central value
@@ -516,6 +555,9 @@ def int_gluon_PDF_Regge(j,eta,alpha_p,t, error_type="central"):
     Returns:
     The value of the Reggeized integral of g(x) based on the selected parameters and error type.
     """
+    # Check type
+    check_error_type(error_type)
+    
      # Define a dictionary that maps the error_type to column indices
     error_mapping = {
         "central": 0,  # The column with the central value
@@ -565,6 +607,9 @@ def int_gluon_PDF_Regge(j,eta,alpha_p,t, error_type="central"):
 
 # Define Reggeized conformal moments
 def uv_minus_dv_PDF_Regge(j,eta,t, error_type="central"):
+   # Check type
+   check_error_type(error_type)
+
    # Value from the paper
    alpha_prime = 1.069
    # Value optmized for range -t < 5 GeV
@@ -573,12 +618,16 @@ def uv_minus_dv_PDF_Regge(j,eta,t, error_type="central"):
    return 1.006*(int_uv_PDF_Regge(j,eta,alpha_prime,t,error_type)-int_dv_PDF_Regge(j,eta,alpha_prime,t,error_type))
 
 def u_minus_d_PDF_Regge(j,eta,t, error_type="central"):
+   # Check type
+   check_error_type(error_type)
    # Value optmized for range -t < 5 GeV
    alpha_prime = 0.675606
    # Normalize to 1 at t = 0
    return 1.107*(int_uv_PDF_Regge(j,eta,alpha_prime,t,error_type)-int_dv_PDF_Regge(j,eta,alpha_prime,t,error_type)-int_Delta_PDF_Regge(j,alpha_prime,t,error_type))
 
 def uv_plus_dv_PDF_Regge(j,eta,t, error_type="central"):
+   # Check type
+   check_error_type(error_type)
    # Value from the paper
    alpha_prime = 0.891
    # Value optmized for range -t < 5 GeV
@@ -587,6 +636,8 @@ def uv_plus_dv_PDF_Regge(j,eta,t, error_type="central"):
    return 1.002*(int_uv_PDF_Regge(j,eta,alpha_prime,t,error_type)+int_dv_PDF_Regge(j,eta,alpha_prime,t,error_type))
 
 def u_plus_d_PDF_Regge(j,eta,t, error_type="central"):
+   # Check type
+   check_error_type(error_type)
    # Value optmized for range -t < 5 GeV
    alpha_prime = 0.949256
    # Normalize to 1 at t = 0
@@ -612,6 +663,8 @@ def d_hat(j,eta,t):
     return result
     
 def quark_singlet_Regge_A(j,eta,t, Nf=3, alpha_prime_ud=0.891, error_type="central"):
+    # Check type
+    check_error_type(error_type)
     uv = int_uv_PDF_Regge(j,eta,alpha_prime_ud,t,error_type) 
     dv = int_dv_PDF_Regge(j,eta,alpha_prime_ud,t,error_type)
     Delta = int_Delta_PDF_Regge(j,eta,alpha_prime_ud,t,error_type)
@@ -629,6 +682,8 @@ def quark_singlet_Regge_A(j,eta,t, Nf=3, alpha_prime_ud=0.891, error_type="centr
     return result
     
 def quark_singlet_Regge_D(j,eta,t, Nf=3, alpha_prime_ud=0.891,alpha_prime_s=1.828, error_type="central"):
+    # Check type
+    check_error_type(error_type)
     uv = int_uv_PDF_Regge(j,eta,alpha_prime_ud,t,error_type) 
     dv = int_dv_PDF_Regge(j,eta,alpha_prime_ud,t,error_type)
     Delta = int_Delta_PDF_Regge(j,eta,alpha_prime_ud,t,error_type)
@@ -660,6 +715,8 @@ def quark_singlet_Regge_D(j,eta,t, Nf=3, alpha_prime_ud=0.891,alpha_prime_s=1.82
     return result
 
 def quark_singlet_Regge(j,eta,t,Nf=3,error_type="central"):
+    # Check type
+    check_error_type(error_type)
     alpha_prime_ud = 0.891
     alpha_prime_s = 1.828
     term_1 = quark_singlet_Regge_A(j,eta,t,Nf,alpha_prime_ud,error_type)
@@ -668,9 +725,13 @@ def quark_singlet_Regge(j,eta,t,Nf=3,error_type="central"):
     return result
 
 def gluon_Regge_A(j,eta,t, alpha_prime_T = 0.627, error_type="central"):
+    # Check type
+    check_error_type(error_type)
     return int_gluon_PDF_Regge(j,eta,alpha_prime_T,t,error_type)
 
 def gluon_Regge_D(j,eta,t, alpha_prime_T = 0.627, alpha_prime_S = 4.277, error_type="central"):
+    # Check type
+    check_error_type(error_type)
     if eta == 0:
         return 0
     else :
@@ -681,6 +742,8 @@ def gluon_Regge_D(j,eta,t, alpha_prime_T = 0.627, alpha_prime_S = 4.277, error_t
         return result
 
 def gluon_Regge(j,eta,t, error_type="central"):
+    # Check type
+    check_error_type(error_type)
     alpha_prime_T = 0.627
     alpha_prime_S = 4.277
     term_1= gluon_Regge_A(j,eta,t,alpha_prime_T,error_type)
@@ -692,6 +755,9 @@ def gluon_Regge(j,eta,t, error_type="central"):
     return result
 
 def diagonal_singlet(j,eta,t,Nf=3,evolve_type="vector",solution="+",error_type="central"):
+    # Check type
+    check_error_type(error_type)
+    check_evolve_type(evolve_type)
     # Switch sign
     if solution == "+":
         solution = "-"
@@ -719,7 +785,7 @@ initialize_dictionary()
 
 def gamma_qq(j):
    """
-   Return conformal spin-j anomalous dimension
+   Return conformal anomalous dimension for conformal spin-j
 
    Arguments:
    j -- conformal spin
@@ -760,6 +826,9 @@ def gamma_gq(j, evolve_type = "vector"):
     Returns:
     Value of anomalous dimension
     """
+    # Check evolve_type
+    check_evolve_type(evolve_type)
+
     Nc = 3
     Cf = (Nc**2-1)/(2*Nc)
     if evolve_type == "vector":
@@ -780,6 +849,9 @@ def gamma_gg(j, Nf = 3, evolve_type = "vector"):
     Returns:
     Value of anomalous dimension
     """
+    # Check evolve_type
+    check_evolve_type(evolve_type)
+
     Nc = 3
     Ca = Nc
     beta_0 = 2/3* Nf - 11/3 * Nc
@@ -800,6 +872,9 @@ def gamma_pm(j, Nf = 3, evolve_type = "vector",solution="+"):
     Returns:
     The eigenvalues (+) and (-) in terms of an array
     """
+    # Check evolve_type
+    check_evolve_type(evolve_type)
+    
     base = gamma_qq(j)+gamma_gg(j,Nf,evolve_type)
     root = np.sqrt((gamma_qq(j)-gamma_gg(j,Nf,evolve_type))**2+4*gamma_gq(j,evolve_type)*gamma_qg(j,Nf,evolve_type))
     if solution == "+":
@@ -810,6 +885,20 @@ def gamma_pm(j, Nf = 3, evolve_type = "vector",solution="+"):
         raise ValueError("Invalid solution evolve_type. Use '+' or '-'.")
 
 def Gamma_pm(j,Nf=3,evolve_type="vector",solution="+"):
+    """ Returns the fraction 1-gamma_pm/gamma_q
+
+    Parameters:
+    - j (float): conformal spin
+    - Nf (int, optional): number ofactive flavors. Default is 3.
+    - evolve_type (str. optional): Either vector or axial evolution
+    - solution (str. optiona): Positive (+) or negative (-) eigenvalue of gamma_pm
+    """
+    # Check evolve_type
+    check_evolve_type(evolve_type)
+    
+    if solution not in ["+","-"]:
+        raise ValueError("Solution must be '+' or '-' ")
+
     result = 1-gamma_pm(j,Nf,evolve_type,solution)/gamma_qq(j)
     return result
 
@@ -835,10 +924,12 @@ def evolve_conformal_moment(j,eta,t,mu,Nf = 3,particle="quark",moment_type="NonS
     Returns:
     The value of the evolved conformal moment at scale mu
     """
-    if particle not in ["quark","gluon"]:
-        raise ValueError("Particle must be quark or gluon")
+    check_particle_type(particle)
+    check_moment_type_label(moment_type,moment_label)
+    check_error_type(error_type)
     if particle == "gluon" and moment_type != "Singlet":
         raise ValueError("Gluon is only Singlet")
+    
     # Set parameters
     Nc = 3
     beta_0 = 2/3* Nf - 11/3 * Nc
@@ -881,9 +972,25 @@ def evolve_conformal_moment(j,eta,t,mu,Nf = 3,particle="quark",moment_type="NonS
     
     return result
 
+def evolve_singlet_D(j,eta,t,mu,Nf=3,particle="quark",moment_label="A",error_type="central"):
+    check_particle_type(particle)
+    check_moment_type_label("Singlet",moment_label)
+    if particle == "quark":
+        # Manually fix the scale to 1.3 @ mu = 2 GeV from 2310.08484
+        D0 = 1.3/1.0979
+    else :
+        # Manually fix the scale from holography (II.9) in 2204.08857
+        D0 = 2.57/3.0439
+        #2025
+        #D0 = 1
+
+    eta = 1 # Result is eta independent 
+    term_1 = evolve_conformal_moment(j,eta,t,mu,Nf,particle,"Singlet",moment_label,error_type)
+    term_2 = evolve_conformal_moment(j,0,t,mu,Nf,particle,"Singlet",moment_label,error_type)
+    result = D0 * (term_1-term_2)/eta**2
+    return result
+
 def evolve_quark_non_singlet(j,eta,t,mu,Nf=3,moment_type="NonSingletIsovector",moment_label = "A",error_type="central"):
-    if moment_type not in ["NonSingletIsovector","NonSingletIsoscalar"]:
-        raise ValueError("GPD type must be NonSingletIsovector or NonSingletIsoscalar")
     result = evolve_conformal_moment(j,eta,t,mu,Nf,"quark",moment_type,moment_label,error_type)
     return result
 
@@ -901,24 +1008,6 @@ def evolve_quark_singlet_D(eta,t,mu,Nf=3,moment_label = "A",error_type="central"
 
 def evolve_gluon_singlet_D(j,eta,t,mu,Nf=3,moment_label = "A",error_type="central"):
     result = evolve_singlet_D(eta,t,mu,Nf,"gluon",moment_label,error_type)
-    return result
-
-def evolve_singlet_D(j,eta,t,mu,Nf=3,particle="quark",moment_label="A",error_type="central"):
-    if particle not in ["quark","gluon"]:
-        raise ValueError("Particle must be quark or gluon")
-    if particle == "quark":
-        # Manually fix the scale to 1.3 @ mu = 2 GeV from 2310.08484
-        D0 = 1.3/1.0979
-    else :
-        # Manually fix the scale from holography (II.9) in 2204.08857
-        D0 = 2.57/3.0439
-        #2025
-        #D0 = 1
-
-    eta = 1 # Result is eta independent 
-    term_1 = evolve_conformal_moment(j,eta,t,mu,Nf,particle,"Singlet",moment_label,error_type)
-    term_2 = evolve_conformal_moment(j,0,t,mu,Nf,particle,"Singlet",moment_label,error_type)
-    result = D0 * (term_1-term_2)/eta**2
     return result
 
 def fourier_transform_moment(j,eta,mu,b_vec,Nf=3,particle="quark",moment_type="NonSingletIsovector", moment_label="A", Delta_max = 5,num_points=100, error_type="central"):
@@ -941,6 +1030,9 @@ def fourier_transform_moment(j,eta,mu,b_vec,Nf=3,particle="quark",moment_type="N
     Returns:
     - The value of the Fourier transformed moment at (b_vec)
     """
+    check_error_type(error_type)
+    check_particle_type(particle)
+    check_moment_type_label(moment_type,moment_label)
     b_x, b_y = b_vec
     # Limits of integration for Delta_x, Delta_y on a square grid
     x_min, x_max = -Delta_max, Delta_max
@@ -994,9 +1086,8 @@ def conformal_partial_wave(j, x, eta, particle = "quark", parity="none"):
     Notes:
     - The result is vectorized later on using np.vectorize for handling array inputs.
     """
-    if particle not in ["quark", "gluon"]:
-        raise ValueError("Particle must be either quark or gluon")
-
+    check_particle_type(particle)
+    check_parity(parity)
     if parity not in ["even", "odd","none"]:
         raise ValueError("Parity must be even, odd or none")
     
@@ -1052,6 +1143,9 @@ def conformal_partial_wave(j, x, eta, particle = "quark", parity="none"):
 
 # Define get_j_base which contains real part of integration variable
 def get_j_base(particle="quark",parity="none"):
+    check_particle_type(particle)
+    check_parity(parity)
+
     if particle == "quark":
         if parity == "even":
             print(f"j_base_q of parity {parity} is tbd")
@@ -1060,8 +1154,6 @@ def get_j_base(particle="quark",parity="none"):
             j_base = 2.7
         elif parity == "none":
             j_base = .95
-        else :
-            raise ValueError("Parity must be even, odd or none")
         return j_base 
     elif particle == "gluon":
         if parity == "even":
@@ -1075,8 +1167,6 @@ def get_j_base(particle="quark",parity="none"):
         else :
             raise ValueError("Parity must be even, odd or none")
         return j_base
-    else:
-        raise ValueError("Particle must be quark or gluon")
 
 
 
@@ -1104,10 +1194,10 @@ def mellin_barnes_gpd(x, eta, t, mu, Nf=3, particle = "quark", moment_type="Sing
     Note:
     - For low x and/or eta it is recommended to divide the integration region
     """
-    if particle not in ["quark", "gluon"]:
-        raise ValueError("Particle must be either quark or gluon")
-    if moment_type not in ["Singlet","NonSingletIsovector","NonSingletIsoscalar"]:
-        raise ValueError("moment_type must be Singlet, NonSingletIsovector or NonSingletIsoscalar")
+    check_particle_type(particle)
+    check_error_type(error_type)
+    check_parity(parity)
+    check_moment_type_label(moment_type,moment_label)
     
     if moment_type == "Singlet":
         if particle == "quark":
@@ -1181,11 +1271,11 @@ def mellin_barnes_gpd(x, eta, t, mu, Nf=3, particle = "quark", moment_type="Sing
         """
         Finds an appropriate upper integration bound for an oscillating integrand.
 
-        Args:
-            integrand: The function to be integrated.
-            tolerance: The desired tolerance for the integrand's absolute value.
-            step_size: The increment to increase the integration bound in each step.
-            max_iterations: The maximum number of iterations to perform.
+        Parameters:
+        - integrand (function): The function to be integrated.
+        - tolerance (str. optional): The desired tolerance for the integrand's absolute value. Standard is 1e-2
+        - step_size (int. optional): The increment to increase the integration bound in each step. Standard is 10
+        - max_iterations (int. optional): The maximum number of iterations to perform. Standard is 50
 
         Returns:
             The determined upper integration bound.
@@ -1219,9 +1309,9 @@ def mellin_barnes_gpd(x, eta, t, mu, Nf=3, particle = "quark", moment_type="Sing
         Integrates the integrand over the specified subinterval and 
         returns either the real, imaginary part, or both.
 
-        Args:
-            k_values: A list or array containing the minimum and maximum k values.
-            real_imag: A string specifying whether to return 'real', 'imag', or 'both'.
+        Parameters:
+        - k_values (arr.): A list or array containing the minimum and maximum k values.
+        - real_imag (str.): A string specifying whether to return 'real', 'imag', or 'both'.
 
         Returns:
             If real_imag is 'real':
@@ -1327,12 +1417,14 @@ def plot_moments(eta,y_label,t_max=3,particle="quark",moment_type="NonSingletIso
     Generates plots of lattice data and RGE-evolved functions for a given moment type and label.
     
     Parameters:
-        moment_type (str): The type of moment (e.g., "NonSingletIsovector").
-        moment_label (str): The label of the moment (e.g., "A").
-        t_max (float, optional): Maximum t value for the x-axis (default is 3).
-        n_t (int, optional): Number of points for t_fine (default is 50).
-        num_columns (int, optional): Number of columns for the grid layout (default is 3).
+    - moment_type (str): The type of moment (e.g., "NonSingletIsovector").
+    - moment_label (str): The label of the moment (e.g., "A").
+    - t_max (float, optional): Maximum t value for the x-axis (default is 3).
+    - n_t (int, optional): Number of points for t_fine (default is 50).
+    - num_columns (int, optional): Number of columns for the grid layout (default is 3).
     """
+    check_particle_type(particle)
+    check_moment_type_label(moment_type,moment_label)
     # Accessor functions for -t, values, and errors
     def t_values(moment_type, moment_label, pub_id):
         """Return the -t values for a given moment type, label, and publication ID."""
@@ -1452,7 +1544,7 @@ def plot_moments(eta,y_label,t_max=3,particle="quark",moment_type="NonSingletIso
 
 def plot_moments_D(t_max, mu, Nf=3, n_t=50,display="both"):
     """
-    Plot D evolution for gluons, quark singlets, or both side by side.
+    Plot evolution for gluon or quark singlet D term conformal moments.
 
     Parameters:
         t_max (float): Maximum value of Mandelstam t.
@@ -1461,6 +1553,9 @@ def plot_moments_D(t_max, mu, Nf=3, n_t=50,display="both"):
         n_t (int, optional): Number of data points
         display (str, optional): "quark", "gluon", or "both" to specify which plots to display (default is "both").
     """
+    if display not in ["quark", "gluon", "both"]:
+        raise ValueError("Invalid value for display. Use 'quark', 'gluon', or 'both'.")
+    
     # Compute results for the evolution functions
     def compute_results_D(j, eta, t_vals, mu, Nf=3, particle="quark", moment_type="NonSingletIsovector", moment_label="A"):
         """Compute central, plus, and minus results for a given evolution function."""
@@ -1504,9 +1599,6 @@ def plot_moments_D(t_max, mu, Nf=3, n_t=50,display="both"):
         plot_results(t_values, results, results_plus, results_minus,
                     xlabel="$-t\,[\mathrm{GeV}^2]$", ylabel="$D_{u+d+s}(t,\mu = 2\,[\mathrm{GeV}])$", ax=ax)
 
-    if display not in ["quark", "gluon", "both"]:
-        raise ValueError("Invalid value for display. Use 'quark', 'gluon', or 'both'.")
-
     # Set up the figure and axes
     if display == "both":
         fig, axes = plt.subplots(1, 2, figsize=(12, 6), sharey=True)
@@ -1548,6 +1640,8 @@ def plot_fourier_transform_moments(j,eta,mu,plot_title,Nf=3,particle="quark",mom
     - num_points (float, optional): Number of intervals to split [-Delta_max, Delta_max] interval (default is 100).
     - error_type (str. optional): Whether to use central, plus or minus value of input PDF. Default is central.
     """
+    check_particle_type(particle)
+    check_moment_type_label(moment_type,moment_label)
     # Define the grid for b_vec
     b_x = np.linspace(-b_max, b_max, 50)  # Range of x-component of b_vec
     b_y = np.linspace(-b_max, b_max, 50)  # Range of y-component of b_vec
@@ -1574,19 +1668,18 @@ def plot_fourier_transform_moments(j,eta,mu,plot_title,Nf=3,particle="quark",mom
     plt.show()
 
 
-def plot_conformal_partial_wave(j,eta,particle,parity="none"):
+def plot_conformal_partial_wave(j,eta,particle="quark",parity="none"):
     """Plots the conformal partial wave over conformal spin-j for given eta, particle and parity.
 
     Parameters:
     - j (float): conformal spin
     - eta (float): skewness
-    - particle (str.): quark or gluon
+    - particle (str., optiona): quark or gluon. Default is quark
     - parity (str., optional): even, odd, or none. Default is none
     """
-    if particle not in ["quark","gluon"]:
-        raise ValueError("Particle must be quark or gluon")
-    if parity not in ["even", "odd","none"]:
-        raise ValueError("Parity must be even, odd or none")
+    check_particle_type(particle)
+    check_parity(parity)
+
     x_values = np.linspace(-1, 1, 200)
     y_values = Parallel(n_jobs=-1)(delayed(conformal_partial_wave)(j, x, eta , particle, parity) for x in x_values)
 
@@ -1612,7 +1705,7 @@ def plot_conformal_partial_wave(j,eta,particle,parity="none"):
     plt.tight_layout()  # Adjust spacing between subplots
     plt.show()
 
-def plot_mellin_barnes_gpd_integrand(x, eta, t, mu, Nf=3, particle="quark", moment_type="Singlet", moment_label="A", error_type="central", j_max=7.5):
+def plot_mellin_barnes_gpd_integrand(x, eta, t, mu, Nf=3, particle="quark", moment_type="Singlet", moment_label="A", parity = "none", error_type="central", j_max=7.5):
     """
     Plot the real and imaginary parts of the integrand of the Mellin-Barnes integral over k with j = j_base + i*k.
 
@@ -1620,11 +1713,25 @@ def plot_mellin_barnes_gpd_integrand(x, eta, t, mu, Nf=3, particle="quark", mome
     - x, eta, t, mu: Physical parameters.
     - Nf (int): Number of flavors.
     - particle (str): Particle species ("quark" or "gluon").
-    - moment_type (str): Moment type ("Singlet", "NonSingletIsovector", "NonSingletIsoscalar").
-    - moment_label (str): Moment label ("A", "A_tilde", "B").
-    - error_type (str): PDF value type ("central", "plus", "minus").
-    - j_max (float): Maximum value of imaginary part k for plotting.
+    - moment_type (str. optional): Moment type ("Singlet", "NonSingletIsovector", "NonSingletIsoscalar").
+    - moment_label (str. optional): Moment label ("A", "A_tilde", "B").
+    - parity (str., optional)
+    - error_type (str. optional): PDF value type ("central", "plus", "minus").
+    - j_max (float. optional): Maximum value of imaginary part k for plotting.
     """
+    check_parity(parity)
+    check_error_type(error_type)
+    check_particle_type(particle)
+    check_moment_type_label(moment_type,moment_label)
+
+    if ((moment_type == "Singlet" and particle == "quark" and parity != "odd")
+        or (moment_type == "Singlet" and particle == "gluon" and parity != "even")
+        or (moment_type == "NonSingletIsovector" and parity != "none")
+        or (moment_type == "NonSingletIsoscalar" and parity != "none")
+        or (particle == "gluon" and moment_type != "Singlet")
+        ): 
+        print(f"Warning: Wrong parity of {parity} for moment_type of {moment_type} for particle {particle}")
+
     if moment_type == "Singlet":
         if particle == "quark":
             parity = "odd"
