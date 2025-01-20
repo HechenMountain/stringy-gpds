@@ -18,7 +18,7 @@ from mstw_pdf import MSTW_PDF,MSTW_PDF_LO
 ########################################
 BASE_PATH = "/mnt/c/Users/flori/Documents/PostDoc/Data/GPD/"
 # Add some colors
-saturated_pink = (1.0, 0.1, 0.6)  # Higher red, some blue, minimal green
+saturated_pink = (1.0, 0.1, 0.6)  
 
 def initialize_dictionary():
     """ Dictionary to map publication IDs to colors for plots
@@ -36,15 +36,52 @@ def initialize_dictionary():
     global moment_to_function
     moment_to_function = {
     # Contains a Pair of moment_type and moment_label to match input PDF and evolution type
-    ("NonSingletIsovector", "A"): (uv_minus_dv_PDF_Regge,"vector"),
-    ("NonSingletIsovector", "A_tilde"): (uv_minus_dv_PDF_Regge,"axial"),
-    #("NonSingletIsovector", "A"): (u_minus_d_Regge,"vector"),
-    ("NonSingletIsoscalar", "A"): (uv_plus_dv_PDF_Regge,"vector"),
-    ("NonSingletIsoscalar", "A_tilde"): (uv_plus_dv_PDF_Regge,"axial"),
-    #("NonSingletIsoscalar", "A"): (u_plus_d_Regge,"vector"),
-    ("Singlet","A"): (diagonal_singlet, "vector"),
-    ("Singlet","A_tilde"): (diagonal_singlet, "axial"),
+    ("NonSingletIsovector", "A"): (non_singlet_isovector_moment,"vector"),
+    ("NonSingletIsovector", "A_tilde"): (non_singlet_isovector_moment,"axial"),
+    #("NonSingletIsovector", "A"): (u_minus_d_pdf_regge,"vector"),
+    ("NonSingletIsoscalar", "A"): (non_singlet_isoscalar_moment,"vector"),
+    ("NonSingletIsoscalar", "A_tilde"): (non_singlet_isoscalar_moment,"axial"),
+    #("NonSingletIsoscalar", "A"): (u_plus_d_pdf_regge,"vector"),
+    ("Singlet","A"): (singlet_moment, "vector"),
+    ("Singlet","A_tilde"): (singlet_moment, "axial"),
     }
+
+def get_regge_slope(moment_type,moment_label,evolve_type):
+    """Set Regge slopes, modify manually"""
+    check_moment_type_label(moment_type,moment_label)
+    check_evolve_type(evolve_type)
+
+    if evolve_type == "vector":
+        if moment_type == "NonSingletIsovector":
+            if moment_label == "A":
+                alpha_prime = 1.069
+                return alpha_prime
+        if moment_type == "NonSingletIsoscalar":
+            if moment_label == "A":
+                alpha_prime = 0.891
+                return alpha_prime
+        if moment_type == "Singlet":
+            alpha_prime_s = 1.828
+            alpha_prime_T = 0.627
+            alpha_prime_S = 4.277
+            return alpha_prime_s, alpha_prime_T, alpha_prime_S
+    else:
+        print("Axial is to do")
+        if moment_type == "NonSingletIsovector":
+            if moment_label == "A":
+                alpha_prime = 1
+                return alpha_prime
+        if moment_type == "NonSingletIsoscalar":
+            if moment_label == "A":
+                alpha_prime = 1
+                return alpha_prime
+        if moment_type == "Singlet":
+            alpha_prime_s = 1
+            alpha_prime_T = 1
+            alpha_prime_S = 1
+            return alpha_prime_s, alpha_prime_T, alpha_prime_S
+
+
 
 def load_lattice_data(moment_type, moment_label, pub_id):
     """
@@ -194,9 +231,9 @@ def evolve_alpha_s(mu, Nf = 3):
 
     return result
 
-def int_uv_PDF_Regge(j,eta,alpha_p,t, error_type="central"):
+def integral_uv_pdf_regge(j,eta,alpha_p,t, error_type="central"):
     """
-    Compute the integral of the Reggeized uv(x) PDF based on the given LO parameters and selected errors.
+    Result of the integral of the Reggeized uv(x) PDF based on the given LO parameters and selected errors.
     
     Arguments:
     j -- conformal spin,
@@ -255,9 +292,9 @@ def int_uv_PDF_Regge(j,eta,alpha_p,t, error_type="central"):
         return result.item()  # Return a scalar if the result is a single value
     return result
 
-def int_dv_PDF_Regge(j,eta,alpha_p,t, error_type="central"):
+def integral_dv_pdf_regge(j,eta,alpha_p,t, error_type="central"):
     """
-    Compute the integral of the Reggeized dv(x) PDF based on the given LO parameters and selected errors.
+    Result of the integral of the Reggeized dv(x) PDF based on the given LO parameters and selected errors.
     
     Arguments:
     j -- conformal spin,
@@ -317,9 +354,9 @@ def int_dv_PDF_Regge(j,eta,alpha_p,t, error_type="central"):
         return result.item()  # Return a scalar if the result is a single value
     return result
 
-def int_sv_PDF_Regge(j,eta,alpha_p,t, error_type="central"):
+def integral_sv_pdf_regge(j,eta,alpha_p,t, error_type="central"):
     """
-    Compute the integral of the Reggeized sv(x) PDF based on the given LO parameters and selected errors.
+    Result of the integral of the Reggeized sv(x) PDF based on the given LO parameters and selected errors.
     
     Arguments:
     j -- conformal spin,
@@ -370,9 +407,9 @@ def int_sv_PDF_Regge(j,eta,alpha_p,t, error_type="central"):
         return result.item()  # Return a scalar if the result is a single value
     return result
 
-def int_Sv_PDF_Regge(j,eta,alpha_p,t, error_type="central"):
+def integral_Sv_pdf_regge(j,eta,alpha_p,t, error_type="central"):
     """
-    Compute the integral of the Reggeized Sv(x) PDF based on the given LO parameters and selected errors.
+    Result of the integral of the Reggeized Sv(x) PDF based on the given LO parameters and selected errors.
     
     Arguments:
     j -- conformal spin,
@@ -425,9 +462,9 @@ def int_Sv_PDF_Regge(j,eta,alpha_p,t, error_type="central"):
         return result.item()  # Return a scalar if the result is a single value
     return result
 
-def int_s_plus_PDF_Regge(j,eta,alpha_p,t, error_type="central"):
+def integral_s_plus_pdf_regge(j,eta,alpha_p,t, error_type="central"):
     """
-    Compute the integral of the Reggeized s_+(x) PDF based on the given LO parameters and selected errors.
+    Result of the integral of the Reggeized s_+(x) PDF based on the given LO parameters and selected errors.
     
     Arguments:
     j -- conformal spin,
@@ -481,9 +518,9 @@ def int_s_plus_PDF_Regge(j,eta,alpha_p,t, error_type="central"):
         return result.item()  # Return a scalar if the result is a single value
     return result
 
-def int_Delta_PDF_Regge(j,eta,alpha_p,t, error_type="central"):
+def integral_Delta_pdf_regge(j,eta,alpha_p,t, error_type="central"):
     """
-    Compute the integral of the Reggeized Delta(x)=ubar(x)-dbar(x) PDF based on the given LO parameters and selected errors.
+    Result of the integral of the Reggeized Delta(x)=ubar(x)-dbar(x) PDF based on the given LO parameters and selected errors.
     
     Arguments:
     j -- conformal spin,
@@ -541,9 +578,9 @@ def int_Delta_PDF_Regge(j,eta,alpha_p,t, error_type="central"):
         return result.item()  # Return a scalar if the result is a single value
     return result
 
-def int_gluon_PDF_Regge(j,eta,alpha_p,t, error_type="central"):
+def integral_gluon_pdf_regge(j,eta,alpha_p,t, error_type="central"):
     """
-    Compute the integral of the Reggeized g(x) PDF based on the given LO parameters and selected errors.
+    Result of the integral of the Reggeized g(x) PDF based on the given LO parameters and selected errors.
     
     Arguments:
     j -- conformal spin,
@@ -606,42 +643,55 @@ def int_gluon_PDF_Regge(j,eta,alpha_p,t, error_type="central"):
     return result
 
 # Define Reggeized conformal moments
-def uv_minus_dv_PDF_Regge(j,eta,t, error_type="central"):
+def non_singlet_isovector_moment(j,eta,t, moment_label="A",evolve_type="vector", error_type="central"):
    # Check type
    check_error_type(error_type)
+   check_moment_type_label("NonSingletIsovector",moment_label)
+   check_evolve_type(evolve_type)
 
    # Value from the paper
-   alpha_prime = 1.069
+   # alpha_prime = 1.069
+   alpha_prime = get_regge_slope("NonSingletIsovector",moment_label,evolve_type)
    # Value optmized for range -t < 5 GeV
    # alpha_prime = 0.650439
    # Normalize to 1 at t = 0
-   return 1.006*(int_uv_PDF_Regge(j,eta,alpha_prime,t,error_type)-int_dv_PDF_Regge(j,eta,alpha_prime,t,error_type))
+   return (integral_uv_pdf_regge(j,eta,alpha_prime,t,error_type)
+           -integral_dv_pdf_regge(j,eta,alpha_prime,t,error_type))
 
-def u_minus_d_PDF_Regge(j,eta,t, error_type="central"):
+def u_minus_d_pdf_regge(j,eta,t, error_type="central"):
+   """ Currently only experimental function that does not set ubar=dbar"""
    # Check type
    check_error_type(error_type)
    # Value optmized for range -t < 5 GeV
    alpha_prime = 0.675606
    # Normalize to 1 at t = 0
-   return 1.107*(int_uv_PDF_Regge(j,eta,alpha_prime,t,error_type)-int_dv_PDF_Regge(j,eta,alpha_prime,t,error_type)-int_Delta_PDF_Regge(j,alpha_prime,t,error_type))
+   return 1.107*(integral_uv_pdf_regge(j,eta,alpha_prime,t,error_type)
+                 -integral_dv_pdf_regge(j,eta,alpha_prime,t,error_type)
+                 -integral_Delta_pdf_regge(j,alpha_prime,t,error_type))
 
-def uv_plus_dv_PDF_Regge(j,eta,t, error_type="central"):
+def non_singlet_isoscalar_moment(j,eta,t, moment_label="A",evolve_type="vector", error_type="central"):
    # Check type
    check_error_type(error_type)
+   check_moment_type_label("NonSingletIsoscalar",moment_label)
+   check_evolve_type(evolve_type)
    # Value from the paper
-   alpha_prime = 0.891
+   #alpha_prime = 0.891
+   alpha_prime = get_regge_slope("NonSingletIsoscalar",moment_label,evolve_type)
    # Value optmized for range -t < 5 GeV
    #alpha_prime = 0.953598
-   # Normalize to 1 at t = 0
-   return 1.002*(int_uv_PDF_Regge(j,eta,alpha_prime,t,error_type)+int_dv_PDF_Regge(j,eta,alpha_prime,t,error_type))
+   return (integral_uv_pdf_regge(j,eta,alpha_prime,t,error_type)
+           +integral_dv_pdf_regge(j,eta,alpha_prime,t,error_type))
 
-def u_plus_d_PDF_Regge(j,eta,t, error_type="central"):
+def u_plus_d_pdf_regge(j,eta,t, error_type="central"):
+   """ Currently only experimental function that does not set ubar=dbar"""
    # Check type
    check_error_type(error_type)
    # Value optmized for range -t < 5 GeV
    alpha_prime = 0.949256
    # Normalize to 1 at t = 0
-   return 0.973*(int_uv_PDF_Regge(j,eta,alpha_prime,t,error_type)+int_dv_PDF_Regge(j,eta,alpha_prime,t,error_type)+int_Delta_PDF_Regge(j,alpha_prime,t,error_type))
+   return 0.973*(integral_uv_pdf_regge(j,eta,alpha_prime,t,error_type)
+                 +integral_dv_pdf_regge(j,eta,alpha_prime,t,error_type)
+                 +integral_Delta_pdf_regge(j,alpha_prime,t,error_type))
 
 def d_hat(j,eta,t):
     """
@@ -662,14 +712,14 @@ def d_hat(j,eta,t):
         result = mp.hyp2f1(-j/2, -(j-1)/2, 1/2 - j, - 4 * m_N**2/t * eta**2)
     return result
     
-def quark_singlet_Regge_A(j,eta,t, Nf=3, alpha_prime_ud=0.891, error_type="central"):
+def quark_singlet_regge_A(j,eta,t, Nf=3, alpha_prime_ud=0.891, error_type="central"):
     # Check type
     check_error_type(error_type)
-    uv = int_uv_PDF_Regge(j,eta,alpha_prime_ud,t,error_type) 
-    dv = int_dv_PDF_Regge(j,eta,alpha_prime_ud,t,error_type)
-    Delta = int_Delta_PDF_Regge(j,eta,alpha_prime_ud,t,error_type)
-    Sv = int_Sv_PDF_Regge(j,eta,alpha_prime_ud,t,error_type)
-    s_plus = int_s_plus_PDF_Regge(j,eta,alpha_prime_ud,t,error_type)
+    uv = integral_uv_pdf_regge(j,eta,alpha_prime_ud,t,error_type) 
+    dv = integral_dv_pdf_regge(j,eta,alpha_prime_ud,t,error_type)
+    Delta = integral_Delta_pdf_regge(j,eta,alpha_prime_ud,t,error_type)
+    Sv = integral_Sv_pdf_regge(j,eta,alpha_prime_ud,t,error_type)
+    s_plus = integral_s_plus_pdf_regge(j,eta,alpha_prime_ud,t,error_type)
 
     if Nf == 3 or Nf == 4:
         result = uv + dv + Sv 
@@ -681,20 +731,20 @@ def quark_singlet_Regge_A(j,eta,t, Nf=3, alpha_prime_ud=0.891, error_type="centr
         raise ValueError("Currently only (integer) 1 <= Nf <= 3 supported")
     return result
     
-def quark_singlet_Regge_D(j,eta,t, Nf=3, alpha_prime_ud=0.891,alpha_prime_s=1.828, error_type="central"):
+def quark_singlet_regge_D(j,eta,t, Nf=3, alpha_prime_ud=0.891,alpha_prime_s=1.828, error_type="central"):
     # Check type
     check_error_type(error_type)
-    uv = int_uv_PDF_Regge(j,eta,alpha_prime_ud,t,error_type) 
-    dv = int_dv_PDF_Regge(j,eta,alpha_prime_ud,t,error_type)
-    Delta = int_Delta_PDF_Regge(j,eta,alpha_prime_ud,t,error_type)
-    Sv = int_Sv_PDF_Regge(j,eta,alpha_prime_ud,t,error_type)
-    s_plus = int_s_plus_PDF_Regge(j,eta,alpha_prime_ud,t,error_type)
+    uv = integral_uv_pdf_regge(j,eta,alpha_prime_ud,t,error_type) 
+    dv = integral_dv_pdf_regge(j,eta,alpha_prime_ud,t,error_type)
+    Delta = integral_Delta_pdf_regge(j,eta,alpha_prime_ud,t,error_type)
+    Sv = integral_Sv_pdf_regge(j,eta,alpha_prime_ud,t,error_type)
+    s_plus = integral_s_plus_pdf_regge(j,eta,alpha_prime_ud,t,error_type)
 
-    uv_s = int_uv_PDF_Regge(j,eta,alpha_prime_s,t,error_type) 
-    dv_s = int_dv_PDF_Regge(j,eta,alpha_prime_s,t,error_type)
-    Sv_s = int_Sv_PDF_Regge(j,eta,alpha_prime_s,t,error_type)
-    s_plus_s = int_s_plus_PDF_Regge(j,eta,alpha_prime_s,t,error_type)
-    Delta_s = int_Delta_PDF_Regge(j,eta,alpha_prime_s,t,error_type)
+    uv_s = integral_uv_pdf_regge(j,eta,alpha_prime_s,t,error_type) 
+    dv_s = integral_dv_pdf_regge(j,eta,alpha_prime_s,t,error_type)
+    Sv_s = integral_Sv_pdf_regge(j,eta,alpha_prime_s,t,error_type)
+    s_plus_s = integral_s_plus_pdf_regge(j,eta,alpha_prime_s,t,error_type)
+    Delta_s = integral_Delta_pdf_regge(j,eta,alpha_prime_s,t,error_type)
 
     if eta == 0:
         return 0
@@ -714,47 +764,55 @@ def quark_singlet_Regge_D(j,eta,t, Nf=3, alpha_prime_ud=0.891,alpha_prime_s=1.82
     result = (d_hat(j,eta,t)-1)*(term_1-term_2)
     return result
 
-def quark_singlet_Regge(j,eta,t,Nf=3,error_type="central"):
+def quark_singlet_regge(j,eta,t,Nf=3,moment_label="A",evolve_type="vector",error_type="central"):
     # Check type
     check_error_type(error_type)
-    alpha_prime_ud = 0.891
-    alpha_prime_s = 1.828
-    term_1 = quark_singlet_Regge_A(j,eta,t,Nf,alpha_prime_ud,error_type)
-    term_2 = quark_singlet_Regge_D(j,eta,t,Nf,alpha_prime_ud,alpha_prime_s,error_type)
+    check_evolve_type(evolve_type)
+    check_moment_type_label("Singlet",moment_label)
+    # alpha_prime_ud = 0.891
+    # alpha_prime_s = 1.828
+    alpha_prime_ud = get_regge_slope("NonSingletIsoscalar",moment_label,evolve_type)
+    alpha_prime_s, _, _ = get_regge_slope("Singlet",moment_label,evolve_type)
+
+    term_1 = quark_singlet_regge_A(j,eta,t,Nf,alpha_prime_ud,error_type)
+    term_2 = quark_singlet_regge_D(j,eta,t,Nf,alpha_prime_ud,alpha_prime_s,error_type)
     result = term_1 + term_2
     return result
 
-def gluon_Regge_A(j,eta,t, alpha_prime_T = 0.627, error_type="central"):
+def gluon_regge_A(j,eta,t, alpha_prime_T = 0.627, error_type="central"):
     # Check type
     check_error_type(error_type)
-    return int_gluon_PDF_Regge(j,eta,alpha_prime_T,t,error_type)
+    return integral_gluon_pdf_regge(j,eta,alpha_prime_T,t,error_type)
 
-def gluon_Regge_D(j,eta,t, alpha_prime_T = 0.627, alpha_prime_S = 4.277, error_type="central"):
+def gluon_regge_D(j,eta,t, alpha_prime_T = 0.627, alpha_prime_S = 4.277, error_type="central"):
     # Check type
     check_error_type(error_type)
     if eta == 0:
         return 0
     else :
         term_1 = (d_hat(j,eta,t)-1)
-        term_2 = gluon_Regge_A(j,eta,t,alpha_prime_T,error_type)
-        term_3 = int_gluon_PDF_Regge(j,eta,t,alpha_prime_S,error_type)
+        term_2 = gluon_regge_A(j,eta,t,alpha_prime_T,error_type)
+        term_3 = integral_gluon_pdf_regge(j,eta,t,alpha_prime_S,error_type)
         result =term_1 * (term_2-term_3)
         return result
 
-def gluon_Regge(j,eta,t, error_type="central"):
+def gluon_singlet_regge(j,eta,t,moment_label="A",evolve_type="vector", error_type="central"):
     # Check type
     check_error_type(error_type)
-    alpha_prime_T = 0.627
-    alpha_prime_S = 4.277
-    term_1= gluon_Regge_A(j,eta,t,alpha_prime_T,error_type)
+    check_evolve_type(evolve_type)
+    check_moment_type_label("Singlet",moment_label)
+    # alpha_prime_T = 0.627
+    # alpha_prime_S = 4.277
+    _, alpha_prime_T, alpha_prime_S = get_regge_slope("Singlet",moment_label,evolve_type)
+    term_1= gluon_regge_A(j,eta,t,alpha_prime_T,error_type)
     if eta == 0:
         result = term_1
     else :
-        term_2 = gluon_Regge_D(j,eta,t,alpha_prime_T,alpha_prime_S,error_type)
+        term_2 = gluon_regge_D(j,eta,t,alpha_prime_T,alpha_prime_S,error_type)
         result = term_1 + term_2
     return result
 
-def diagonal_singlet(j,eta,t,Nf=3,evolve_type="vector",solution="+",error_type="central"):
+def singlet_moment(j,eta,t,Nf=3,moment_label="A",evolve_type="vector",solution="+",error_type="central"):
     # Check type
     check_error_type(error_type)
     check_evolve_type(evolve_type)
@@ -765,19 +823,14 @@ def diagonal_singlet(j,eta,t,Nf=3,evolve_type="vector",solution="+",error_type="
         solution = "+"
     else:
         raise ValueError("Invalid solution type. Use '+' or '-'.")
-    if evolve_type == "vector":
-        quark_in = quark_singlet_Regge(j,eta,t,Nf,error_type)
-        # Note: j/6 already included in gamma_qg and gamma_gg definitions
-        gluon_prf = (gamma_qg(j-1,Nf,evolve_type)/
-                     (gamma_qq(j-1)-gamma_pm(j-1,Nf,evolve_type,solution)))
-        gluon_in = gluon_Regge(j,eta,t, error_type)
-        result = quark_in + gluon_prf * gluon_in
-        return result
-    elif evolve_type == "axial":
-        print("Axial is ToDo")
-        return 0
-    else:
-        raise ValueError("Type must be vector or axial")
+    
+    quark_in = quark_singlet_regge(j,eta,t,Nf,moment_label,evolve_type,error_type)
+    # Note: j/6 already included in gamma_qg and gamma_gg definitions
+    gluon_prf = (gamma_qg(j-1,Nf,evolve_type)/
+                    (gamma_qq(j-1)-gamma_pm(j-1,Nf,evolve_type,solution)))
+    gluon_in = gluon_singlet_regge(j,eta,t,moment_label,evolve_type,error_type)
+    result = quark_in + gluon_prf * gluon_in
+    return result
 
 
 # Initialize the dictionary
@@ -944,8 +997,8 @@ def evolve_conformal_moment(j,eta,t,mu,Nf = 3,particle="quark",moment_type="NonS
     if moment_type == "Singlet":
         anomalous_dim_p = gamma_pm(j-1,Nf,evolve_type,"+")
         anomalous_dim_m = gamma_pm(j-1,Nf,evolve_type,"-")
-        gpd_in_p = gpd_in(j,eta,t, Nf, evolve_type,"+",error_type)
-        gpd_in_m = gpd_in(j,eta,t, Nf, evolve_type,"-",error_type)
+        gpd_in_p = gpd_in(j,eta,t, Nf, moment_label, evolve_type,"+",error_type)
+        gpd_in_m = gpd_in(j,eta,t, Nf, moment_label,evolve_type,"-",error_type)
         evolve_moment_p = gpd_in_p * alpha_frac**(anomalous_dim_p/beta_0)
         evolve_moment_m = gpd_in_m *alpha_frac**(anomalous_dim_m/beta_0)
         if particle == "quark":
@@ -966,7 +1019,7 @@ def evolve_conformal_moment(j,eta,t,mu,Nf = 3,particle="quark",moment_type="NonS
 
     elif moment_type in ["NonSingletIsovector","NonSingletIsoscalar"]:
         anomalous_dim = gamma_qq(j-1)
-        result = gpd_in(j,eta,t,error_type) * alpha_frac**(anomalous_dim/beta_0)   
+        result = gpd_in(j,eta,t,moment_label,evolve_type,error_type) * alpha_frac**(anomalous_dim/beta_0)   
     else : 
         raise ValueError("Moment Type must be Singlet, NonSingletIsovector or NonSingletIsoscalar")
     
@@ -1196,7 +1249,7 @@ def mellin_barnes_gpd(x, eta, t, mu, Nf=3, particle = "quark", moment_type="Sing
     """
     check_particle_type(particle)
     check_error_type(error_type)
-    check_parity(parity)
+
     check_moment_type_label(moment_type,moment_label)
     
     if moment_type == "Singlet":
@@ -1220,7 +1273,8 @@ def mellin_barnes_gpd(x, eta, t, mu, Nf=3, particle = "quark", moment_type="Sing
         print("NonSingletIsoscalar norm is To Do")
         norm = 1
         parity = "none"
-    
+
+    check_parity(parity)
     j_base = get_j_base(particle,parity)
 
     if eta == 0: # Avoid division by zero in the Q partial wave
