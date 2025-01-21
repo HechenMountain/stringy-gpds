@@ -21,14 +21,15 @@ BASE_PATH = "/mnt/c/Users/flori/Documents/PostDoc/Data/GPD/"
 saturated_pink = (1.0, 0.1, 0.6)  
 
 def initialize_dictionary():
-    """ Dictionary to map publication IDs to colors for plots
+    """ Dictionary to map publication IDs to colors and factorization scale for plots
     as well as map input Reggeized PDFs to conformal moments
     """
     global publication_mapping 
     publication_mapping = {
-        "2305.11117": "cyan",
-        "0705.4295": "orange",
-        "1908.10706": saturated_pink
+        "2305.11117": ("cyan",2),
+        "0705.4295": ("orange",2),
+        "1908.10706": (saturated_pink,2),
+        "2410.03539": ("green",1)
     # Add more publication IDs and corresponding colors here
     }
 
@@ -37,17 +38,23 @@ def initialize_dictionary():
     moment_to_function = {
     # Contains a Pair of moment_type and moment_label to match input PDF and evolution type
     ("NonSingletIsovector", "A"): (non_singlet_isovector_moment,"vector"),
-    ("NonSingletIsovector", "A_tilde"): (non_singlet_isovector_moment,"axial"),
+    ("NonSingletIsovector", "Atilde"): (non_singlet_isovector_moment,"axial"),
     #("NonSingletIsovector", "A"): (u_minus_d_pdf_regge,"vector"),
     ("NonSingletIsoscalar", "A"): (non_singlet_isoscalar_moment,"vector"),
-    ("NonSingletIsoscalar", "A_tilde"): (non_singlet_isoscalar_moment,"axial"),
+    ("NonSingletIsoscalar", "Atilde"): (non_singlet_isoscalar_moment,"axial"),
     #("NonSingletIsoscalar", "A"): (u_plus_d_pdf_regge,"vector"),
     ("Singlet","A"): (singlet_moment, "vector"),
-    ("Singlet","A_tilde"): (singlet_moment, "axial"),
+    ("Singlet","Atilde"): (singlet_moment, "axial"),
     }
 
 def get_regge_slope(moment_type,moment_label,evolve_type):
-    """Set Regge slopes, modify manually"""
+    """Set Regge slopes, modify manually
+    
+    Parameters:
+    - moment_type (str.): NonSingletIsovector, NonSingletIsoscalar, Singlet
+    - moment_label (str.): A, A_tide...
+    - evolve_type (str.): Type of evolution equation
+    """
     check_moment_type_label(moment_type,moment_label)
     check_evolve_type(evolve_type)
 
@@ -61,26 +68,30 @@ def get_regge_slope(moment_type,moment_label,evolve_type):
                 alpha_prime = 0.891
                 return alpha_prime
         if moment_type == "Singlet":
-            alpha_prime_s = 1.828
-            alpha_prime_T = 0.627
-            alpha_prime_S = 4.277
-            return alpha_prime_s, alpha_prime_T, alpha_prime_S
-    else:
-        print("Axial is to do")
-        if moment_type == "NonSingletIsovector":
             if moment_label == "A":
-                alpha_prime = 1
+                alpha_prime_s = 1.828
+                alpha_prime_T = 0.627
+                alpha_prime_S = 4.277
+                return alpha_prime_s, alpha_prime_T, alpha_prime_S
+    elif evolve_type == "axial":
+        if moment_type == "NonSingletIsovector":
+            if moment_label == "Atilde":
+                alpha_prime = 0.400865
                 return alpha_prime
         if moment_type == "NonSingletIsoscalar":
-            if moment_label == "A":
-                alpha_prime = 1
+            if moment_label == "Atilde":
+                alpha_prime = 0.246299
                 return alpha_prime
         if moment_type == "Singlet":
-            alpha_prime_s = 1
-            alpha_prime_T = 1
-            alpha_prime_S = 1
-            return alpha_prime_s, alpha_prime_T, alpha_prime_S
-
+            if moment_label == "A":
+                print("Axial Singlet is to do")
+                alpha_prime_s = 1
+                alpha_prime_T = 1
+                alpha_prime_S = 1
+                return alpha_prime_s, alpha_prime_T, alpha_prime_S
+    else:
+        raise ValueError(f"Evolve type {evolve_type} for moment {moment_type} with label {moment_label} unavailable.")
+            
 
 
 def load_lattice_data(moment_type, moment_label, pub_id):
@@ -645,53 +656,65 @@ def integral_gluon_pdf_regge(j,eta,alpha_p,t, error_type="central"):
 # Define Reggeized conformal moments
 def non_singlet_isovector_moment(j,eta,t, moment_label="A",evolve_type="vector", error_type="central"):
    # Check type
-   check_error_type(error_type)
-   check_moment_type_label("NonSingletIsovector",moment_label)
-   check_evolve_type(evolve_type)
+    check_error_type(error_type)
+    check_moment_type_label("NonSingletIsovector",moment_label)
+    check_evolve_type(evolve_type)
 
    # Value from the paper
    # alpha_prime = 1.069
-   alpha_prime = get_regge_slope("NonSingletIsovector",moment_label,evolve_type)
+    alpha_prime = get_regge_slope("NonSingletIsovector",moment_label,evolve_type)
+
    # Value optmized for range -t < 5 GeV
    # alpha_prime = 0.650439
    # Normalize to 1 at t = 0
-   return (integral_uv_pdf_regge(j,eta,alpha_prime,t,error_type)
-           -integral_dv_pdf_regge(j,eta,alpha_prime,t,error_type))
+    if moment_label == "A":
+       norm, gu, gd = 1,1,1
+    elif moment_label =="Atilde":
+       norm, gu, gd = 0.597242, 0.827, -0.380
+
+    return norm * (gu * integral_uv_pdf_regge(j,eta,alpha_prime,t,error_type)
+           - gd * integral_dv_pdf_regge(j,eta,alpha_prime,t,error_type))
 
 def u_minus_d_pdf_regge(j,eta,t, error_type="central"):
-   """ Currently only experimental function that does not set ubar=dbar"""
-   # Check type
-   check_error_type(error_type)
-   # Value optmized for range -t < 5 GeV
-   alpha_prime = 0.675606
-   # Normalize to 1 at t = 0
-   return 1.107*(integral_uv_pdf_regge(j,eta,alpha_prime,t,error_type)
-                 -integral_dv_pdf_regge(j,eta,alpha_prime,t,error_type)
-                 -integral_Delta_pdf_regge(j,alpha_prime,t,error_type))
+    """ Currently only experimental function that does not set ubar=dbar"""
+    # Check type
+    check_error_type(error_type)
+    # Value optmized for range -t < 5 GeV
+    alpha_prime = 0.675606
+    # Normalize to 1 at t = 0
+    return 1.107*(integral_uv_pdf_regge(j,eta,alpha_prime,t,error_type)
+                    -integral_dv_pdf_regge(j,eta,alpha_prime,t,error_type)
+                    -integral_Delta_pdf_regge(j,alpha_prime,t,error_type))
 
 def non_singlet_isoscalar_moment(j,eta,t, moment_label="A",evolve_type="vector", error_type="central"):
-   # Check type
-   check_error_type(error_type)
-   check_moment_type_label("NonSingletIsoscalar",moment_label)
-   check_evolve_type(evolve_type)
-   # Value from the paper
-   #alpha_prime = 0.891
-   alpha_prime = get_regge_slope("NonSingletIsoscalar",moment_label,evolve_type)
-   # Value optmized for range -t < 5 GeV
-   #alpha_prime = 0.953598
-   return (integral_uv_pdf_regge(j,eta,alpha_prime,t,error_type)
-           +integral_dv_pdf_regge(j,eta,alpha_prime,t,error_type))
+    # Check type
+    check_error_type(error_type)
+    check_moment_type_label("NonSingletIsoscalar",moment_label)
+    check_evolve_type(evolve_type)
+    # Value from the paper
+    #alpha_prime = 0.891
+    alpha_prime = get_regge_slope("NonSingletIsoscalar",moment_label,evolve_type)
+    # Value optmized for range -t < 5 GeV
+    #alpha_prime = 0.953598
+
+    if moment_label == "A":
+       norm, gu, gd = 1,1,1
+    elif moment_label =="Atilde":
+       norm, gu, gd = 0.350648, 0.827, -0.380
+
+    return norm * (gu * integral_uv_pdf_regge(j,eta,alpha_prime,t,error_type)
+            + gd * integral_dv_pdf_regge(j,eta,alpha_prime,t,error_type))
 
 def u_plus_d_pdf_regge(j,eta,t, error_type="central"):
-   """ Currently only experimental function that does not set ubar=dbar"""
-   # Check type
-   check_error_type(error_type)
-   # Value optmized for range -t < 5 GeV
-   alpha_prime = 0.949256
-   # Normalize to 1 at t = 0
-   return 0.973*(integral_uv_pdf_regge(j,eta,alpha_prime,t,error_type)
-                 +integral_dv_pdf_regge(j,eta,alpha_prime,t,error_type)
-                 +integral_Delta_pdf_regge(j,alpha_prime,t,error_type))
+    """ Currently only experimental function that does not set ubar=dbar"""
+    # Check type
+    check_error_type(error_type)
+    # Value optmized for range -t < 5 GeV
+    alpha_prime = 0.949256
+    # Normalize to 1 at t = 0
+    return 0.973*(integral_uv_pdf_regge(j,eta,alpha_prime,t,error_type)
+                    +integral_dv_pdf_regge(j,eta,alpha_prime,t,error_type)
+                    +integral_Delta_pdf_regge(j,alpha_prime,t,error_type))
 
 def d_hat(j,eta,t):
     """
@@ -1235,7 +1258,7 @@ def mellin_barnes_gpd(x, eta, t, mu, Nf=3, particle = "quark", moment_type="Sing
     - Nf (int 1<= Nf <=3 ): Number of flavors
     - particle (str): particle species (quark or gluon)
     - moment_type (str): Singlet, NonSingletIsovector, NonSingletIsoscalar
-    - moment_label (str): A, A_tilde, B
+    - moment_label (str): A, Atilde, B
     - error_type (str): value of input PDFs (central, plus, minus)
     - real_imag (str): Choose to compute real part, imaginary part or both
     - j_max (float): Integration range parallel to the imaginary axis
@@ -1465,15 +1488,191 @@ def mellin_barnes_gpd(x, eta, t, mu, Nf=3, particle = "quark", moment_type="Sing
 ################################
 
 
-
-def plot_moments(eta,y_label,t_max=3,particle="quark",moment_type="NonSingletIsovector", moment_label="A", n_t=50, num_columns=3):
+def plot_moment(n,eta,y_label,mu_in=2,t_max=3,Nf=3,particle="quark",moment_type="NonSingletIsovector", moment_label="A", n_t=50):
     """
-    Generates plots of lattice data and RGE-evolved functions for a given moment type and label.
+    Generates plots of lattice data and RGE-evolved functions for a given moment type and label. Unless there is a different scale
+    defined in publication_mapping, the default is mu = 2 GeV.
     
     Parameters:
+    - n (int): conformal spin
+    - eta (float): skewness parameter
+    - y_label (str.): the label of the y axis
+    - mu_in (float, optional): The resolution scale. (default is 2 GeV).
+    - t_max (float, optional): Maximum t value for the x-axis (default is 3).
+    - Nf (int, optional): Number of active flavors (default is 3)
+    - particle (str., optional): Either quark or gluon
     - moment_type (str): The type of moment (e.g., "NonSingletIsovector").
     - moment_label (str): The label of the moment (e.g., "A").
+    - n_t (int, optional): Number of points for t_fine (default is 50).
+    - num_columns (int, optional): Number of columns for the grid layout (default is 3).
+    """
+    check_particle_type(particle)
+    check_moment_type_label(moment_type,moment_label)
+    # Accessor functions for -t, values, and errors
+    def t_values(moment_type, moment_label, pub_id):
+        """Return the -t values for a given moment type, label, and publication ID."""
+        data, n_to_row_map = load_lattice_data(moment_type, moment_label, pub_id)
+
+        if data is None and n_to_row_map is None:
+            print(f"No data found for {moment_type} {moment_label} {pub_id}. Skipping.")
+            return None 
+        
+        if data is not None:
+            # Safely access data[:, 0] since data is not None
+            return data[:, 0]
+        else:
+            print(f"Data is None for {moment_type} {moment_label} {pub_id}. Skipping.")
+        return None  # Or handle accordingly
+    
+    # Compute results for the evolution functions
+    def compute_results(j, eta, t_vals, mu, Nf=3, particle="quark", moment_type="NonSingletIsovector", moment_label="A"):
+        """Compute central, plus, and minus results for a given evolution function."""
+        results = Parallel(n_jobs=-1)(
+            delayed(lambda t: float(evolve_conformal_moment(j, eta, t, mu, Nf, particle, moment_type, moment_label, "central")))(t)
+            for t in t_vals
+        )
+        results_plus = Parallel(n_jobs=-1)(
+            delayed(lambda t: float(evolve_conformal_moment(j, eta, t, mu, Nf, particle, moment_type, moment_label, "plus")))(t)
+            for t in t_vals
+        )
+        results_minus = Parallel(n_jobs=-1)(
+            delayed(lambda t: float(evolve_conformal_moment(j, eta, t, mu, Nf, particle, moment_type, moment_label, "minus")))(t)
+            for t in t_vals
+        )
+        return results, results_plus, results_minus
+
+    # Define the finer grid for t-values
+    t_fine = np.linspace(-t_max, 0, n_t)
+    
+    # Initialize the figure and axes for subplots
+    fig, ax = plt.subplots(figsize=(7, 7)) 
+
+    evolve_moment_central, evolve_moment_plus, evolve_moment_minus = compute_results(n,eta,t_fine,mu_in,Nf,particle,moment_type,moment_label)
+    
+    # Plot the RGE functions
+    ax.plot(-t_fine, evolve_moment_central, color="blue", linewidth=2, label="This work")
+    ax.fill_between(-t_fine, evolve_moment_minus, evolve_moment_plus, color="blue", alpha=0.2)
+    
+    # Plot data from publications
+
+    for pub_id, (color,mu) in publication_mapping.items():
+        if mu != mu_in:
+            continue
+        data, n_to_row_map = load_lattice_data(moment_type, moment_label, pub_id)
+        if data is None or n not in n_to_row_map:
+            continue
+        t_vals = t_values(moment_type, moment_label, pub_id)
+        Fn0_vals = Fn0_values(n, moment_type, moment_label, pub_id)
+        Fn0_errs = Fn0_errors(n, moment_type, moment_label, pub_id)
+        ax.errorbar(t_vals, Fn0_vals, yerr=Fn0_errs, fmt='o', color=color, label=f"{pub_id}")
+
+    # Add labels and formatting
+    ax.set_xlabel("$-t\,[\mathrm{GeV}^2]$", fontsize=14)
+    if particle == "gluon" and n == 2:
+        ax.set_ylabel(f"$A_g(t,\mu = {mu_in}\,[\mathrm{{GeV}}])$", fontsize=14)
+    elif particle == "quark" and moment_type == "Singlet" and n == 2:
+        ax.set_ylabel(f"$A_{{u+d+s}}(t,\mu = {mu_in}\,[\mathrm{{GeV}}])$", fontsize=14)
+    else:
+        ax.set_ylabel(f"{y_label}$(j={n}, \\eta=0, t, \\mu={mu_in}\, \\mathrm{{GeV}})$", fontsize=14)
+    ax.legend()
+    ax.grid(True, which="both")
+    ax.set_xlim([0, t_max])
+    
+    plt.show()
+
+def plot_moments_D_on_grid(t_max, mu, Nf=3, n_t=50,display="both"):
+    """
+    Plot evolution for gluon or quark singlet D term conformal moments.
+
+    Parameters:
+        t_max (float): Maximum value of Mandelstam t.
+        mu (float): Scale parameter (e.g., 2 GeV).
+        Nf (int, optional): Number of flavors (default is 3).
+        n_t (int, optional): Number of data points
+        display (str, optional): "quark", "gluon", or "both" to specify which plots to display (default is "both").
+    """
+    if display not in ["quark", "gluon", "both"]:
+        raise ValueError("Invalid value for display. Use 'quark', 'gluon', or 'both'.")
+    
+    # Compute results for the evolution functions
+    def compute_results_D(j, eta, t_vals, mu, Nf=3, particle="quark", moment_type="NonSingletIsovector", moment_label="A"):
+        """Compute central, plus, and minus results for a given evolution function."""
+        results = Parallel(n_jobs=-1)(
+            delayed(lambda t: float(evolve_singlet_D(j, eta, t, mu, Nf, particle, moment_label, "central")))(t)
+            for t in t_vals
+        )
+        results_plus = Parallel(n_jobs=-1)(
+            delayed(lambda t: float(evolve_singlet_D(j, eta, t, mu, Nf, particle, moment_label, "plus")))(t)
+            for t in t_vals
+        )
+        results_minus = Parallel(n_jobs=-1)(
+            delayed(lambda t: float(evolve_singlet_D(j, eta, t, mu, Nf, particle, moment_label, "minus")))(t)
+            for t in t_vals
+        )
+        return results, results_plus, results_minus
+
+    def plot_results(t_values, results, results_plus, results_minus, xlabel, ylabel, ax=None):
+        """Plot results on the given axis, or create a new figure if ax is None."""
+        if ax is None:
+            fig, ax = plt.subplots(figsize=(6, 4))
+        ax.plot(-t_values, results, label="This work", color="blue")
+        ax.fill_between(-t_values, results_minus, results_plus, color="blue", alpha=0.2)
+        ax.set_xlabel(xlabel, fontsize=14)
+        ax.set_ylabel(ylabel, fontsize=14)
+        ax.grid(True)
+        ax.legend()
+        if ax is None:
+            plt.tight_layout()
+            plt.show()
+
+    def plot_evolve_gluon_D(t_values, mu, Nf=3, ax=None):
+        """Compute and plot gluon D evolution."""
+        results, results_plus, results_minus = compute_results_D(2, 0, t_values, mu, Nf, "gluon","A")
+        plot_results(t_values, results, results_plus, results_minus,
+                    xlabel="$-t\,[\mathrm{GeV}^2]$", ylabel="$D_g(t,\mu = 2\,[\mathrm{GeV}])$", ax=ax)
+
+    def plot_evolve_quark_singlet_D(t_values, mu, Nf=3, ax=None):
+        """Compute and plot quark singlet D evolution."""
+        results, results_plus, results_minus = compute_results_D(2, 0, t_values, mu, Nf, "quark","A")
+        plot_results(t_values, results, results_plus, results_minus,
+                    xlabel="$-t\,[\mathrm{GeV}^2]$", ylabel="$D_{u+d+s}(t,\mu = 2\,[\mathrm{GeV}])$", ax=ax)
+
+    # Set up the figure and axes
+    if display == "both":
+        fig, axes = plt.subplots(1, 2, figsize=(12, 6), sharey=True)
+        ax_gluon, ax_quark = axes
+    else:
+        fig, ax = plt.subplots(figsize=(6, 4))
+        ax_gluon = ax_quark = ax
+
+    t_values = np.linspace(-t_max,-1e-2,n_t)
+
+    # Plot gluon evolution if requested
+    if display in ["gluon", "both"]:
+        plot_evolve_gluon_D(t_values, mu, Nf, ax=ax_gluon)
+
+    # Plot quark singlet evolution if requested
+    if display in ["quark", "both"]:
+        plot_evolve_quark_singlet_D(t_values, mu, Nf, ax=ax_quark)
+
+    # Adjust layout and show the plot
+    plt.tight_layout()
+    plt.show()
+
+
+def plot_moments_on_grid(eta,y_label,t_max=3, Nf=3,particle="quark",moment_type="NonSingletIsovector", moment_label="A", n_t=50, num_columns=3):
+    """
+    Generates plots of lattice data and RGE-evolved functions for a given moment type and label on a grid. Only supports data with equal mu.
+    If no data is available it sets mu = 2 GeV.
+    
+    Parameters:
+    - eta (float): skewness parameter
+    - y_label (str.): the label of the y axis
     - t_max (float, optional): Maximum t value for the x-axis (default is 3).
+    - Nf (int, optional): Number of active flavors (default is 3)
+    - particle (str., optional): Either quark or gluon
+    - moment_type (str): The type of moment (e.g., "NonSingletIsovector").
+    - moment_label (str): The label of the moment (e.g., "A").
     - n_t (int, optional): Number of points for t_fine (default is 50).
     - num_columns (int, optional): Number of columns for the grid layout (default is 3).
     """
@@ -1555,8 +1754,9 @@ def plot_moments(eta,y_label,t_max=3,particle="quark",moment_type="NonSingletIso
         ax.fill_between(-t_fine, evolve_moment_minus, evolve_moment_plus, color="blue", alpha=0.2)
         
         # Plot data from publications
+        mu = None
         if publication_data:
-            for pub_id, color in publication_mapping.items():
+            for pub_id, (color,mu) in publication_mapping.items():
                 data, n_to_row_map = load_lattice_data(moment_type, moment_label, pub_id)
                 if data is None or n not in n_to_row_map:
                     continue
@@ -1564,15 +1764,16 @@ def plot_moments(eta,y_label,t_max=3,particle="quark",moment_type="NonSingletIso
                 Fn0_vals = Fn0_values(n, moment_type, moment_label, pub_id)
                 Fn0_errs = Fn0_errors(n, moment_type, moment_label, pub_id)
                 ax.errorbar(t_vals, Fn0_vals, yerr=Fn0_errs, fmt='o', color=color, label=f"{pub_id}")
-        
+        if mu == None:
+            mu = 2 
         # Add labels and formatting
         ax.set_xlabel("$-t\,[\mathrm{GeV}^2]$", fontsize=14)
         if particle == "gluon" and n == 2:
-            ax.set_ylabel("$A_g(t,\mu = 2\,[\mathrm{GeV}])$", fontsize=14)
+            ax.set_ylabel(f"$A_g(t,\mu = {mu}\,[\mathrm{{GeV}}])$", fontsize=14)
         elif particle == "quark" and moment_type == "Singlet" and n == 2:
-            ax.set_ylabel("$A_{u+d+s}(t,\mu = 2\,[\mathrm{GeV}])$", fontsize=14)
+            ax.set_ylabel(f"$A_{{u+d+s}}(t,\mu = {mu}\,[\mathrm{{GeV}}])$", fontsize=14)
         else:
-            ax.set_ylabel(f"{y_label}$(j={n}, \\eta=0, t, \\mu=2\, \\mathrm{{GeV}})$", fontsize=14)
+            ax.set_ylabel(f"{y_label}$(j={n}, \\eta=0, t, \\mu={mu}\, \\mathrm{{GeV}})$", fontsize=14)
         ax.legend()
         ax.grid(True, which="both")
         ax.set_xlim([0, t_max])
@@ -1594,87 +1795,6 @@ def plot_moments(eta,y_label,t_max=3,particle="quark",moment_type="NonSingletIso
     # Adjust layout and show the plot
     plt.tight_layout()
     plt.show()
-
-
-def plot_moments_D(t_max, mu, Nf=3, n_t=50,display="both"):
-    """
-    Plot evolution for gluon or quark singlet D term conformal moments.
-
-    Parameters:
-        t_max (float): Maximum value of Mandelstam t.
-        mu (float): Scale parameter (e.g., 2 GeV).
-        Nf (int, optional): Number of flavors (default is 3).
-        n_t (int, optional): Number of data points
-        display (str, optional): "quark", "gluon", or "both" to specify which plots to display (default is "both").
-    """
-    if display not in ["quark", "gluon", "both"]:
-        raise ValueError("Invalid value for display. Use 'quark', 'gluon', or 'both'.")
-    
-    # Compute results for the evolution functions
-    def compute_results_D(j, eta, t_vals, mu, Nf=3, particle="quark", moment_type="NonSingletIsovector", moment_label="A"):
-        """Compute central, plus, and minus results for a given evolution function."""
-        results = Parallel(n_jobs=-1)(
-            delayed(lambda t: float(evolve_singlet_D(j, eta, t, mu, Nf, particle, moment_label, "central")))(t)
-            for t in t_vals
-        )
-        results_plus = Parallel(n_jobs=-1)(
-            delayed(lambda t: float(evolve_singlet_D(j, eta, t, mu, Nf, particle, moment_label, "plus")))(t)
-            for t in t_vals
-        )
-        results_minus = Parallel(n_jobs=-1)(
-            delayed(lambda t: float(evolve_singlet_D(j, eta, t, mu, Nf, particle, moment_label, "minus")))(t)
-            for t in t_vals
-        )
-        return results, results_plus, results_minus
-
-    def plot_results(t_values, results, results_plus, results_minus, xlabel, ylabel, ax=None):
-        """Plot results on the given axis, or create a new figure if ax is None."""
-        if ax is None:
-            fig, ax = plt.subplots(figsize=(6, 4))
-        ax.plot(-t_values, results, label="This work", color="blue")
-        ax.fill_between(-t_values, results_minus, results_plus, color="blue", alpha=0.2)
-        ax.set_xlabel(xlabel, fontsize=14)
-        ax.set_ylabel(ylabel, fontsize=14)
-        ax.grid(True)
-        ax.legend()
-        if ax is None:
-            plt.tight_layout()
-            plt.show()
-
-    def plot_evolve_gluon_D(t_values, mu, Nf=3, ax=None):
-        """Compute and plot gluon D evolution."""
-        results, results_plus, results_minus = compute_results_D(2, 0, t_values, mu, Nf, "gluon","A")
-        plot_results(t_values, results, results_plus, results_minus,
-                    xlabel="$-t\,[\mathrm{GeV}^2]$", ylabel="$D_g(t,\mu = 2\,[\mathrm{GeV}])$", ax=ax)
-
-    def plot_evolve_quark_singlet_D(t_values, mu, Nf=3, ax=None):
-        """Compute and plot quark singlet D evolution."""
-        results, results_plus, results_minus = compute_results_D(2, 0, t_values, mu, Nf, "quark","A")
-        plot_results(t_values, results, results_plus, results_minus,
-                    xlabel="$-t\,[\mathrm{GeV}^2]$", ylabel="$D_{u+d+s}(t,\mu = 2\,[\mathrm{GeV}])$", ax=ax)
-
-    # Set up the figure and axes
-    if display == "both":
-        fig, axes = plt.subplots(1, 2, figsize=(12, 6), sharey=True)
-        ax_gluon, ax_quark = axes
-    else:
-        fig, ax = plt.subplots(figsize=(6, 4))
-        ax_gluon = ax_quark = ax
-
-    t_values = np.linspace(-t_max,-1e-2,n_t)
-
-    # Plot gluon evolution if requested
-    if display in ["gluon", "both"]:
-        plot_evolve_gluon_D(t_values, mu, Nf, ax=ax_gluon)
-
-    # Plot quark singlet evolution if requested
-    if display in ["quark", "both"]:
-        plot_evolve_quark_singlet_D(t_values, mu, Nf, ax=ax_quark)
-
-    # Adjust layout and show the plot
-    plt.tight_layout()
-    plt.show()
-
 
 def plot_fourier_transform_moments(j,eta,mu,plot_title,Nf=3,particle="quark",moment_type="NonSingletIsovector", moment_label="A", b_max = 2,Delta_max = 5,num_points=100,error_type="central"):
     """
@@ -1768,7 +1888,7 @@ def plot_mellin_barnes_gpd_integrand(x, eta, t, mu, Nf=3, particle="quark", mome
     - Nf (int): Number of flavors.
     - particle (str): Particle species ("quark" or "gluon").
     - moment_type (str. optional): Moment type ("Singlet", "NonSingletIsovector", "NonSingletIsoscalar").
-    - moment_label (str. optional): Moment label ("A", "A_tilde", "B").
+    - moment_label (str. optional): Moment label ("A", "Atilde", "B").
     - parity (str., optional)
     - error_type (str. optional): PDF value type ("central", "plus", "minus").
     - j_max (float. optional): Maximum value of imaginary part k for plotting.

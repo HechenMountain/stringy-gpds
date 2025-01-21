@@ -60,7 +60,7 @@ MSTW_PDF_NNLO = MSTW_PDF[["NNLO"]]
 ############################################
 
 # Define the PDFs using Eqs. (6-12) in  0901.0002 
-def uv_PDF(x, error_type="central"):
+def uv_pdf(x, error_type="central"):
     """
     Compute the uv(x) PDF based on the given LO parameters and selected errors.
     
@@ -100,7 +100,7 @@ def uv_PDF(x, error_type="central"):
     
     return result
 
-def dv_PDF(x, error_type="central"):
+def dv_pdf(x, error_type="central"):
     # Define a dictionary that maps the error_type to column indices
     error_mapping = {
         "central": 0,  # The column with the central value
@@ -133,7 +133,7 @@ def dv_PDF(x, error_type="central"):
     
     return result
 
-def sv_PDF(x, error_type="central"):
+def sv_pdf(x, error_type="central"):
     error_mapping = {
         "central": 0,
         "plus": 1,
@@ -156,7 +156,7 @@ def sv_PDF(x, error_type="central"):
     
     return result
 
-def Sv_PDF(x, error_type="central"):
+def Sv_pdf(x, error_type="central"):
     error_mapping = {
         "central": 0,
         "plus": 1,
@@ -181,7 +181,7 @@ def Sv_PDF(x, error_type="central"):
     
     return result
 
-def s_plus_PDF(x, error_type="central"):
+def s_plus_pdf(x, error_type="central"):
     error_mapping = {
         "central": 0,
         "plus": 1,
@@ -206,7 +206,7 @@ def s_plus_PDF(x, error_type="central"):
     
     return result
 
-def Delta_PDF(x, error_type="central"):
+def Delta_pdf(x, error_type="central"):
     """
     Compute the Delta(x)=dbar-ubar PDF based on the given LO parameters and selected errors.
     """
@@ -240,7 +240,7 @@ def Delta_PDF(x, error_type="central"):
     
     return result
 
-def gluon_PDF(x, error_type="central"):
+def gluon_pdf(x, error_type="central"):
      # Define a dictionary that maps the error_type to column indices
     error_mapping = {
         "central": 0,  # The column with the central value
@@ -271,24 +271,24 @@ def gluon_PDF(x, error_type="central"):
     
     return result
 
-def uv_minus_dv_PDF(x,error_type="central"):
-    result = uv_PDF(x,error_type)-dv_PDF(x,error_type)
+def uv_minus_dv_pdf(x,error_type="central"):
+    result = uv_pdf(x,error_type)-dv_pdf(x,error_type)
     return result
 
-def uv_plus_dv_plus_S_PDF(x,error_type="central"):
-    result = uv_PDF(x,error_type) + dv_PDF(x,error_type) + Sv_PDF(x,error_type)
+def uv_plus_dv_plus_S_pdf(x,error_type="central"):
+    result = uv_pdf(x,error_type) + dv_pdf(x,error_type) + Sv_pdf(x,error_type)
     return result
 
 ######################
 ### Plot Functions ###
 ######################
 
-def plot_uv_minus_dv_PDF(x_0=1e-2):
-    vectorized_uv_minus_dv_PDF = np.vectorize(uv_minus_dv_PDF)
+def plot_uv_minus_dv_pdf(x_0=1e-2):
+    vectorized_uv_minus_dv_pdf = np.vectorize(uv_minus_dv_pdf)
     x_vals = np.linspace(x_0,1,100)
-    y_vals = vectorized_uv_minus_dv_PDF(x_vals)
-    y_vals_plus = abs(vectorized_uv_minus_dv_PDF(x_vals,"plus") - y_vals)
-    y_vals_minus = abs(y_vals - vectorized_uv_minus_dv_PDF(x_vals,"minus"))
+    y_vals = vectorized_uv_minus_dv_pdf(x_vals)
+    y_vals_plus = abs(vectorized_uv_minus_dv_pdf(x_vals,"plus") - y_vals)
+    y_vals_minus = abs(y_vals - vectorized_uv_minus_dv_pdf(x_vals,"minus"))
 
     plt.errorbar(
             x_vals, y_vals,
@@ -297,12 +297,12 @@ def plot_uv_minus_dv_PDF(x_0=1e-2):
     plt.grid(True)
     plt.show()
 
-def plot_uv_plus_dv_plus_S_PDF(x_0=1e-2):
-    vectorized_uv_plus_dv_plus_S_PDF = np.vectorize(uv_plus_dv_plus_S_PDF)
+def plot_uv_plus_dv_plus_S_pdf(x_0=1e-2):
+    vectorized_uv_plus_dv_plus_S_pdf = np.vectorize(uv_plus_dv_plus_S_pdf)
     x_vals = np.linspace(x_0,1,100)
-    y_vals = vectorized_uv_plus_dv_plus_S_PDF(x_vals)
-    y_vals_plus = abs(vectorized_uv_plus_dv_plus_S_PDF(x_vals,"plus") - y_vals)
-    y_vals_minus = abs(y_vals - vectorized_uv_plus_dv_plus_S_PDF(x_vals,"minus"))
+    y_vals = vectorized_uv_plus_dv_plus_S_pdf(x_vals)
+    y_vals_plus = abs(vectorized_uv_plus_dv_plus_S_pdf(x_vals,"plus") - y_vals)
+    y_vals_minus = abs(y_vals - vectorized_uv_plus_dv_plus_S_pdf(x_vals,"minus"))
 
     plt.errorbar(
             x_vals, y_vals,
@@ -311,12 +311,12 @@ def plot_uv_plus_dv_plus_S_PDF(x_0=1e-2):
     plt.grid(True)
     plt.show()
 
-def plot_gluon_PDF(x_0=1e-2):
-    vectorized_gluon_PDF = np.vectorize(gluon_PDF)
+def plot_gluon_pdf(x_0=1e-2):
+    vectorized_gluon_pdf = np.vectorize(gluon_pdf)
     x_vals = np.linspace(x_0,1,100)
-    y_vals = x_vals * vectorized_gluon_PDF(x_vals)
-    y_vals_plus = x_vals * abs(vectorized_gluon_PDF(x_vals,"plus") - y_vals)
-    y_vals_minus = x_vals * abs(y_vals - vectorized_gluon_PDF(x_vals,"minus"))
+    y_vals = x_vals * vectorized_gluon_pdf(x_vals)
+    y_vals_plus = x_vals * abs(vectorized_gluon_pdf(x_vals,"plus") - y_vals)
+    y_vals_minus = x_vals * abs(y_vals - vectorized_gluon_pdf(x_vals,"minus"))
 
     plt.errorbar(
             x_vals, y_vals,
