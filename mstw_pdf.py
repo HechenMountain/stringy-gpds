@@ -156,7 +156,7 @@ def sv_pdf(x, error_type="central"):
     
     return result
 
-def Sv_pdf(x, error_type="central"):
+def S_pdf(x, error_type="central"):
     error_mapping = {
         "central": 0,
         "plus": 1,
@@ -276,7 +276,7 @@ def uv_minus_dv_pdf(x,error_type="central"):
     return result
 
 def uv_plus_dv_plus_S_pdf(x,error_type="central"):
-    result = uv_pdf(x,error_type) + dv_pdf(x,error_type) + Sv_pdf(x,error_type)
+    result = uv_pdf(x,error_type) + dv_pdf(x,error_type) + S_pdf(x,error_type)
     return result
 
 ######################

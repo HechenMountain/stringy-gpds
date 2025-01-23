@@ -20,29 +20,24 @@ BASE_PATH = "/mnt/c/Users/flori/Documents/PostDoc/Data/GPD/"
 # Add some colors
 saturated_pink = (1.0, 0.1, 0.6)  
 
-def initialize_dictionary():
-    """ Dictionary to map publication IDs to colors and factorization scale for plots
-    as well as map input Reggeized PDFs to conformal moments
-    """
-    global publication_mapping 
-    publication_mapping = {
-        "2305.11117": ("cyan",2),
-        "0705.4295": ("orange",2),
-        "1908.10706": (saturated_pink,2),
-        "2410.03539": ("green",1)
-    # Add more publication IDs and corresponding colors here
-    }
 
+PUBLICATION_MAPPING = {
+    "2305.11117": ("cyan",2),
+    "0705.4295": ("orange",2),
+    "1908.10706": (saturated_pink,2),
+    "2410.03539": ("green",2)
+# Add more publication IDs and corresponding colors here
+}
+
+def initialize_moment_to_function():
     # Define dictionary that maps conformal moments names and types to expressions
-    global moment_to_function
-    moment_to_function = {
+    global MOMENT_TO_FUNCTION
+    MOMENT_TO_FUNCTION = {
     # Contains a Pair of moment_type and moment_label to match input PDF and evolution type
     ("NonSingletIsovector", "A"): (non_singlet_isovector_moment,"vector"),
     ("NonSingletIsovector", "Atilde"): (non_singlet_isovector_moment,"axial"),
-    #("NonSingletIsovector", "A"): (u_minus_d_pdf_regge,"vector"),
     ("NonSingletIsoscalar", "A"): (non_singlet_isoscalar_moment,"vector"),
     ("NonSingletIsoscalar", "Atilde"): (non_singlet_isoscalar_moment,"axial"),
-    #("NonSingletIsoscalar", "A"): (u_plus_d_pdf_regge,"vector"),
     ("Singlet","A"): (singlet_moment, "vector"),
     ("Singlet","Atilde"): (singlet_moment, "axial"),
     }
@@ -76,11 +71,11 @@ def get_regge_slope(moment_type,moment_label,evolve_type):
     elif evolve_type == "axial":
         if moment_type == "NonSingletIsovector":
             if moment_label == "Atilde":
-                alpha_prime = 0.400865
+                alpha_prime = 0.399939
                 return alpha_prime
         if moment_type == "NonSingletIsoscalar":
             if moment_label == "Atilde":
-                alpha_prime = 0.246299
+                alpha_prime = 0.247658
                 return alpha_prime
         if moment_type == "Singlet":
             if moment_label == "A":
@@ -197,9 +192,8 @@ def check_particle_type(particle):
         raise ValueError("particle must be quark or gluon")
     
 def check_moment_type_label(moment_type, moment_label):
-    initialize_dictionary()
-    if (moment_type, moment_label) not in moment_to_function:
-        raise ValueError(f"Unsupported moment_type and or label\n (moment_type, moment_label): {moment_type, moment_label} not in {moment_to_function}")
+    if (moment_type, moment_label) not in MOMENT_TO_FUNCTION:
+        raise ValueError(f"Unsupported moment_type and or label\n (moment_type, moment_label): {moment_type, moment_label} not in {MOMENT_TO_FUNCTION}")
 
 def check_evolve_type(evolve_type):
     if evolve_type not in ["vector","axial"]:
@@ -418,7 +412,7 @@ def integral_sv_pdf_regge(j,eta,alpha_p,t, error_type="central"):
         return result.item()  # Return a scalar if the result is a single value
     return result
 
-def integral_Sv_pdf_regge(j,eta,alpha_p,t, error_type="central"):
+def integral_S_pdf_regge(j,eta,alpha_p,t, error_type="central"):
     """
     Result of the integral of the Reggeized Sv(x) PDF based on the given LO parameters and selected errors.
     
@@ -660,17 +654,12 @@ def non_singlet_isovector_moment(j,eta,t, moment_label="A",evolve_type="vector",
     check_moment_type_label("NonSingletIsovector",moment_label)
     check_evolve_type(evolve_type)
 
-   # Value from the paper
-   # alpha_prime = 1.069
     alpha_prime = get_regge_slope("NonSingletIsovector",moment_label,evolve_type)
 
-   # Value optmized for range -t < 5 GeV
-   # alpha_prime = 0.650439
-   # Normalize to 1 at t = 0
     if moment_label == "A":
        norm, gu, gd = 1,1,1
     elif moment_label =="Atilde":
-       norm, gu, gd = 0.597242, 0.827, -0.380
+       norm, gu, gd = 0.603429, 0.843, -0.427
 
     return norm * (gu * integral_uv_pdf_regge(j,eta,alpha_prime,t,error_type)
            - gd * integral_dv_pdf_regge(j,eta,alpha_prime,t,error_type))
@@ -691,16 +680,13 @@ def non_singlet_isoscalar_moment(j,eta,t, moment_label="A",evolve_type="vector",
     check_error_type(error_type)
     check_moment_type_label("NonSingletIsoscalar",moment_label)
     check_evolve_type(evolve_type)
-    # Value from the paper
-    #alpha_prime = 0.891
+
     alpha_prime = get_regge_slope("NonSingletIsoscalar",moment_label,evolve_type)
-    # Value optmized for range -t < 5 GeV
-    #alpha_prime = 0.953598
 
     if moment_label == "A":
        norm, gu, gd = 1,1,1
     elif moment_label =="Atilde":
-       norm, gu, gd = 0.350648, 0.827, -0.380
+       norm, gu, gd = 0.331774, 0.843, -0.427
 
     return norm * (gu * integral_uv_pdf_regge(j,eta,alpha_prime,t,error_type)
             + gd * integral_dv_pdf_regge(j,eta,alpha_prime,t,error_type))
@@ -741,7 +727,7 @@ def quark_singlet_regge_A(j,eta,t, Nf=3, alpha_prime_ud=0.891, error_type="centr
     uv = integral_uv_pdf_regge(j,eta,alpha_prime_ud,t,error_type) 
     dv = integral_dv_pdf_regge(j,eta,alpha_prime_ud,t,error_type)
     Delta = integral_Delta_pdf_regge(j,eta,alpha_prime_ud,t,error_type)
-    Sv = integral_Sv_pdf_regge(j,eta,alpha_prime_ud,t,error_type)
+    Sv = integral_S_pdf_regge(j,eta,alpha_prime_ud,t,error_type)
     s_plus = integral_s_plus_pdf_regge(j,eta,alpha_prime_ud,t,error_type)
 
     if Nf == 3 or Nf == 4:
@@ -760,12 +746,12 @@ def quark_singlet_regge_D(j,eta,t, Nf=3, alpha_prime_ud=0.891,alpha_prime_s=1.82
     uv = integral_uv_pdf_regge(j,eta,alpha_prime_ud,t,error_type) 
     dv = integral_dv_pdf_regge(j,eta,alpha_prime_ud,t,error_type)
     Delta = integral_Delta_pdf_regge(j,eta,alpha_prime_ud,t,error_type)
-    Sv = integral_Sv_pdf_regge(j,eta,alpha_prime_ud,t,error_type)
+    Sv = integral_S_pdf_regge(j,eta,alpha_prime_ud,t,error_type)
     s_plus = integral_s_plus_pdf_regge(j,eta,alpha_prime_ud,t,error_type)
 
     uv_s = integral_uv_pdf_regge(j,eta,alpha_prime_s,t,error_type) 
     dv_s = integral_dv_pdf_regge(j,eta,alpha_prime_s,t,error_type)
-    Sv_s = integral_Sv_pdf_regge(j,eta,alpha_prime_s,t,error_type)
+    Sv_s = integral_S_pdf_regge(j,eta,alpha_prime_s,t,error_type)
     s_plus_s = integral_s_plus_pdf_regge(j,eta,alpha_prime_s,t,error_type)
     Delta_s = integral_Delta_pdf_regge(j,eta,alpha_prime_s,t,error_type)
 
@@ -855,9 +841,13 @@ def singlet_moment(j,eta,t,Nf=3,moment_label="A",evolve_type="vector",solution="
     result = quark_in + gluon_prf * gluon_in
     return result
 
+# Initialize the MOMENT_TO_FUNCTION dictionary
+# after all functions are defined
+initialize_moment_to_function()
 
-# Initialize the dictionary
-initialize_dictionary()
+################################
+##### Evolution Equations ######
+################################
 
 def gamma_qq(j):
    """
@@ -978,10 +968,6 @@ def Gamma_pm(j,Nf=3,evolve_type="vector",solution="+"):
     result = 1-gamma_pm(j,Nf,evolve_type,solution)/gamma_qq(j)
     return result
 
-################################
-##### Evolution Equations ######
-################################
-
 def evolve_conformal_moment(j,eta,t,mu,Nf = 3,particle="quark",moment_type="NonSingletIsovector",moment_label ="A", error_type = "central"):
     """
     Evolve the conformal moment F_{j}^{+-} from some input scale mu_in to some other scale mu.
@@ -1015,7 +1001,7 @@ def evolve_conformal_moment(j,eta,t,mu,Nf = 3,particle="quark",moment_type="NonS
 
     # Precompute alpha_s fraction:
     alpha_frac  = (alpha_s_in/evolve_alpha_s(mu,Nf))    
-    gpd_in, evolve_type = moment_to_function.get((moment_type, moment_label))
+    gpd_in, evolve_type = MOMENT_TO_FUNCTION.get((moment_type, moment_label))
 
     if moment_type == "Singlet":
         anomalous_dim_p = gamma_pm(j-1,Nf,evolve_type,"+")
@@ -1033,8 +1019,6 @@ def evolve_conformal_moment(j,eta,t,mu,Nf = 3,particle="quark",moment_type="NonS
         if particle == "gluon":
             # Manually fix the scale to 0.501 @ mu = 2 GeV from 2310.08484
             A0 = 0.501/0.43807
-            #2025
-            #A0 = 1
             term_1 = gamma_gq(j-1,evolve_type)/(gamma_pm(j-1,Nf,evolve_type,"+")-gamma_pm(j-1,Nf,evolve_type,"-"))
             term_2 = evolve_moment_p
             term_3 = evolve_moment_m
@@ -1491,7 +1475,7 @@ def mellin_barnes_gpd(x, eta, t, mu, Nf=3, particle = "quark", moment_type="Sing
 def plot_moment(n,eta,y_label,mu_in=2,t_max=3,Nf=3,particle="quark",moment_type="NonSingletIsovector", moment_label="A", n_t=50):
     """
     Generates plots of lattice data and RGE-evolved functions for a given moment type and label. Unless there is a different scale
-    defined in publication_mapping, the default is mu = 2 GeV.
+    defined in PUBLICATION_MAPPING, the default is mu = 2 GeV.
     
     Parameters:
     - n (int): conformal spin
@@ -1555,7 +1539,7 @@ def plot_moment(n,eta,y_label,mu_in=2,t_max=3,Nf=3,particle="quark",moment_type=
     
     # Plot data from publications
 
-    for pub_id, (color,mu) in publication_mapping.items():
+    for pub_id, (color,mu) in PUBLICATION_MAPPING.items():
         if mu != mu_in:
             continue
         data, n_to_row_map = load_lattice_data(moment_type, moment_label, pub_id)
@@ -1718,7 +1702,7 @@ def plot_moments_on_grid(eta,y_label,t_max=3, Nf=3,particle="quark",moment_type=
     publication_data = {}
     
     # Loop through each publication ID to calculate the total number of plots
-    for pub_id in publication_mapping:
+    for pub_id in PUBLICATION_MAPPING:
         data, n_to_row_map = load_lattice_data(moment_type, moment_label, pub_id)
         if data is None and n_to_row_map is None:
             #print(f"No data found for {pub_id}. Skipping.")
@@ -1756,7 +1740,7 @@ def plot_moments_on_grid(eta,y_label,t_max=3, Nf=3,particle="quark",moment_type=
         # Plot data from publications
         mu = None
         if publication_data:
-            for pub_id, (color,mu) in publication_mapping.items():
+            for pub_id, (color,mu) in PUBLICATION_MAPPING.items():
                 data, n_to_row_map = load_lattice_data(moment_type, moment_label, pub_id)
                 if data is None or n not in n_to_row_map:
                     continue
