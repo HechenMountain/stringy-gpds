@@ -66,16 +66,16 @@ AAC_PDF_LO = AAC_PDF[["LO"]]
 AAC_PDF_NLO = AAC_PDF[["NLO"]]
 AAC_PDF_NNLO = AAC_PDF[["NNLO"]]
 
-def polarized_u_pdf(x, error_type="central"):
+def polarized_uv_pdf(x, error_type="central"):
     """
-    Compute the polarized u(x) PDF based on the given LO parameters and selected errors.
+    Compute the polarized uv(x) PDF based on the given LO parameters and selected errors.
     
     Arguments:
     x -- The value of parton x.
     error_type -- A string indicating whether to use 'central', 'plus', or 'minus' errors. Default is 'central'.
     
     Returns:
-    The value of the polarized u(x) based on the selected parameters and error type.
+    The value of the polarized uv(x) based on the selected parameters and error type.
     """
      # Define a dictionary that maps the error_type to column indices
     error_mapping = {
@@ -98,19 +98,19 @@ def polarized_u_pdf(x, error_type="central"):
     delta_gamma_u = AAC_PDF_LO.iloc[index_delta_gamma_u,0][0] + int(error_col_index>0)*AAC_PDF_LO.iloc[index_delta_gamma_u,0][error_col_index]
     delta_lambda_u = AAC_PDF_LO.iloc[index_delta_lambda_u,0][0] + int(error_col_index>0)*AAC_PDF_LO.iloc[index_delta_lambda_u,0][error_col_index]
     
-    result = delta_A_u * x**(alpha_u)*(1+delta_gamma_u* x**(delta_lambda_u))*(-2*Delta_pdf(x,"central") + S_pdf(x,"central")-s_plus_pdf(x,"central")+4*uv_pdf(x,"central"))/4
+    result = delta_A_u * x**(alpha_u)*(1+delta_gamma_u* x**(delta_lambda_u)) * uv_pdf(x,"central")
     return result
 
-def polarized_d_pdf(x, error_type="central"):
+def polarized_dv_pdf(x, error_type="central"):
     """
-    Compute the polarized d(x) PDF based on the given LO parameters and selected errors.
+    Compute the polarized dv(x) PDF based on the given LO parameters and selected errors.
     
     Arguments:
     x -- The value of parton x.
     error_type -- A string indicating whether to use 'central', 'plus', or 'minus' errors. Default is 'central'.
     
     Returns:
-    The value of the polarized d(x) based on the selected parameters and error type.
+    The value of the polarized dv(x) based on the selected parameters and error type.
     """
      # Define a dictionary that maps the error_type to column indices
     error_mapping = {
@@ -133,7 +133,7 @@ def polarized_d_pdf(x, error_type="central"):
     delta_gamma_d = AAC_PDF_LO.iloc[index_delta_gamma_d,0][0] + int(error_col_index>0)*AAC_PDF_LO.iloc[index_delta_gamma_d,0][error_col_index]
     delta_lambda_d = AAC_PDF_LO.iloc[index_delta_lambda_d,0][0] + int(error_col_index>0)*AAC_PDF_LO.iloc[index_delta_lambda_d,0][error_col_index]
     
-    result = delta_A_d * x**(alpha_d)*(1+delta_gamma_d* x**(delta_lambda_d))*(2*Delta_pdf(x,"central") + S_pdf(x,"central")-s_plus_pdf(x,"central")+4*dv_pdf(x,"central"))/4
+    result = delta_A_d * x**(alpha_d)*(1+delta_gamma_d* x**(delta_lambda_d)) * dv_pdf(x,"central")
     return result
 
 def polarized_gluon_pdf(x, error_type="central"):
@@ -361,39 +361,30 @@ def polarized_S_pdf(x, error_type="central"):
     Returns:
     The value of the polarized S(x) based on the selected parameters and error type.
     """
+     # Define a dictionary that maps the error_type to column indices
+    error_mapping = {
+        "central": 0,  # The column with the central value
+        "plus": 1,     # The column with the + error value
+        "minus": 2     # The column with the - error value
+    }
     
-    result = 2 * (polarized_ubar_pdf(x,error_type)+polarized_dbar_pdf(x,error_type)+polarized_s_plus_pdf(x,error_type))
+    # Get the column index corresponding to the error_type
+    error_col_index = error_mapping.get(error_type, 0)  # Default to 'central' if error_type is invalid
+
+    # Get row index of entry
+    index_delta_A_S=AAC_PDF[AAC_PDF["Parameter"] == "Delta_A_S"].index[0]
+    index_alpha_S=AAC_PDF[AAC_PDF["Parameter"] == "alpha_S"].index[0]
+    index_delta_lambda_S=AAC_PDF[AAC_PDF["Parameter"] == "Delta_lambda_S"].index[0]
+    index_delta_gamma_S=AAC_PDF[AAC_PDF["Parameter"] == "Delta_gamma_S"].index[0]
+
+    delta_A_S = AAC_PDF_LO.iloc[index_delta_A_S,0][0] + int(error_col_index>0)*AAC_PDF_LO.iloc[index_delta_A_S,0][error_col_index]
+    alpha_S = AAC_PDF_LO.iloc[index_alpha_S,0][0] + int(error_col_index>0)*AAC_PDF_LO.iloc[index_alpha_S,0][error_col_index]
+    delta_gamma_S = AAC_PDF_LO.iloc[index_delta_gamma_S,0][0] + int(error_col_index>0)*AAC_PDF_LO.iloc[index_delta_gamma_S,0][error_col_index]
+    delta_lambda_S = AAC_PDF_LO.iloc[index_delta_lambda_S,0][0] + int(error_col_index>0)*AAC_PDF_LO.iloc[index_delta_lambda_S,0][error_col_index]
+    
+    result = delta_A_S * x**(alpha_S)*(1+delta_gamma_S* x**(delta_lambda_S)) * S_pdf(x,"central")
     return result
 
-def polarized_uv_pdf(x, error_type="central"):
-    """
-    Compute the polarized uv(x) PDF based on the given LO parameters and selected errors.
-    
-    Arguments:
-    x -- The value of parton x.
-    error_type -- A string indicating whether to use 'central', 'plus', or 'minus' errors. Default is 'central'.
-    
-    Returns:
-    The value of the polarized uv(x) based on the selected parameters and error type.
-    """
-    
-    result = polarized_u_pdf(x,error_type) - polarized_ubar_pdf(x,error_type)
-    return result
-
-def polarized_dv_pdf(x, error_type="central"):
-    """
-    Compute the polarized dv(x) PDF based on the given LO parameters and selected errors.
-    
-    Arguments:
-    x -- The value of parton x.
-    error_type -- A string indicating whether to use 'central', 'plus', or 'minus' errors. Default is 'central'.
-    
-    Returns:
-    The value of the polarized dv(x) based on the selected parameters and error type.
-    """
-    
-    result = polarized_d_pdf(x,error_type) - polarized_dbar_pdf(x,error_type)
-    return result
 
 def polarized_uv_minus_dv_pdf(x, error_type="central"):
     """
@@ -429,7 +420,7 @@ def polarized_uv_plus_dv_plus_S_pdf(x, error_type="central"):
 ### Plot Functions ###
 ######################
 
-def plot_polarized_polarized_uv_minus_dv_pdf(x_0=1e-2):
+def plot_polarized_uv_minus_dv_pdf(x_0=1e-2,logplot = False):
     vectorized_polarized_uv_minus_dv_pdf = np.vectorize(polarized_uv_minus_dv_pdf)
     x_vals = np.linspace(x_0,1,100)
     y_vals = vectorized_polarized_uv_minus_dv_pdf(x_vals)
@@ -441,9 +432,11 @@ def plot_polarized_polarized_uv_minus_dv_pdf(x_0=1e-2):
             yerr=(y_vals_minus, y_vals_plus),
             fmt='o')
     plt.grid(True)
+    if logplot:
+        plt.xscale('log')
     plt.show()
 
-def plot_polarized_uv_plus_dv_plus_S_pdf(x_0=1e-2):
+def plot_polarized_uv_plus_dv_plus_S_pdf(x_0=1e-2,logplot = False):
     vectorized_polarized_uv_plus_dv_plus_S_pdf = np.vectorize(polarized_uv_plus_dv_plus_S_pdf)
     x_vals = np.linspace(x_0,1,100)
     y_vals = vectorized_polarized_uv_plus_dv_plus_S_pdf(x_vals)
@@ -455,18 +448,26 @@ def plot_polarized_uv_plus_dv_plus_S_pdf(x_0=1e-2):
             yerr=(y_vals_minus, y_vals_plus),
             fmt='o')
     plt.grid(True)
+    if logplot:
+        plt.xscale('log')
     plt.show()
 
-def plot_polarized_gluon_pdf(x_0=1e-2):
+def plot_polarized_gluon_pdf(x_0=1e-2,logplot = False,error_bars=True):
     vectorized_polarized_gluon_pdf = np.vectorize(polarized_gluon_pdf)
     x_vals = np.linspace(x_0,1,100)
     y_vals = x_vals * vectorized_polarized_gluon_pdf(x_vals)
-    y_vals_plus = x_vals * abs(vectorized_polarized_gluon_pdf(x_vals,"plus") - y_vals)
-    y_vals_minus = x_vals * abs(y_vals - vectorized_polarized_gluon_pdf(x_vals,"minus"))
+    if error_bars:
+        y_vals_plus = abs(x_vals *vectorized_polarized_gluon_pdf(x_vals,"plus") - y_vals)
+        y_vals_minus = abs(y_vals - x_vals *vectorized_polarized_gluon_pdf(x_vals,"minus"))
+    else:
+        y_vals_plus = 0 * y_vals
+        y_vals_minus = 0 * y_vals
 
     plt.errorbar(
             x_vals, y_vals,
             yerr=(y_vals_minus, y_vals_plus),
             fmt='o')
     plt.grid(True)
+    if logplot:
+        plt.xscale('log')
     plt.show()

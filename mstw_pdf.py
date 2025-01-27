@@ -315,8 +315,8 @@ def plot_gluon_pdf(x_0=1e-2):
     vectorized_gluon_pdf = np.vectorize(gluon_pdf)
     x_vals = np.linspace(x_0,1,100)
     y_vals = x_vals * vectorized_gluon_pdf(x_vals)
-    y_vals_plus = x_vals * abs(vectorized_gluon_pdf(x_vals,"plus") - y_vals)
-    y_vals_minus = x_vals * abs(y_vals - vectorized_gluon_pdf(x_vals,"minus"))
+    y_vals_plus =  abs(x_vals* vectorized_gluon_pdf(x_vals,"plus") - y_vals)
+    y_vals_minus = abs(y_vals - x_vals * vectorized_gluon_pdf(x_vals,"minus"))
 
     plt.errorbar(
             x_vals, y_vals,

@@ -11,6 +11,7 @@ import re
 import os
 
 from mstw_pdf import MSTW_PDF,MSTW_PDF_LO
+from aac_pdf import AAC_PDF, AAC_PDF_LO
 
 
 ########################################
@@ -71,18 +72,17 @@ def get_regge_slope(moment_type,moment_label,evolve_type):
     elif evolve_type == "axial":
         if moment_type == "NonSingletIsovector":
             if moment_label == "Atilde":
-                alpha_prime = 0.399939
+                alpha_prime = 0.452007
                 return alpha_prime
         if moment_type == "NonSingletIsoscalar":
             if moment_label == "Atilde":
-                alpha_prime = 0.247658
+                alpha_prime = 0.280278
                 return alpha_prime
         if moment_type == "Singlet":
-            if moment_label == "A":
-                print("Axial Singlet is to do")
-                alpha_prime_s = 1
-                alpha_prime_T = 1
-                alpha_prime_S = 1
+            if moment_label == "Atilde":
+                alpha_prime_s = 1.828
+                alpha_prime_T = 0.627
+                alpha_prime_S = 4.277
                 return alpha_prime_s, alpha_prime_T, alpha_prime_S
     else:
         raise ValueError(f"Evolve type {evolve_type} for moment {moment_type} with label {moment_label} unavailable.")
@@ -638,11 +638,309 @@ def integral_gluon_pdf_regge(j,eta,alpha_p,t, error_type="central"):
     frac_1 = epsilon_g*gamma(delta_g+j-alpha_p*t -.5)/(gamma(delta_g+eta_g+j-alpha_p*t+.5))
     frac_2 = (delta_g+eta_g-gamma_g+delta_g*gamma_g+j*(1+gamma_g)-(1+gamma_g)*alpha_p*t)*gamma(delta_g+j-alpha_p*t-1)/gamma(delta_g+eta_g+j-alpha_p*t+1)
     result = A_g*gamma(1+eta_g)*(frac_1+frac_2)
-    #2025:
-    # frac_1 = epsilon_g*gamma(delta_g+j-alpha_p*t -1.5)/(gamma(delta_g+eta_g+j-alpha_p*t-.5))
-    # frac_2 = (-1+delta_g+eta_g-2*gamma_g+delta_g*gamma_g+j*(1+gamma_g)-(1+gamma_g)*alpha_p*t)*gamma(delta_g+j-alpha_p*t-2)/gamma(delta_g+eta_g+j-alpha_p*t)
-    # result = A_g*gamma(1+eta_g)*(frac_1+frac_2)
      # Return the result while preserving the original dimensions
+    if result.size == 1:
+        return result.item()  # Return a scalar if the result is a single value
+    return result
+
+def integral_polarized_uv_pdf_regge(j,eta,alpha_p,t, error_type="central"):
+    """
+    Result of the integral of the Reggeized uv(x) PDF based on the given LO parameters and selected errors.
+    
+    Arguments:
+    j -- conformal spin,
+    eta -- skewness (scalar or array)(placeholder for now),
+    alpha_p -- Regge slope,
+    t -- Mandelstam t (scalar or array),
+    error_type -- A string indicating whether to use 'central', 'plus', or 'minus' errors. Default is 'central'.
+    
+    Returns:
+    The value of the Reggeized integral of uv(x) based on the selected parameters and error type.
+    """
+    # Check type
+    check_error_type(error_type)
+
+     # Define a dictionary that maps the error_type to column indices
+    error_mapping = {
+        "central": 0,  # The column with the central value
+        "plus": 1,     # The column with the + error value
+        "minus": 2     # The column with the - error value
+    }
+    
+    # Get the column index corresponding to the error_type
+    error_col_index = error_mapping.get(error_type, 0)  # Default to 'central' if error_type is invalid
+
+    # Get row index of entry
+    index_A_u=MSTW_PDF[MSTW_PDF["Parameter"] == "A_u"].index[0]
+    index_eta_1=MSTW_PDF[MSTW_PDF["Parameter"] == "eta_1"].index[0]
+    index_eta_2=MSTW_PDF[MSTW_PDF["Parameter"] == "eta_2"].index[0]
+    index_epsilon_u=MSTW_PDF[MSTW_PDF["Parameter"] == "epsilon_u"].index[0]
+    index_gamma_u=MSTW_PDF[MSTW_PDF["Parameter"] == "gamma_u"].index[0]
+
+    # Get row index of entry
+    index_delta_A_u=AAC_PDF[AAC_PDF["Parameter"] == "Delta_A_u"].index[0]
+    index_alpha_u=AAC_PDF[AAC_PDF["Parameter"] == "alpha_u"].index[0]
+    index_delta_lambda_u=AAC_PDF[AAC_PDF["Parameter"] == "Delta_lambda_u"].index[0]
+    index_delta_gamma_u=AAC_PDF[AAC_PDF["Parameter"] == "Delta_gamma_u"].index[0]
+
+    # Extracting central parameter values
+    A_u = MSTW_PDF_LO.iloc[index_A_u,0][0]
+    eta_1 = MSTW_PDF_LO.iloc[index_eta_1,0][0]
+    eta_2 = MSTW_PDF_LO.iloc[index_eta_2,0][0]
+    epsilon_u = MSTW_PDF_LO.iloc[index_epsilon_u,0][0]
+    gamma_u = MSTW_PDF_LO.iloc[index_gamma_u,0][0]
+    # Extracting parameter values based on error type
+    delta_A_u = AAC_PDF_LO.iloc[index_delta_A_u,0][0] + int(error_col_index>0)*AAC_PDF_LO.iloc[index_delta_A_u,0][error_col_index]
+    alpha_u = AAC_PDF_LO.iloc[index_alpha_u,0][0] + int(error_col_index>0)*AAC_PDF_LO.iloc[index_alpha_u,0][error_col_index]
+    delta_gamma_u = AAC_PDF_LO.iloc[index_delta_gamma_u,0][0] + int(error_col_index>0)*AAC_PDF_LO.iloc[index_delta_gamma_u,0][error_col_index]
+    delta_lambda_u = AAC_PDF_LO.iloc[index_delta_lambda_u,0][0] + int(error_col_index>0)*AAC_PDF_LO.iloc[index_delta_lambda_u,0][error_col_index]
+
+    # Convert eta and t to numpy arrays for vectorized operations
+    eta = np.atleast_1d(eta)
+    t = np.atleast_1d(t)
+    
+    # If eta and t are 1D, ensure compatibility by broadcasting
+    if eta.ndim == 1:
+        eta = eta[:, np.newaxis]  # Make eta a column vector
+    if t.ndim == 1:
+        t = t[np.newaxis, :]      # Make t a row vector
+
+    # Analytical result of the integral
+    frac_1 =(1 + gamma_u * (-1 + alpha_u +eta_1 + j - alpha_p * t)/(alpha_u+eta_1+eta_2+j-alpha_p * t)) * gamma(-1 + alpha_u + eta_1 +j - alpha_p *t )/gamma(alpha_u + eta_1 +eta_2 + j - alpha_p*t)
+    frac_2 = epsilon_u*gamma(-.5 + alpha_u + eta_1+j-alpha_p*t)/(gamma(+.5 + alpha_u+eta_1+eta_2+j-alpha_p*t))
+    frac_3 = ((delta_gamma_u + gamma_u*delta_gamma_u * (-1+alpha_u+eta_1+j-alpha_p*t+delta_lambda_u)/(alpha_u+eta_1+eta_2+j-alpha_p*t+delta_lambda_u))
+              *gamma(-1+alpha_u+eta_1+j-alpha_p*t+delta_lambda_u)/(gamma(alpha_u+eta_1+eta_2+j-alpha_p*t+delta_lambda_u)))
+    frac_4 = epsilon_u*delta_gamma_u*gamma(-.5 + alpha_u + eta_1+j-alpha_p*t+delta_lambda_u)/(gamma(+.5 + alpha_u+eta_1+eta_2+j-alpha_p*t+delta_lambda_u))
+    result = A_u * delta_A_u * gamma(1+eta_2)*(frac_1+frac_2+frac_3+frac_4)
+
+    # Return the result while preserving the original dimensions
+    if result.size == 1:
+        return result.item()  # Return a scalar if the result is a single value
+    return result
+
+def integral_polarized_dv_pdf_regge(j,eta,alpha_p,t, error_type="central"):
+    """
+    Result of the integral of the Reggeized dv(x) PDF based on the given LO parameters and selected errors.
+    
+    Arguments:
+    j -- conformal spin,
+    eta -- skewness (scalar or array)(placeholder for now),
+    alpha_p -- Regge slope,
+    t -- Mandelstam t (scalar or array),
+    error_type -- A string indicating whether to use 'central', 'plus', or 'minus' errors. Default is 'central'.
+    
+    Returns:
+    The value of the Reggeized integral of dv(x) based on the selected parameters and error type.
+    """
+    # Check type
+    check_error_type(error_type)
+
+     # Define a dictionary that maps the error_type to column indices
+    error_mapping = {
+        "central": 0,  # The column with the central value
+        "plus": 1,     # The column with the + error value
+        "minus": 2     # The column with the - error value
+    }
+    
+    # Get the column index corresponding to the error_type
+    error_col_index = error_mapping.get(error_type, 0)  # Default to 'central' if error_type is invalid
+
+    # Get row index of entry
+    index_A_d=MSTW_PDF[MSTW_PDF["Parameter"] == "A_d"].index[0]
+    index_eta_3=MSTW_PDF[MSTW_PDF["Parameter"] == "eta_3"].index[0]
+    index_eta_2=MSTW_PDF[MSTW_PDF["Parameter"] == "eta_2"].index[0]
+    index_eta_42 = MSTW_PDF[MSTW_PDF["Parameter"] == "eta_4-eta_2"].index[0]
+    index_epsilon_d=MSTW_PDF[MSTW_PDF["Parameter"] == "epsilon_d"].index[0]
+    index_gamma_d=MSTW_PDF[MSTW_PDF["Parameter"] == "gamma_d"].index[0]
+
+    # Get row index of entry
+    index_delta_A_d=AAC_PDF[AAC_PDF["Parameter"] == "Delta_A_d"].index[0]
+    index_alpha_d=AAC_PDF[AAC_PDF["Parameter"] == "alpha_d"].index[0]
+    index_delta_lambda_d=AAC_PDF[AAC_PDF["Parameter"] == "Delta_lambda_d"].index[0]
+    index_delta_gamma_d=AAC_PDF[AAC_PDF["Parameter"] == "Delta_gamma_d"].index[0]
+
+    # Extracting central parameter values
+    A_d = MSTW_PDF_LO.iloc[index_A_d,0][0]
+    eta_3 = MSTW_PDF_LO.iloc[index_eta_3,0][0]
+    eta_4 = (MSTW_PDF_LO.iloc[index_eta_42, 0][0] + MSTW_PDF_LO.iloc[index_eta_2, 0][0])
+    epsilon_d = MSTW_PDF_LO.iloc[index_epsilon_d,0][0]
+    gamma_d = MSTW_PDF_LO.iloc[index_gamma_d,0][0]
+    # Extracting parameter values based on error type
+    delta_A_d = AAC_PDF_LO.iloc[index_delta_A_d,0][0] + int(error_col_index>0)*AAC_PDF_LO.iloc[index_delta_A_d,0][error_col_index]
+    alpha_d = AAC_PDF_LO.iloc[index_alpha_d,0][0] + int(error_col_index>0)*AAC_PDF_LO.iloc[index_alpha_d,0][error_col_index]
+    delta_gamma_d = AAC_PDF_LO.iloc[index_delta_gamma_d,0][0] + int(error_col_index>0)*AAC_PDF_LO.iloc[index_delta_gamma_d,0][error_col_index]
+    delta_lambda_d = AAC_PDF_LO.iloc[index_delta_lambda_d,0][0] + int(error_col_index>0)*AAC_PDF_LO.iloc[index_delta_lambda_d,0][error_col_index]
+
+    # Convert eta and t to numpy arrays for vectorized operations
+    eta = np.atleast_1d(eta)
+    t = np.atleast_1d(t)
+    
+    # If eta and t are 1D, ensure compatibility by broadcasting
+    if eta.ndim == 1:
+        eta = eta[:, np.newaxis]  # Make eta a column vector
+    if t.ndim == 1:
+        t = t[np.newaxis, :]      # Make t a row vector
+
+    # Analytical result of the integral
+    frac_1 =(1 + gamma_d * (-1 + alpha_d +eta_3 + j - alpha_p * t)/(alpha_d+eta_3+eta_4+j-alpha_p * t)) * gamma(-1 + alpha_d + eta_3 +j - alpha_p *t )/gamma(alpha_d + eta_3 +eta_4 + j - alpha_p*t)
+    frac_2 = epsilon_d*gamma(-.5 + alpha_d + eta_3+j-alpha_p*t)/(gamma(+.5 + alpha_d+eta_3+eta_4+j-alpha_p*t))
+    frac_3 = ((delta_gamma_d + gamma_d*delta_gamma_d * (-1+alpha_d+eta_3+j-alpha_p*t+delta_lambda_d)/(alpha_d+eta_3+eta_4+j-alpha_p*t+delta_lambda_d))
+              *gamma(-1+alpha_d+eta_3+j-alpha_p*t+delta_lambda_d)/(gamma(alpha_d+eta_3+eta_4+j-alpha_p*t+delta_lambda_d)))
+    frac_4 = epsilon_d*delta_gamma_d*gamma(-.5 + alpha_d + eta_3+j-alpha_p*t+delta_lambda_d)/(gamma(+.5 + alpha_d+eta_3+eta_4+j-alpha_p*t+delta_lambda_d))
+    result = A_d * delta_A_d * gamma(1+eta_4)*(frac_1+frac_2+frac_3+frac_4)
+
+    # Return the result while preserving the original dimensions
+    if result.size == 1:
+        return result.item()  # Return a scalar if the result is a single value
+    return result
+
+
+def integral_polarized_S_pdf_regge(j,eta,alpha_p,t, error_type="central"):
+    """
+    Result of the integral of the Reggeized S(x) PDF based on the given LO parameters and selected errors.
+    
+    Arguments:
+    j -- conformal spin,
+    eta -- skewness (scalar or array)(placeholder for now),
+    alpha_p -- Regge slope,
+    t -- Mandelstam t (scalar or array),
+    error_type -- A string indicating whether to use 'central', 'plus', or 'minus' errors. Default is 'central'.
+    
+    Returns:
+    The value of the Reggeized integral of S(x) based on the selected parameters and error type.
+    """
+    # Check type
+    check_error_type(error_type)
+
+     # Define a dictionary that maps the error_type to column indices
+    error_mapping = {
+        "central": 0,  # The column with the central value
+        "plus": 1,     # The column with the + error value
+        "minus": 2     # The column with the - error value
+    }
+    
+    # Get the column index corresponding to the error_type
+    error_col_index = error_mapping.get(error_type, 0)  # Default to 'central' if error_type is invalid
+
+    # Get row index of entry
+    index_A_S=MSTW_PDF[MSTW_PDF["Parameter"] == "A_S"].index[0]
+    index_delta_S=MSTW_PDF[MSTW_PDF["Parameter"] == "delta_S"].index[0]
+    index_eta_S=MSTW_PDF[MSTW_PDF["Parameter"] == "eta_S"].index[0]
+    index_epsilon_S=MSTW_PDF[MSTW_PDF["Parameter"] == "epsilon_S"].index[0]
+    index_gamma_S=MSTW_PDF[MSTW_PDF["Parameter"] == "gamma_S"].index[0]
+
+    # Get row index of entry
+    index_delta_A_S=AAC_PDF[AAC_PDF["Parameter"] == "Delta_A_S"].index[0]
+    index_alpha_S=AAC_PDF[AAC_PDF["Parameter"] == "alpha_S"].index[0]
+    index_delta_lambda_S=AAC_PDF[AAC_PDF["Parameter"] == "Delta_lambda_S"].index[0]
+    index_delta_gamma_S=AAC_PDF[AAC_PDF["Parameter"] == "Delta_gamma_S"].index[0]
+
+    # Extracting central parameter values
+    A_S = MSTW_PDF_LO.iloc[index_A_S,0][0]
+    delta_S = MSTW_PDF_LO.iloc[index_delta_S,0][0]
+    eta_S = MSTW_PDF_LO.iloc[index_eta_S,0][0]
+    epsilon_S = MSTW_PDF_LO.iloc[index_epsilon_S,0][0]
+    gamma_S = MSTW_PDF_LO.iloc[index_gamma_S,0][0]
+    # Extracting parameter values based on error type
+    delta_A_S = AAC_PDF_LO.iloc[index_delta_A_S,0][0] + int(error_col_index>0)*AAC_PDF_LO.iloc[index_delta_A_S,0][error_col_index]
+    alpha_S = AAC_PDF_LO.iloc[index_alpha_S,0][0] + int(error_col_index>0)*AAC_PDF_LO.iloc[index_alpha_S,0][error_col_index]
+    delta_gamma_S = AAC_PDF_LO.iloc[index_delta_gamma_S,0][0] + int(error_col_index>0)*AAC_PDF_LO.iloc[index_delta_gamma_S,0][error_col_index]
+    delta_lambda_S = AAC_PDF_LO.iloc[index_delta_lambda_S,0][0] + int(error_col_index>0)*AAC_PDF_LO.iloc[index_delta_lambda_S,0][error_col_index]
+
+    # Convert eta and t to numpy arrays for vectorized operations
+    eta = np.atleast_1d(eta)
+    t = np.atleast_1d(t)
+    
+    # If eta and t are 1D, ensure compatibility by broadcasting
+    if eta.ndim == 1:
+        eta = eta[:, np.newaxis]  # Make eta a column vector
+    if t.ndim == 1:
+        t = t[np.newaxis, :]      # Make t a row vector
+
+    # Analytical result of the integral
+    frac_1 =(1 + gamma_S * (-1 + alpha_S +delta_S + j - alpha_p * t)/(alpha_S+delta_S+eta_S+j-alpha_p * t)) * gamma(-1 + alpha_S + delta_S +j - alpha_p *t )/gamma(alpha_S + delta_S +eta_S + j - alpha_p*t)
+    frac_2 = epsilon_S*gamma(-.5 + alpha_S + delta_S+j-alpha_p*t)/(gamma(+.5 + alpha_S+delta_S+eta_S+j-alpha_p*t))
+    frac_3 = ((delta_gamma_S + gamma_S*delta_gamma_S * (-1+alpha_S+delta_S+j-alpha_p*t+delta_lambda_S)/(alpha_S+delta_S+eta_S+j-alpha_p*t+delta_lambda_S))
+              *gamma(-1+alpha_S+delta_S+j-alpha_p*t+delta_lambda_S)/(gamma(alpha_S+delta_S+eta_S+j-alpha_p*t+delta_lambda_S)))
+    frac_4 = epsilon_S*delta_gamma_S*gamma(-.5 + alpha_S + delta_S+j-alpha_p*t+delta_lambda_S)/(gamma(+.5 + alpha_S+delta_S+eta_S+j-alpha_p*t+delta_lambda_S))
+    result = A_S * delta_A_S * gamma(1+eta_S)*(frac_1+frac_2+frac_3+frac_4)
+
+    # Return the result while preserving the original dimensions
+    if result.size == 1:
+        return result.item()  # Return a scalar if the result is a single value
+    return result
+
+def integral_polarized_gluon_pdf_regge(j,eta,alpha_p,t, error_type="central"):
+    """
+    Result of the integral of the Reggeized gluon(x) PDF based on the given LO parameters and selected errors.
+    
+    Arguments:
+    j -- conformal spin,
+    eta -- skewness (scalar or array)(placeholder for now),
+    alpha_p -- Regge slope,
+    t -- Mandelstam t (scalar or array),
+    error_type -- A string indicating whether to use 'central', 'plus', or 'minus' errors. Default is 'central'.
+    
+    Returns:
+    The value of the Reggeized integral of gluon(x) based on the selected parameters and error type.
+    """
+    # Check type
+    check_error_type(error_type)
+
+     # Define a dictionary that maps the error_type to column indices
+    error_mapping = {
+        "central": 0,  # The column with the central value
+        "plus": 1,     # The column with the + error value
+        "minus": 2     # The column with the - error value
+    }
+    
+    # Get the column index corresponding to the error_type
+    error_col_index = error_mapping.get(error_type, 0)  # Default to 'central' if error_type is invalid
+
+    # Get row index of entry
+    index_A_g=MSTW_PDF[MSTW_PDF["Parameter"] == "A_g"].index[0]
+    index_delta_g=MSTW_PDF[MSTW_PDF["Parameter"] == "delta_g"].index[0]
+    index_eta_g=MSTW_PDF[MSTW_PDF["Parameter"] == "eta_g"].index[0]
+    index_epsilon_g=MSTW_PDF[MSTW_PDF["Parameter"] == "epsilon_g"].index[0]
+    index_gamma_g=MSTW_PDF[MSTW_PDF["Parameter"] == "gamma_g"].index[0]
+
+    # Get row index of entry
+    index_delta_A_g=AAC_PDF[AAC_PDF["Parameter"] == "Delta_A_g"].index[0]
+    index_alpha_g=AAC_PDF[AAC_PDF["Parameter"] == "alpha_g"].index[0]
+    index_delta_lambda_g=AAC_PDF[AAC_PDF["Parameter"] == "Delta_lambda_g"].index[0]
+    index_delta_gamma_g=AAC_PDF[AAC_PDF["Parameter"] == "Delta_gamma_g"].index[0]
+
+    # Extracting central parameter values
+    A_g = MSTW_PDF_LO.iloc[index_A_g,0][0]
+    delta_g = MSTW_PDF_LO.iloc[index_delta_g,0][0]
+    eta_g = MSTW_PDF_LO.iloc[index_eta_g,0][0]
+    epsilon_g = MSTW_PDF_LO.iloc[index_epsilon_g,0][0]
+    gamma_g = MSTW_PDF_LO.iloc[index_gamma_g,0][0]
+    # Extracting parameter values based on error type
+    delta_A_g = AAC_PDF_LO.iloc[index_delta_A_g,0][0] + int(error_col_index>0)*AAC_PDF_LO.iloc[index_delta_A_g,0][error_col_index]
+    alpha_g = AAC_PDF_LO.iloc[index_alpha_g,0][0] + int(error_col_index>0)*AAC_PDF_LO.iloc[index_alpha_g,0][error_col_index]
+    delta_gamma_g = AAC_PDF_LO.iloc[index_delta_gamma_g,0][0] + int(error_col_index>0)*AAC_PDF_LO.iloc[index_delta_gamma_g,0][error_col_index]
+    delta_lambda_g = AAC_PDF_LO.iloc[index_delta_lambda_g,0][0] + int(error_col_index>0)*AAC_PDF_LO.iloc[index_delta_lambda_g,0][error_col_index]
+
+    # Convert eta and t to numpy arrays for vectorized operations
+    eta = np.atleast_1d(eta)
+    t = np.atleast_1d(t)
+    
+    # If eta and t are 1D, ensure compatibility by broadcasting
+    if eta.ndim == 1:
+        eta = eta[:, np.newaxis]  # Make eta a column vector
+    if t.ndim == 1:
+        t = t[np.newaxis, :]      # Make t a row vector
+
+    # Analytical result of the integral
+    frac_1 =(1 + gamma_g * (-1 + alpha_g +delta_g + j - alpha_p * t)/(alpha_g+delta_g+eta_g+j-alpha_p * t)) * gamma(-1 + alpha_g + delta_g +j - alpha_p *t )/gamma(alpha_g + delta_g +eta_g + j - alpha_p*t)
+    frac_2 = epsilon_g*gamma(-.5 + alpha_g + delta_g+j-alpha_p*t)/(gamma(+.5 + alpha_g+delta_g+eta_g+j-alpha_p*t))
+    frac_3 = ((delta_gamma_g + gamma_g*delta_gamma_g * (-1+alpha_g+delta_g+j-alpha_p*t+delta_lambda_g)/(alpha_g+delta_g+eta_g+j-alpha_p*t+delta_lambda_g))
+              *gamma(-1+alpha_g+delta_g+j-alpha_p*t+delta_lambda_g)/(gamma(alpha_g+delta_g+eta_g+j-alpha_p*t+delta_lambda_g)))
+    frac_4 = epsilon_g*delta_gamma_g*gamma(-.5 + alpha_g + delta_g+j-alpha_p*t+delta_lambda_g)/(gamma(+.5 + alpha_g+delta_g+eta_g+j-alpha_p*t+delta_lambda_g))
+    result = A_g * delta_A_g * gamma(1+eta_g)*(frac_1+frac_2+frac_3+frac_4)
+
+    # Return the result while preserving the original dimensions
     if result.size == 1:
         return result.item()  # Return a scalar if the result is a single value
     return result
@@ -657,12 +955,14 @@ def non_singlet_isovector_moment(j,eta,t, moment_label="A",evolve_type="vector",
     alpha_prime = get_regge_slope("NonSingletIsovector",moment_label,evolve_type)
 
     if moment_label == "A":
-       norm, gu, gd = 1,1,1
+       result = integral_uv_pdf_regge(j,eta,alpha_prime,t,error_type) - integral_dv_pdf_regge(j,eta,alpha_prime,t,error_type)
     elif moment_label =="Atilde":
-       norm, gu, gd = 0.603429, 0.843, -0.427
+       #norm, gu, gd = 1.29597 , 0.926, 0.341
+       #result = norm * (gu * integral_polarized_uv_pdf_regge(j,eta,alpha_prime,t,error_type) - gd * integral_polarized_dv_pdf_regge(j,eta,alpha_prime,t,error_type))
+       norm, gud = 0.786086, 1.267
+       result = norm * gud * (integral_polarized_uv_pdf_regge(j,eta,alpha_prime,t,error_type) - integral_polarized_dv_pdf_regge(j,eta,alpha_prime,t,error_type))
 
-    return norm * (gu * integral_uv_pdf_regge(j,eta,alpha_prime,t,error_type)
-           - gd * integral_dv_pdf_regge(j,eta,alpha_prime,t,error_type))
+    return result
 
 def u_minus_d_pdf_regge(j,eta,t, error_type="central"):
     """ Currently only experimental function that does not set ubar=dbar"""
@@ -684,12 +984,14 @@ def non_singlet_isoscalar_moment(j,eta,t, moment_label="A",evolve_type="vector",
     alpha_prime = get_regge_slope("NonSingletIsoscalar",moment_label,evolve_type)
 
     if moment_label == "A":
-       norm, gu, gd = 1,1,1
+       result = integral_uv_pdf_regge(j,eta,alpha_prime,t,error_type) + integral_dv_pdf_regge(j,eta,alpha_prime,t,error_type)
     elif moment_label =="Atilde":
-       norm, gu, gd = 0.331774, 0.843, -0.427
+       #norm, gu, gd = 0.783086 , 0.926, 0.341
+       #result = norm * (gu * integral_polarized_uv_pdf_regge(j,eta,alpha_prime,t,error_type) + gd * integral_polarized_dv_pdf_regge(j,eta,alpha_prime,t,error_type))
+        norm, gud = 0.390981, 1.267
+        result = norm * 2 * gud * (integral_polarized_uv_pdf_regge(j,eta,alpha_prime,t,error_type) + integral_polarized_dv_pdf_regge(j,eta,alpha_prime,t,error_type))
 
-    return norm * (gu * integral_uv_pdf_regge(j,eta,alpha_prime,t,error_type)
-            + gd * integral_dv_pdf_regge(j,eta,alpha_prime,t,error_type))
+    return result
 
 def u_plus_d_pdf_regge(j,eta,t, error_type="central"):
     """ Currently only experimental function that does not set ubar=dbar"""
@@ -721,40 +1023,69 @@ def d_hat(j,eta,t):
         result = mp.hyp2f1(-j/2, -(j-1)/2, 1/2 - j, - 4 * m_N**2/t * eta**2)
     return result
     
-def quark_singlet_regge_A(j,eta,t, Nf=3, alpha_prime_ud=0.891, error_type="central"):
+def quark_singlet_regge_A(j,eta,t, Nf=3, alpha_prime_ud=0.891, moment_label="A", error_type="central"):
     # Check type
     check_error_type(error_type)
-    uv = integral_uv_pdf_regge(j,eta,alpha_prime_ud,t,error_type) 
-    dv = integral_dv_pdf_regge(j,eta,alpha_prime_ud,t,error_type)
-    Delta = integral_Delta_pdf_regge(j,eta,alpha_prime_ud,t,error_type)
-    Sv = integral_S_pdf_regge(j,eta,alpha_prime_ud,t,error_type)
-    s_plus = integral_s_plus_pdf_regge(j,eta,alpha_prime_ud,t,error_type)
-
+    check_moment_type_label("Singlet","A")
+    if moment_label == "A":
+        uv = integral_uv_pdf_regge(j,eta,alpha_prime_ud,t,error_type) 
+        dv = integral_dv_pdf_regge(j,eta,alpha_prime_ud,t,error_type)
+        Delta = integral_Delta_pdf_regge(j,eta,alpha_prime_ud,t,error_type)
+        Spdf = integral_S_pdf_regge(j,eta,alpha_prime_ud,t,error_type)
+        s_plus = integral_s_plus_pdf_regge(j,eta,alpha_prime_ud,t,error_type)
+    elif moment_label == "Atilde":
+        uv = integral_polarized_uv_pdf_regge(j,eta,alpha_prime_ud,t,error_type) 
+        dv = integral_polarized_dv_pdf_regge(j,eta,alpha_prime_ud,t,error_type)
+        # To do
+        #Delta = integral_polarized_Delta_pdf_regge(j,eta,alpha_prime_ud,t,error_type)
+        Spdf = integral_polarized_S_pdf_regge(j,eta,alpha_prime_ud,t,error_type)
+        # To do
+        #s_plus = integral_polarized_s_plus_pdf_regge(j,eta,alpha_prime_ud,t,error_type)
+    else:
+        raise ValueError(f"Unsupported moment label {moment_label}")
     if Nf == 3 or Nf == 4:
-        result = uv + dv + Sv 
+        result = uv + dv + Spdf 
     elif Nf == 2:
-        result = uv + dv + Sv - s_plus
+        result = uv + dv + Spdf - s_plus
     elif Nf == 1:
-        result = .5*(Sv-s_plus+2*uv-2*Delta)
+        result = .5*(Spdf-s_plus+2*uv-2*Delta)
     else :
         raise ValueError("Currently only (integer) 1 <= Nf <= 3 supported")
     return result
     
-def quark_singlet_regge_D(j,eta,t, Nf=3, alpha_prime_ud=0.891,alpha_prime_s=1.828, error_type="central"):
+def quark_singlet_regge_D(j,eta,t, Nf=3, alpha_prime_ud=0.891,alpha_prime_s=1.828, moment_label="A", error_type="central"):
     # Check type
     check_error_type(error_type)
-    uv = integral_uv_pdf_regge(j,eta,alpha_prime_ud,t,error_type) 
-    dv = integral_dv_pdf_regge(j,eta,alpha_prime_ud,t,error_type)
-    Delta = integral_Delta_pdf_regge(j,eta,alpha_prime_ud,t,error_type)
-    Sv = integral_S_pdf_regge(j,eta,alpha_prime_ud,t,error_type)
-    s_plus = integral_s_plus_pdf_regge(j,eta,alpha_prime_ud,t,error_type)
+    check_moment_type_label("Singlet","A")
+    if moment_label == "A":
+        uv = integral_uv_pdf_regge(j,eta,alpha_prime_ud,t,error_type) 
+        dv = integral_dv_pdf_regge(j,eta,alpha_prime_ud,t,error_type)
+        Delta = integral_Delta_pdf_regge(j,eta,alpha_prime_ud,t,error_type)
+        Sv = integral_S_pdf_regge(j,eta,alpha_prime_ud,t,error_type)
+        s_plus = integral_s_plus_pdf_regge(j,eta,alpha_prime_ud,t,error_type)
 
-    uv_s = integral_uv_pdf_regge(j,eta,alpha_prime_s,t,error_type) 
-    dv_s = integral_dv_pdf_regge(j,eta,alpha_prime_s,t,error_type)
-    Sv_s = integral_S_pdf_regge(j,eta,alpha_prime_s,t,error_type)
-    s_plus_s = integral_s_plus_pdf_regge(j,eta,alpha_prime_s,t,error_type)
-    Delta_s = integral_Delta_pdf_regge(j,eta,alpha_prime_s,t,error_type)
-
+        uv_s = integral_uv_pdf_regge(j,eta,alpha_prime_s,t,error_type) 
+        dv_s = integral_dv_pdf_regge(j,eta,alpha_prime_s,t,error_type)
+        Sv_s = integral_S_pdf_regge(j,eta,alpha_prime_s,t,error_type)
+        s_plus_s = integral_s_plus_pdf_regge(j,eta,alpha_prime_s,t,error_type)
+        Delta_s = integral_Delta_pdf_regge(j,eta,alpha_prime_s,t,error_type)
+    elif moment_label == "Atilde":
+        uv  = integral_polarized_uv_pdf_regge(j,eta,alpha_prime_ud,t,error_type) 
+        dv = integral_polarized_dv_pdf_regge(j,eta,alpha_prime_ud,t,error_type)
+        # To do
+        #Delta = integral_polarized_Delta_pdf_regge(j,eta,alpha_prime_ud,t,error_type)
+        Sv = integral_polarized_S_pdf_regge(j,eta,alpha_prime_ud,t,error_type)
+        # To Do
+        #s_plus = integral_polarized_s_plus_pdf_regge(j,eta,alpha_prime_ud,t,error_type)
+        uv_s = integral_polarized_uv_pdf_regge(j,eta,alpha_prime_s,t,error_type) 
+        dv_s = integral_polarized_dv_pdf_regge(j,eta,alpha_prime_s,t,error_type)
+        Sv_s = integral_polarized_S_pdf_regge(j,eta,alpha_prime_s,t,error_type)
+        # To do
+        # s_plus_s = integral_polarized_s_plus_pdf_regge(j,eta,alpha_prime_s,t,error_type)
+        # Delta_s = integral_polarized_Delta_pdf_regge(j,eta,alpha_prime_s,t,error_type)
+    else:
+        raise ValueError(f"Unsupported moment label {moment_label}")
+    
     if eta == 0:
         return 0
 
@@ -783,25 +1114,38 @@ def quark_singlet_regge(j,eta,t,Nf=3,moment_label="A",evolve_type="vector",error
     alpha_prime_ud = get_regge_slope("NonSingletIsoscalar",moment_label,evolve_type)
     alpha_prime_s, _, _ = get_regge_slope("Singlet",moment_label,evolve_type)
 
-    term_1 = quark_singlet_regge_A(j,eta,t,Nf,alpha_prime_ud,error_type)
-    term_2 = quark_singlet_regge_D(j,eta,t,Nf,alpha_prime_ud,alpha_prime_s,error_type)
+    term_1 = quark_singlet_regge_A(j,eta,t,Nf,alpha_prime_ud,moment_label,error_type)
+    term_2 = quark_singlet_regge_D(j,eta,t,Nf,alpha_prime_ud,alpha_prime_s,moment_label,error_type)
     result = term_1 + term_2
     return result
 
-def gluon_regge_A(j,eta,t, alpha_prime_T = 0.627, error_type="central"):
+def gluon_regge_A(j,eta,t, alpha_prime_T = 0.627,moment_label="A", error_type="central"):
     # Check type
     check_error_type(error_type)
-    return integral_gluon_pdf_regge(j,eta,alpha_prime_T,t,error_type)
+    check_moment_type_label("Singlet",moment_label)
+    if moment_label == "A":
+        result = integral_gluon_pdf_regge(j,eta,alpha_prime_T,t,error_type)
+    elif moment_label =="Atilde":
+        result = integral_polarized_gluon_pdf_regge(j,eta,alpha_prime_T,t,error_type)
+    else:
+        raise ValueError(f"Unsupported moment label {moment_label}")
+    return result
 
-def gluon_regge_D(j,eta,t, alpha_prime_T = 0.627, alpha_prime_S = 4.277, error_type="central"):
+def gluon_regge_D(j,eta,t, alpha_prime_T = 0.627, alpha_prime_S = 4.277,moment_label="A", error_type="central"):
     # Check type
     check_error_type(error_type)
+    check_moment_type_label("Singlet",moment_label)
     if eta == 0:
         return 0
     else :
         term_1 = (d_hat(j,eta,t)-1)
-        term_2 = gluon_regge_A(j,eta,t,alpha_prime_T,error_type)
-        term_3 = integral_gluon_pdf_regge(j,eta,t,alpha_prime_S,error_type)
+        term_2 = gluon_regge_A(j,eta,t,alpha_prime_T,moment_label,error_type)
+        if moment_label == "A":
+            term_3 = integral_gluon_pdf_regge(j,eta,t,alpha_prime_S,error_type)
+        elif moment_label =="Atilde":
+            term_3 = integral_polarized_gluon_pdf_regge(j,eta,t,alpha_prime_S,error_type)
+        else:
+            raise ValueError(f"Unsupported moment label {moment_label}")
         result =term_1 * (term_2-term_3)
         return result
 
@@ -813,11 +1157,11 @@ def gluon_singlet_regge(j,eta,t,moment_label="A",evolve_type="vector", error_typ
     # alpha_prime_T = 0.627
     # alpha_prime_S = 4.277
     _, alpha_prime_T, alpha_prime_S = get_regge_slope("Singlet",moment_label,evolve_type)
-    term_1= gluon_regge_A(j,eta,t,alpha_prime_T,error_type)
+    term_1= gluon_regge_A(j,eta,t,alpha_prime_T,moment_label,error_type)
     if eta == 0:
         result = term_1
     else :
-        term_2 = gluon_regge_D(j,eta,t,alpha_prime_T,alpha_prime_S,error_type)
+        term_2 = gluon_regge_D(j,eta,t,alpha_prime_T,alpha_prime_S,moment_label,error_type)
         result = term_1 + term_2
     return result
 
@@ -1107,7 +1451,7 @@ def fourier_transform_moment(j,eta,mu,b_vec,Nf=3,particle="quark",moment_type="N
     def integrand(Delta_x,Delta_y,b_x,b_y):
         t = -(Delta_x**2+Delta_y**2)
         exponent = -1j * (b_x * Delta_x + b_y * Delta_y)
-        result = evolve_conformal_moment(j,eta,t,mu,Nf,particle,moment_type,moment_label,error_type)*np.exp(exponent)/(2*np.pi**2)
+        result = evolve_conformal_moment(j,eta,t,mu,Nf,particle,moment_type,moment_label,error_type)*np.exp(exponent)/((2*np.pi)**2)
         return result
     
     # Compute the integrand for each pair of (Delta_x, Delta_y) values
@@ -1464,8 +1808,56 @@ def mellin_barnes_gpd(x, eta, t, mu, Nf=3, particle = "quark", moment_type="Sing
 # print(vectorized_mellin_barnes_gpd(x_Array, 1e-3, -1e-4, 1, particle="gluon", moment_type="Singlet", moment_label="A", j_max=100, n_jobs = -1 ))
 # del x_Array
 
+################################
+#### Additional Observables ####
+################################
+def spin_orbit_corelation(mu, moment_type="NonSingletIsovector"):
+    """ Prints the spin orbit correlation of moment_type including errors
 
+    Parameters:
+    - mu (float): The momentum scale of the process
+    - moment_type (str. optional): The flavor dependence. Either NonSingletIsovector or NonSingletIsoscalar    
+    """
+    if moment_type not in ["NonSingletIsoscalar","NonSingletIsovector"]:
+        raise ValueError(f"Wrong moment type {moment_type}")
+    
+    term_1 = evolve_conformal_moment(2,0,-1e-4,mu,particle="quark",moment_type=moment_type,moment_label="Atilde",error_type="central")
+    term_2 = evolve_conformal_moment(1,0,-1e-4,mu,particle="quark",moment_type=moment_type,moment_label="A",error_type="central")
+    result = (term_1 - term_2)/2
 
+    term_1 = evolve_conformal_moment(2,0,-1e-4,mu,particle="quark",moment_type=moment_type,moment_label="Atilde",error_type="plus")
+    term_2 = evolve_conformal_moment(1,0,-1e-4,mu,particle="quark",moment_type=moment_type,moment_label="A",error_type="plus")
+    error_plus = abs(result - (term_1 - term_2)/2)
+
+    term_1 = evolve_conformal_moment(2,0,-1e-4,mu,particle="quark",moment_type=moment_type,moment_label="Atilde",error_type="minus")
+    term_2 = evolve_conformal_moment(1,0,-1e-4,mu,particle="quark",moment_type=moment_type,moment_label="A",error_type="minus")
+    error_minus = -abs(result - (term_1 - term_2)/2)
+    if np.abs(error_plus-error_minus)<1e-2:
+        print(f"{moment_type} spin-orbit correlation: {result:.3f}(\\pm {error_plus:.3f}) at {mu} GeV")
+    else:
+        print(f"{moment_type} spin-orbit correlation: {result:.3f}(+{error_plus:.3f})({error_minus:.3f}) at {mu} GeV")
+
+def quark_helicity(mu, moment_type="NonSingletIsovector"):
+    """ Prints the quark helicity of moment_type including errors
+
+    Parameters:
+    - mu (float): The momentum scale of the process
+    - moment_type (str. optional): The flavor dependence. Either NonSingletIsovector or NonSingletIsoscalar    
+    """
+    if moment_type not in ["NonSingletIsoscalar","NonSingletIsovector"]:
+        raise ValueError(f"Wrong moment type {moment_type}")
+    
+    result = evolve_conformal_moment(1,0,-1e-4,mu,particle="quark",moment_type=moment_type,moment_label="Atilde",error_type="central")/2
+
+    term_1 = evolve_conformal_moment(1,0,-1e-4,mu,particle="quark",moment_type=moment_type,moment_label="Atilde",error_type="plus")/2
+    error_plus = abs(result - term_1)
+
+    term_1 = evolve_conformal_moment(1,0,-1e-4,mu,particle="quark",moment_type=moment_type,moment_label="Atilde",error_type="minus")/2
+    error_minus = -abs(result - term_1)
+    if np.abs(error_plus-error_minus)<1e-2:
+        print(f"{moment_type} quark helicity: {result:.3f}(\\pm {error_plus:.3f}) at {mu} GeV")
+    else:
+        print(f"{moment_type} quark helicity: {result:.3f}(+{error_plus:.3f})({error_minus:.3f}) at {mu} GeV")
 
 ################################
 ####### Plot functions #########
@@ -1965,7 +2357,7 @@ def plot_mellin_barnes_gpd_integrand(x, eta, t, mu, Nf=3, particle="quark", mome
     plt.show()
 
 
-def plot_singlet_quark_gpd(eta, t, mu, Nf=3, real_imag="real", sampling=True, n_init=os.cpu_count(), n_points=20, x_0=1e-2, x_1=1, error_bars=True):
+def plot_singlet_quark_gpd(eta, t, mu, Nf=3, moment_label="A", real_imag="real", sampling=True, n_init=os.cpu_count(), n_points=20, x_0=1e-2, x_1=1, error_bars=True):
     """
     Plot the real or imaginary part of the singlet quark GPD
     with dynamically adjusted x intervals, including error bars.
@@ -1984,6 +2376,7 @@ def plot_singlet_quark_gpd(eta, t, mu, Nf=3, real_imag="real", sampling=True, n_
     - x_1 (float): upper bound on parton x
     - error_bars (True or False): Compute error bars as well
     """
+    check_moment_type_label("Singlet",moment_label)
     # Ensure x_0 < x_1 for a valid range
     if x_0 >= x_1:
         raise ValueError("x_0 must be less than x_1.")
@@ -2044,12 +2437,12 @@ def plot_singlet_quark_gpd(eta, t, mu, Nf=3, real_imag="real", sampling=True, n_
 
     # Define the data and labels for real and imaginary parts
     plot_parts = [
-        ("real", real_parts, real_errors_minus, real_errors_plus, 'b', 'Singlet Sea Quark GPD'),
-        ("imag", imag_parts, imag_errors_minus, imag_errors_plus, 'r', 'Imaginary Part of Singlet Sea Quark GPD')
+        ("real", real_parts, real_errors_minus, real_errors_plus, 'b'),
+        ("imag", imag_parts, imag_errors_minus, imag_errors_plus, 'r')
     ]
 
     # Plot real and/or imaginary parts
-    for part, data, errors_minus, errors_plus, color, title in plot_parts:
+    for part, data, errors_minus, errors_plus, color in plot_parts:
         if real_imag in (part, "both"):
             if error_bars:
                 plt.errorbar(
@@ -2073,13 +2466,20 @@ def plot_singlet_quark_gpd(eta, t, mu, Nf=3, real_imag="real", sampling=True, n_
                     color=color
                 )
 
+    if moment_label == "A":
+            title = "Singlet Sea Quark GPD"
+    elif moment_label == "Atilde":
+            title = "Axial Singlet Sea Quark GPD"
+    else:
+        print("No title defined.")
+
     # Set the title based on real_imag
     if real_imag == "real":
-        plt.title('Singlet Sea Quark GPD')
+        plt.title(f'{title}')
     elif real_imag == "imag":
-        plt.title('Imaginary Part of Singlet Sea Quark GPD')
+        plt.title(f'Imaginary Part of {title}')
     elif real_imag == "both":
-        plt.title('Real and Imaginary Part of Singlet Sea Quark GPD')
+        plt.title(f'Real and Imaginary Part of {title}')
 
     # Add vertical lines to separate DGLAP from ERBL region
     plt.axvline(x=eta, linestyle='--')   
@@ -2091,7 +2491,7 @@ def plot_singlet_quark_gpd(eta, t, mu, Nf=3, real_imag="real", sampling=True, n_
     plt.grid(True)
     plt.show()
 
-def plot_non_singlet_quark_gpd(eta, t, mu, Nf=3, real_imag="real", sampling=True, n_init=os.cpu_count(), n_points=30, x_0=-1, x_1=1, error_bars=True):
+def plot_non_singlet_quark_gpd(eta, t, mu, Nf=3, moment_type="NonSingletIsovector",moment_label="A" ,real_imag="real", sampling=True, n_init=os.cpu_count(), n_points=30, x_0=-1, x_1=1, error_bars=True):
     """
     Plot the real or imaginary part of the non-singlet quark GPD
     with dynamically adjusted x intervals, including error bars.
@@ -2110,6 +2510,7 @@ def plot_non_singlet_quark_gpd(eta, t, mu, Nf=3, real_imag="real", sampling=True
     - x_1 (float): upper bound on parton x
     - error_bars (True or False): Compute error bars as well
     """
+    check_moment_type_label(moment_type,moment_label)
     # Ensure x_0 < x_1 for a valid range
     if x_0 >= x_1:
         raise ValueError("x_0 must be less than x_1.")
@@ -2119,7 +2520,7 @@ def plot_non_singlet_quark_gpd(eta, t, mu, Nf=3, real_imag="real", sampling=True
         raise ValueError("Invalid option for real_imag. Choose from 'real', 'imag', or 'both'.")
 
     def compute_result(x, error_type="central"):
-        return mellin_barnes_gpd(x, eta, t, mu, Nf, particle="quark",moment_type="NonSingletIsovector",real_imag=real_imag, error_type=error_type, n_jobs=1)
+        return mellin_barnes_gpd(x, eta, t, mu, Nf, particle="quark",moment_type=moment_type,moment_label=moment_label,real_imag=real_imag, error_type=error_type, n_jobs=1)
 
     if sampling:
         x_values = np.linspace(x_0, x_1, n_init)
@@ -2171,13 +2572,13 @@ def plot_non_singlet_quark_gpd(eta, t, mu, Nf=3, real_imag="real", sampling=True
 
     # Define the data and labels for real and imaginary parts
     plot_parts = [
-        ("real", real_parts, real_errors_minus, real_errors_plus, 'b', 'Non-Singlet Quark GPD'),
-        ("imag", imag_parts, imag_errors_minus, imag_errors_plus, 'r', 'Imaginary Part of Non-Singlet Quark GPD')
+        ("real", real_parts, real_errors_minus, real_errors_plus, 'b'),
+        ("imag", imag_parts, imag_errors_minus, imag_errors_plus, 'r')
     ]
 
 
     # Plot real and/or imaginary parts
-    for part, data, errors_minus, errors_plus, color, title in plot_parts:
+    for part, data, errors_minus, errors_plus, color in plot_parts:
         if real_imag in (part, "both"):
             if error_bars:
                 plt.errorbar(
@@ -2200,14 +2601,26 @@ def plot_non_singlet_quark_gpd(eta, t, mu, Nf=3, real_imag="real", sampling=True
                                 f"$\\mu = {mu} \\text{{ GeV}}$"),
                     color=color
                 )
+    if moment_label == "A":
+        if moment_type == "NonSingletIsovector":
+            title = "Non-Singlet Isovector"
+        elif moment_type == "NonSingletIsoscalar":
+            title = "Non-Singlet Isoscalar"
+    elif moment_label == "Atilde":
+        if moment_type == "NonSingletIsovector":
+            title = "Axial Non-Singlet Isovector"
+        elif moment_type == "NonSingletIsoscalar":
+            title = "Axial Non-Singlet Isoscalar"
+    else:
+        print("No title defined.")
 
     # Set the title based on real_imag
     if real_imag == "real":
-        plt.title('Non-Singlet Isovector Quark GPD')
+        plt.title(f'{title} Quark GPD')
     elif real_imag == "imag":
-        plt.title('Imaginary Part of Non-Singlet Isovector Quark GPD')
+        plt.title(f'Imaginary Part of {title} Quark GPD')
     elif real_imag == "both":
-        plt.title('Real and Imaginary Part of Non-Singlet Isovector Quark GPD')
+        plt.title(f'Real and Imaginary Part of {title} Quark GPD')
 
     # Add vertical lines to separate DGLAP from ERBL region
     plt.axvline(x=eta, linestyle='--')   
@@ -2219,7 +2632,7 @@ def plot_non_singlet_quark_gpd(eta, t, mu, Nf=3, real_imag="real", sampling=True
     plt.grid(True)
     plt.show()
     
-def plot_gluon_gpd(eta, t, mu, Nf=3, real_imag="real", sampling=True, n_init=os.cpu_count(), n_points=20, x_0=1e-2, x_1=1, error_bars=True):
+def plot_gluon_gpd(eta, t, mu, Nf=3,moment_label="A", real_imag="real", sampling=True, n_init=os.cpu_count(), n_points=20, x_0=1e-2, x_1=1, error_bars=True):
     """
     Plot the real or imaginary part of the non-singlet quark GPD
     with dynamically adjusted x intervals, including error bars.
@@ -2246,7 +2659,7 @@ def plot_gluon_gpd(eta, t, mu, Nf=3, real_imag="real", sampling=True, n_init=os.
         raise ValueError("x_0 must be greater than zero.")
 
     def compute_result(x, error_type="central"):
-        return mellin_barnes_gpd(x, eta, t, mu, Nf, particle="gluon",moment_type="Singlet",real_imag=real_imag, error_type=error_type,n_jobs=1)
+        return mellin_barnes_gpd(x, eta, t, mu, Nf, particle="gluon",moment_type="Singlet",moment_label=moment_label,real_imag=real_imag, error_type=error_type,n_jobs=1)
 
     if sampling:
         x_values = np.linspace(x_0, x_1, n_init)
@@ -2298,12 +2711,12 @@ def plot_gluon_gpd(eta, t, mu, Nf=3, real_imag="real", sampling=True, n_init=os.
 
     # Define the data and labels for real and imaginary parts
     plot_parts = [
-        ("real", real_parts, real_errors_minus, real_errors_plus, 'b', 'Singlet Gluon GPD'),
-        ("imag", imag_parts, imag_errors_minus, imag_errors_plus, 'r', 'Imaginary Part of Singlet Gluon GPD')
+        ("real", real_parts, real_errors_minus, real_errors_plus, 'b'),
+        ("imag", imag_parts, imag_errors_minus, imag_errors_plus, 'r')
     ]
 
     # Plot real and/or imaginary parts
-    for part, data, errors_minus, errors_plus, color, title in plot_parts:
+    for part, data, errors_minus, errors_plus, color in plot_parts:
         if real_imag in (part, "both"):
             if error_bars:
                 plt.errorbar(
@@ -2327,13 +2740,20 @@ def plot_gluon_gpd(eta, t, mu, Nf=3, real_imag="real", sampling=True, n_init=os.
                     color=color
                 )
 
+    if moment_label == "A":
+            title = "Singlet Gluon GPD"
+    elif moment_label == "Atilde":
+            title = "Axial Singlet Gluon GPD"
+    else:
+        print("No title defined.")
+
     # Set the title based on real_imag
     if real_imag == "real":
-        plt.title('Singlet Gluon GPD')
+        plt.title(f'{title}')
     elif real_imag == "imag":
-        plt.title('Imaginary Part of Singlet Gluon GPD')
+        plt.title(f'Imaginary Part of {title}')
     elif real_imag == "both":
-        plt.title('Real and Imaginary Part of Singlet Gluon GPD')
+        plt.title(f'Real and Imaginary Part of {title}')
 
     # Add vertical lines to separate DGLAP from ERBL region
     plt.axvline(x=eta, linestyle='--')   
