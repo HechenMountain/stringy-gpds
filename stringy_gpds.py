@@ -1462,6 +1462,130 @@ def fourier_transform_moment(j,eta,mu,b_vec,Nf=3,particle="quark",moment_type="N
     return integral_result
     
 
+def fourier_transform_quark_helicity(eta,mu,b_vec,Nf=3,moment_type="NonSingletIsovector", Delta_max = 10,num_points=100, error_type="central"):
+    """
+    Optimized calculation of Fourier transformed moments using adaptive integration.
+
+    Parameters:
+    - eta (float): Skewness parameter
+    - mu (float): RGE scale
+    - b_vec: (b_x, b_y), the vector for which to compute the result
+    - Nf (int, optional): Number of active flavors. Default is 3.
+    - moment_type (str. optional): NonSingletIsovector, NonSingletIsoscalar or flavor separated u, d. Default is NonSingletIsovector.
+    - Delta_max (float, optional): maximum radius for the integration domain (limits the integration bounds)
+    - num_points: number of points for discretizing the domain (adapt as needed)
+    - error_type (str. optional): Whether to use central, plus or minus value of input PDF. Default is central.
+
+    Returns:
+    - The value of the Fourier transformed moment at (b_vec)
+    """
+
+    if moment_type not in ["NonSingletIsovector","NonSingletIsoscalar","u","d"]:
+        raise ValueError(f"Wrong moment_type {moment_type}")
+
+    b_x, b_y = b_vec
+    # Limits of integration for Delta_x, Delta_y on a square grid
+    x_min, x_max = -Delta_max, Delta_max
+    y_min, y_max = -Delta_max, Delta_max
+    # Discretize the grid (vectorized)
+    Delta_x_vals = np.linspace(x_min, x_max, num_points)
+    Delta_y_vals = np.linspace(y_min, y_max, num_points)
+
+    # Create a meshgrid for delta_x, delta_y
+    Delta_x_grid, Delta_y_grid = np.meshgrid(Delta_x_vals, Delta_y_vals)
+    if moment_type in ["NonSingletIsovector","NonSingletIsoscalar"]:
+        def integrand(Delta_x,Delta_y,b_x,b_y):
+            t = -(Delta_x**2+Delta_y**2)
+            exponent = 1j * (b_x * Delta_x + b_y * Delta_y)
+            moment = evolve_conformal_moment(1,eta,t,mu,Nf,particle="quark",moment_type=moment_type,moment_label="Atilde",error_type=error_type)/2
+            result = moment*np.exp(exponent)
+            return result
+    elif moment_type in ["u","d"]:
+        if moment_type == "u":
+            prf = 1
+        else:
+            prf = -1
+        def integrand(Delta_x,Delta_y,b_x,b_y):
+            t = -(Delta_x**2+Delta_y**2)
+            exponent = 1j * (b_x * Delta_x + b_y * Delta_y)
+            moment_1 = evolve_conformal_moment(1,eta,t,mu,Nf,particle="quark",moment_type="NonSingletIsoscalar",moment_label="Atilde",error_type=error_type)/2
+            moment_2 = evolve_conformal_moment(1,eta,t,mu,Nf,particle="quark",moment_type="NonSingletIsovector",moment_label="Atilde",error_type=error_type)/2
+            moment = (moment_1 + prf * moment_2)/2
+            result = moment*np.exp(exponent)
+            return result
+
+    # Compute the integrand for each pair of (Delta_x, Delta_y) values
+    integrand_values = integrand(Delta_x_grid, Delta_y_grid, b_x, b_y)
+    # Perform the numerical integration using the trapezoidal rule for efficiency
+    integral_result = trapezoid(trapezoid(integrand_values, Delta_x_vals, axis=0), Delta_y_vals)
+
+    return integral_result.real
+
+def fourier_transform_spin_orbit_correlation(eta,mu,b_vec,Nf=3,moment_type="NonSingletIsovector", Delta_max = 8,num_points=100, error_type="central"):
+    """
+    Optimized calculation of Fourier transformed moments using adaptive integration.
+
+    Parameters:
+    - eta (float): Skewness parameter
+    - mu (float): RGE scale
+    - b_vec: (b_x, b_y), the vector for which to compute the result
+    - Nf (int, optional): Number of active flavors. Default is 3.
+    - moment_type (str. optional): NonSingletIsovector, NonSingletIsoscalar or flavor separated u, d. Default is NonSingletIsovector.
+    - Delta_max (float, optional): maximum radius for the integration domain (limits the integration bounds)
+    - num_points: number of points for discretizing the domain (adapt as needed)
+    - error_type (str. optional): Whether to use central, plus or minus value of input PDF. Default is central.
+
+    Returns:
+    - The value of the Fourier transformed moment at (b_vec)
+    """
+
+    if moment_type not in ["NonSingletIsovector","NonSingletIsoscalar","u","d"]:
+        raise ValueError(f"Wrong moment_type {moment_type}")
+
+    b_x, b_y = b_vec
+    # Limits of integration for Delta_x, Delta_y on a square grid
+    x_min, x_max = -Delta_max, Delta_max
+    y_min, y_max = -Delta_max, Delta_max
+    # Discretize the grid (vectorized)
+    Delta_x_vals = np.linspace(x_min, x_max, num_points)
+    Delta_y_vals = np.linspace(y_min, y_max, num_points)
+
+    # Create a meshgrid for delta_x, delta_y
+    Delta_x_grid, Delta_y_grid = np.meshgrid(Delta_x_vals, Delta_y_vals)
+    if moment_type in ["NonSingletIsovector","NonSingletIsoscalar"]:
+        def integrand(Delta_x,Delta_y,b_x,b_y):
+            t = -(Delta_x**2+Delta_y**2)
+            exponent = 1j * (b_x * Delta_x + b_y * Delta_y)
+            term_1 = evolve_conformal_moment(2,eta,t,mu,Nf,particle="quark",moment_type=moment_type,moment_label="Atilde",error_type=error_type)
+            term_2 = evolve_conformal_moment(1,eta,t,mu,Nf,particle="quark",moment_type=moment_type,moment_label="A",error_type=error_type)
+            moment = (term_1-term_2)/2      
+            result = moment*np.exp(exponent)
+            return result
+    elif moment_type in ["u","d"]:
+        if moment_type == "u":
+            prf = 1
+        else:
+            prf = -1
+        def integrand(Delta_x,Delta_y,b_x,b_y):
+            t = -(Delta_x**2+Delta_y**2)
+            exponent = 1j * (b_x * Delta_x + b_y * Delta_y)
+            term_1 = evolve_conformal_moment(2,eta,t,mu,Nf,particle="quark",moment_type="NonSingletIsoscalar",moment_label="Atilde",error_type=error_type)
+            term_2 = evolve_conformal_moment(1,eta,t,mu,Nf,particle="quark",moment_type="NonSingletIsoscalar",moment_label="A",error_type=error_type)
+            moment_1 = (term_1-term_2)/2    
+            term_1 = evolve_conformal_moment(2,eta,t,mu,Nf,particle="quark",moment_type="NonSingletIsovector",moment_label="Atilde",error_type=error_type)
+            term_2 = evolve_conformal_moment(1,eta,t,mu,Nf,particle="quark",moment_type="NonSingletIsovector",moment_label="A",error_type=error_type)
+            moment_2 = (term_1-term_2)/2 
+            moment = (moment_1 + prf * moment_2)/2
+            result = moment*np.exp(exponent)
+            return result
+
+    # Compute the integrand for each pair of (Delta_x, Delta_y) values
+    integrand_values = integrand(Delta_x_grid, Delta_y_grid, b_x, b_y)
+    # Perform the numerical integration using the trapezoidal rule for efficiency
+    integral_result = trapezoid(trapezoid(integrand_values, Delta_x_vals, axis=0), Delta_y_vals)
+
+    return integral_result.real
+
 
 ################################
 #### Mellin-Barnes Integral ####
@@ -2214,8 +2338,272 @@ def plot_fourier_transform_moments(j,eta,mu,plot_title,Nf=3,particle="quark",mom
     plt.colorbar()
     plt.xlabel(r'$b_x\,[\mathrm{fm}]$', fontsize=14)
     plt.ylabel(r'$b_y\,[\mathrm{fm}]$', fontsize=14)
-    plt.title(f"{plot_title}$(j={j}, \\eta=0, t, \\mu=2\, \\mathrm{{GeV}})$", fontsize=14)
+    plt.title(f"{plot_title}$(j={j}, \\eta=0, t, \\mu={mu}\, \\mathrm{{GeV}})$", fontsize=14)
     plt.show()
+
+
+def plot_fourier_transform_spin_orbit_correlation(eta, mu, Nf=3, moment_type="NonSingletIsovector", 
+                                          b_max=6, Delta_max=10, num_points=100, n_b=50, 
+                                          plot_option="both"):
+    """
+    Generates a density plot of the 2D Fourier transform of RGE-evolved conformal moments.
+    It also includes a 1D slice at b_y = 0.
+
+    Parameters:
+    - eta (float): Skewness parameter
+    - mu (float): RGE scale
+    - Nf (int, optional): Number of flavors (default is 3).
+    - moment_type (str, optional): "NonSingletIsovector", "NonSingletIsoscalar", "u", "d" or "all" (default is "NonSingletIsovector").
+    - b_max (float, optional): Maximum b value for the vector b_vec=[b_x,b_y] (default is 6 GeV = 1.185 fm ).
+    - Delta_max (float, optional): Maximum value for Delta integration (default is 10).
+    - num_points (int, optional): Number of intervals to split [-Delta_max, Delta_max] interval for trapezoid (default is 100).
+    - n_b (int, optional): Number of points the interval [-b_max, b_max] is split into (default is 50).
+    - plot_option (str, optional): "upper", "lower", or "both" to control which plots are shown (default is "both").
+    """
+    if moment_type not in ["NonSingletIsovector", "NonSingletIsoscalar", "u", "d", "all"]:
+        raise ValueError(f"Wrong moment_type {moment_type}")
+
+    # Define the grid for b_vec
+    b_x = np.linspace(-b_max, b_max, n_b)
+    b_y = np.linspace(-b_max, b_max, n_b)
+    b_x_grid, b_y_grid = np.meshgrid(b_x, b_y)
+    b_vecs = np.array([b_x_grid.ravel(), b_y_grid.ravel()]).T
+
+    # Convert GeV^-1 to fm
+    hbarc = 0.1975
+    b_x_fm = b_x * hbarc
+    b_y_fm = b_y * hbarc
+
+    moment_types = ["NonSingletIsovector", "NonSingletIsoscalar", "u", "d"] if moment_type == "all" else [moment_type]
+
+    # Initialize cache to store Fourier transforms for "NonSingletIsovector" and "NonSingletIsoscalar"
+    cache = {}
+
+    # Determine figure layout
+    if moment_type == "all":
+        fig, axs = plt.subplots(2, len(moment_types), figsize=(len(moment_types)*3, 4.5), gridspec_kw={'height_ratios': [2, 1], 'hspace': 0})
+    else:
+        fig, axs = plt.subplots(2, 1, figsize=(3, 4.5), gridspec_kw={'height_ratios': [2, 1], 'hspace': 0})
+        axs = np.array([[axs[0]], [axs[1]]])  # Make it a 2D array for consistency
+
+    for i, mom_type in enumerate(moment_types):
+        row, col = divmod(i, 4)  # Map index to subplot location
+        ax = axs[0, col]
+        ax_lower = axs[1, col]
+
+        title_map = {
+            "NonSingletIsovector": "u-d",
+            "NonSingletIsoscalar": "u+d",
+            "u": "u",
+            "d": "d"
+        }
+        title = title_map[mom_type]
+
+        # Compute Fourier transform and cache the results for NonSingletIsovector and NonSingletIsoscalar
+        if mom_type in ["NonSingletIsovector", "NonSingletIsoscalar"] or moment_type != "all":
+            if mom_type not in cache:
+                fourier_transform_moment_values_flat = Parallel(n_jobs=-1)(delayed(fourier_transform_spin_orbit_correlation)(
+                    eta, mu, b_vec, Nf, mom_type, Delta_max, num_points, "central") for b_vec in b_vecs)
+                cache[mom_type] = np.array(fourier_transform_moment_values_flat).reshape(b_x_grid.shape)
+
+                # Generate error bars for lower plot
+                if plot_option in ["lower", "both"]:
+                    fourier_transform_moment_values_flat_plus = Parallel(n_jobs=-1)(delayed(fourier_transform_spin_orbit_correlation)(
+                        eta, mu, b_vec, Nf, mom_type, Delta_max, num_points, "plus") for b_vec in b_vecs)
+                    fourier_transform_moment_values_flat_minus = Parallel(n_jobs=-1)(delayed(fourier_transform_spin_orbit_correlation)(
+                        eta, mu, b_vec, Nf, mom_type, Delta_max, num_points, "minus") for b_vec in b_vecs)
+
+                    cache[f"{mom_type}_plus"] = np.array(fourier_transform_moment_values_flat_plus).reshape(b_x_grid.shape)
+                    cache[f"{mom_type}_minus"] = np.array(fourier_transform_moment_values_flat_minus).reshape(b_x_grid.shape)
+
+            # Retrieve the cached values
+            fourier_transform_moment_values_flat = cache[mom_type]
+            fourier_transform_moment_values_flat_plus = cache.get(f"{mom_type}_plus", None)
+            fourier_transform_moment_values_flat_minus = cache.get(f"{mom_type}_minus", None)
+
+        # Cache values for u and d
+        if moment_type == "all":
+            if mom_type == "u":
+                fourier_transform_moment_values_flat = (cache["NonSingletIsoscalar"] + cache["NonSingletIsovector"]) / 2
+                fourier_transform_moment_values_flat_plus = (cache["NonSingletIsoscalar_plus"] + cache["NonSingletIsovector_plus"]) / 2
+                fourier_transform_moment_values_flat_minus = (cache["NonSingletIsoscalar_minus"] + cache["NonSingletIsovector_minus"]) / 2
+            if mom_type == "d":
+                fourier_transform_moment_values_flat = (cache["NonSingletIsoscalar"] - cache["NonSingletIsovector"]) / 2
+                fourier_transform_moment_values_flat_plus = (cache["NonSingletIsoscalar_plus"] - cache["NonSingletIsovector_plus"]) / 2
+                fourier_transform_moment_values_flat_minus = (cache["NonSingletIsoscalar_minus"] - cache["NonSingletIsovector_minus"]) / 2
+
+        # Upper plot: 2D density plot
+        if plot_option in ["upper", "both"]:
+            im = ax.pcolormesh(b_x_fm, b_y_fm, fourier_transform_moment_values_flat, 
+                               shading='auto', cmap='jet', vmin=-3, vmax=2.5)
+            ax.set_xlabel(r'$b_x\,[\mathrm{fm}]$', fontsize=14)
+            if i == 0:
+                ax.set_ylabel(r'$b_y\,[\mathrm{fm}]$', fontsize=14)
+            ax.set_title(rf"$C_z^{{{title}}}$", fontsize=14)
+
+            # Add colorbar only once per row
+            if col == len(moment_types)-1:
+                cbar_ax = fig.add_axes([ax.get_position().x1, ax.get_position().y0, 0.01, ax.get_position().height])
+                fig.colorbar(im, cax=cbar_ax)
+
+        # Lower plot: 1D slice at b_y = 0
+        if plot_option in ["lower", "both"]:
+            idx_by_0 = np.argmin(np.abs(b_y))
+            ax_lower.plot(b_x_fm, fourier_transform_moment_values_flat[idx_by_0, :], color='black')
+            ax_lower.fill_between(b_x_fm, 
+                                  fourier_transform_moment_values_flat_minus[idx_by_0, :], 
+                                  fourier_transform_moment_values_flat_plus[idx_by_0, :], 
+                                  color='gray', alpha=0.5)
+            ax_lower.set_xlabel(r'$b_x\,[\mathrm{fm}]$', fontsize=14)
+            ax_lower.set_xlim([-b_max * hbarc, b_max * hbarc])
+            ax_lower.set_ylim([-3, 0.5])
+
+            if moment_type == "all" and i == 0:
+                ax_lower.set_ylabel(rf'$C_z^{{q}}$', fontsize=14)
+            elif i == 0:
+                ax_lower.set_ylabel(rf'$C_z^{{{title}}}$', fontsize=14)
+            # Remove ticks and labels
+            if i != 0 and moment_type == "all":
+                ax.set_yticks([])
+                ax.set_yticklabels([])
+                ax.set_ylabel(None)
+
+                ax_lower.set_yticks([])
+                ax_lower.set_yticklabels([])
+    plt.subplots_adjust(wspace=0, hspace=0)
+    plt.show()
+
+def plot_fourier_transform_quark_helicity(eta, mu, Nf=3, moment_type="NonSingletIsovector", 
+                                          b_max=6, Delta_max=8, num_points=100, n_b=50, 
+                                          plot_option="both"):
+    """
+    Generates a density plot of the 2D Fourier transform of RGE-evolved conformal moments.
+    It also includes a 1D slice at b_y = 0.
+
+    Parameters:
+    - eta (float): Skewness parameter
+    - mu (float): RGE scale
+    - Nf (int, optional): Number of flavors (default is 3).
+    - moment_type (str, optional): "NonSingletIsovector", "NonSingletIsoscalar", "u", "d" or "all" (default is "NonSingletIsovector").
+    - b_max (float, optional): Maximum b value for the vector b_vec=[b_x,b_y] (default is 6 GeV = 1.185 fm ).
+    - Delta_max (float, optional): Maximum value for Delta integration (default is 8).
+    - num_points (int, optional): Number of intervals to split [-Delta_max, Delta_max] interval for trapezoid (default is 100).
+    - n_b (int, optional): Number of points the interval [-b_max, b_max] is split into (default is 50).
+    - plot_option (str, optional): "upper", "lower", or "both" to control which plots are shown (default is "both").
+    """
+    if moment_type not in ["NonSingletIsovector", "NonSingletIsoscalar", "u", "d", "all"]:
+        raise ValueError(f"Wrong moment_type {moment_type}")
+
+    # Define the grid for b_vec
+    b_x = np.linspace(-b_max, b_max, n_b)
+    b_y = np.linspace(-b_max, b_max, n_b)
+    b_x_grid, b_y_grid = np.meshgrid(b_x, b_y)
+    b_vecs = np.array([b_x_grid.ravel(), b_y_grid.ravel()]).T
+
+    # Convert GeV^-1 to fm
+    hbarc = 0.1975
+    b_x_fm = b_x * hbarc
+    b_y_fm = b_y * hbarc
+
+    moment_types = ["NonSingletIsovector", "NonSingletIsoscalar", "u", "d"] if moment_type == "all" else [moment_type]
+
+    # Initialize cache to store Fourier transforms for "NonSingletIsovector" and "NonSingletIsoscalar"
+    cache = {}
+
+    # Determine figure layout
+    if moment_type == "all":
+        fig, axs = plt.subplots(2, len(moment_types), figsize=(len(moment_types)*3, 4.5), gridspec_kw={'height_ratios': [2, 1], 'hspace': 0})
+    else:
+        fig, axs = plt.subplots(2, 1, figsize=(3, 4.5), gridspec_kw={'height_ratios': [2, 1], 'hspace': 0})
+        axs = np.array([[axs[0]], [axs[1]]])  # Make it a 2D array for consistency
+
+    for i, mom_type in enumerate(moment_types):
+        row, col = divmod(i, 4)  # Map index to subplot location
+        ax = axs[0, col]
+        ax_lower = axs[1, col]
+
+        title_map = {
+            "NonSingletIsovector": "u-d",
+            "NonSingletIsoscalar": "u+d",
+            "u": "u",
+            "d": "d"
+        }
+        title = title_map[mom_type]
+
+        # Compute Fourier transform and cache the results for NonSingletIsovector and NonSingletIsoscalar
+        if mom_type in ["NonSingletIsovector", "NonSingletIsoscalar"] or moment_type != "all":
+            if mom_type not in cache:
+                fourier_transform_moment_values_flat = Parallel(n_jobs=-1)(delayed(fourier_transform_quark_helicity)(
+                    eta, mu, b_vec, Nf, mom_type, Delta_max, num_points, "central") for b_vec in b_vecs)
+                cache[mom_type] = np.array(fourier_transform_moment_values_flat).reshape(b_x_grid.shape)
+
+                # Generate error bars for lower plot
+                if plot_option in ["lower", "both"]:
+                    fourier_transform_moment_values_flat_plus = Parallel(n_jobs=-1)(delayed(fourier_transform_quark_helicity)(
+                        eta, mu, b_vec, Nf, mom_type, Delta_max, num_points, "plus") for b_vec in b_vecs)
+                    fourier_transform_moment_values_flat_minus = Parallel(n_jobs=-1)(delayed(fourier_transform_quark_helicity)(
+                        eta, mu, b_vec, Nf, mom_type, Delta_max, num_points, "minus") for b_vec in b_vecs)
+
+                    cache[f"{mom_type}_plus"] = np.array(fourier_transform_moment_values_flat_plus).reshape(b_x_grid.shape)
+                    cache[f"{mom_type}_minus"] = np.array(fourier_transform_moment_values_flat_minus).reshape(b_x_grid.shape)
+
+            # Retrieve the cached values
+            fourier_transform_moment_values_flat = cache[mom_type]
+            fourier_transform_moment_values_flat_plus = cache.get(f"{mom_type}_plus", None)
+            fourier_transform_moment_values_flat_minus = cache.get(f"{mom_type}_minus", None)
+
+        # Cache values for u and d
+        if moment_type == "all":
+            if mom_type == "u":
+                fourier_transform_moment_values_flat = (cache["NonSingletIsoscalar"] + cache["NonSingletIsovector"]) / 2
+                fourier_transform_moment_values_flat_plus = (cache["NonSingletIsoscalar_plus"] + cache["NonSingletIsovector_plus"]) / 2
+                fourier_transform_moment_values_flat_minus = (cache["NonSingletIsoscalar_minus"] + cache["NonSingletIsovector_minus"]) / 2
+            if mom_type == "d":
+                fourier_transform_moment_values_flat = (cache["NonSingletIsoscalar"] - cache["NonSingletIsovector"]) / 2
+                fourier_transform_moment_values_flat_plus = (cache["NonSingletIsoscalar_plus"] - cache["NonSingletIsovector_plus"]) / 2
+                fourier_transform_moment_values_flat_minus = (cache["NonSingletIsoscalar_minus"] - cache["NonSingletIsovector_minus"]) / 2
+
+        # Upper plot: 2D density plot
+        if plot_option in ["upper", "both"]:
+            im = ax.pcolormesh(b_x_fm, b_y_fm, fourier_transform_moment_values_flat, 
+                               shading='auto', cmap='jet', vmin=-1.5, vmax=3)
+            ax.set_xlabel(r'$b_x\,[\mathrm{fm}]$', fontsize=14)
+            if i == 0:
+                ax.set_ylabel(r'$b_y\,[\mathrm{fm}]$', fontsize=14)
+            ax.set_title(rf"$S_z^{{{title}}}$", fontsize=14)
+
+            # Add colorbar only once per row
+            if col == len(moment_types)-1:
+                cbar_ax = fig.add_axes([ax.get_position().x1, ax.get_position().y0, 0.01, ax.get_position().height])
+                fig.colorbar(im, cax=cbar_ax)
+
+        # Lower plot: 1D slice at b_y = 0
+        if plot_option in ["lower", "both"]:
+            idx_by_0 = np.argmin(np.abs(b_y))
+            ax_lower.plot(b_x_fm, fourier_transform_moment_values_flat[idx_by_0, :], color='black')
+            ax_lower.fill_between(b_x_fm, 
+                                  fourier_transform_moment_values_flat_minus[idx_by_0, :], 
+                                  fourier_transform_moment_values_flat_plus[idx_by_0, :], 
+                                  color='gray', alpha=0.5)
+            ax_lower.set_xlabel(r'$b_x\,[\mathrm{fm}]$', fontsize=14)
+            ax_lower.set_xlim([-b_max * hbarc, b_max * hbarc])
+            ax_lower.set_ylim([-1, 3.5])
+
+            if moment_type == "all" and i == 0:
+                ax_lower.set_ylabel(rf'$S_z^{{q}}$', fontsize=14)
+            elif i == 0:
+                ax_lower.set_ylabel(rf'$S_z^{{{title}}}$', fontsize=14)
+            # Remove ticks and labels
+            if i != 0 and moment_type == "all":
+                ax.set_yticks([])
+                ax.set_yticklabels([])
+                ax.set_ylabel(None)
+
+                ax_lower.set_yticks([])
+                ax_lower.set_yticklabels([])
+    plt.subplots_adjust(wspace=0, hspace=0)
+    plt.show()
+
 
 
 def plot_conformal_partial_wave(j,eta,particle="quark",parity="none"):
@@ -2764,3 +3152,4 @@ def plot_gluon_gpd(eta, t, mu, Nf=3,moment_label="A", real_imag="real", sampling
     plt.legend()
     plt.grid(True)
     plt.show()
+
