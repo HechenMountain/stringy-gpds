@@ -236,6 +236,377 @@ def evolve_alpha_s(mu, Nf = 3):
 
     return result
 
+def integral_pdf_regge(A_pdf,eta_1,eta_2,epsilon,gamma_pdf,j,alpha_p,t):
+        """ Returns the result of the integral of a Reggeized PDF \int pdf(x) x**(j-1 - alpha_p * t )
+        of the form
+        pdf(x) = A_pdf * x**eta_1(1-x)**eta_2 * ( 1 + epsilon * sqrt(x) + gamma_pdf * x )
+
+        Parameters:
+        - A_pdf (float): Magnitude of the input PDF.
+        - eta_1 (float): Exponent determining low-x behavior of input PDF.
+        - eta_2 (float): Exponent determining the large-x behavior of input PDF.
+        - epsilon (float): Prefacotr of sqrt(x) determining intermetiate behavior of input PDF.
+        - gamma_pdf (float): Prefactor of x determining intermetiate behavior of input PDF.
+        - j (float): conformal spin.
+        - alpha_p (float): Regge slope.
+        - t (float): Mandelstam t (< 0 in physical region)
+        """
+        frac_1 = epsilon*gamma(eta_1+j-alpha_p*t -.5)/(gamma(eta_1+eta_2+j-alpha_p*t+.5))
+        frac_2 = (eta_1+eta_2-gamma_pdf+eta_1*gamma_pdf+j*(1+gamma_pdf)-(1+gamma_pdf)*alpha_p*t)*gamma(eta_1+j-alpha_p*t-1)/gamma(1+eta_1+eta_2+j-alpha_p*t)
+        result = A_pdf*gamma(1+eta_2)*(frac_1+frac_2)
+        return result
+
+def integral_polarized_pdf_regge(
+                A_pdf,eta_1,eta_2,epsilon,gamma_pdf,
+                Delta_A_pdf,alpha,gamma_pol, lambda_pol,
+                j,alpha_p,t
+                ):
+        """ Returns the result of the integral of a Reggeized polarized PDF \int polarized_pdf(x) x**(j-1 - alpha_p * t )
+        of the form
+        polarized_pdf(x) = A_pdf * x**alpha * ( 1 + gamma_pol * x**lambda_pol ) pdf_(x).
+        The input PDF is of the form
+        pdf(x) = A_pdf * x**eta_1(1-x)**eta_2 * ( 1 + epsilon * sqrt(x) + gamma_pdf * x )
+        and taken at its central value, without error.
+
+        Parameters:
+        - A_pdf (float): Magnitude of the input PDF.
+        - eta_1 (float): Exponent determining low-x behavior of input PDF.
+        - eta_2 (float): Exponent determining the large-x behavior of input PDF.
+        - epsilon (float): Prefacotr of sqrt(x) determining intermetiate behavior of input PDF.
+        - gamma_pdf (float): Prefactor of x determining intermetiate behavior of input PDF.
+        - Delta_A_pdf (float): Magnitude of the polarized input PDF.
+        - alpha (float):  Exponent determining low-x behavior of input polarized PDF.
+        - gamma_pol (float): Parametrizing intermediate-x behavior of polarized PDF.
+        - lambda_pol (float): Parametrizing intermediate-x behavior of polarized PDF.
+        - j (float): conformal spin.
+        - alpha_p (float): Regge slope.
+        - t (float): Mandelstam t (< 0 in physical region)
+        """
+        term1 = (
+                A_pdf * Delta_A_pdf * gamma(eta_2 + 1) * (
+                (
+                        (gamma_pol * epsilon * gamma(eta_1 + j - alpha_p * t + alpha + lambda_pol - 0.5))
+                        / gamma(eta_1 + eta_2 + j - alpha_p * t + alpha + lambda_pol + 0.5)
+                )
+                + (
+                        (epsilon * gamma(eta_1 + j - alpha_p * t + alpha - 0.5))
+                        / gamma(eta_1 + eta_2 + j - alpha_p * t + alpha + 0.5)
+                )
+                + (
+                        (gamma_pol * gamma(eta_1 + j - alpha_p * t + alpha + lambda_pol - 1))
+                        * (
+                        alpha + lambda_pol + eta_1 * (gamma_pdf + 1)
+                        + eta_2 + gamma_pdf * (alpha + lambda_pol + j - alpha_p * t - 1)
+                        + j - alpha_p * t
+                        )
+                        / gamma(eta_1 + eta_2 + j - alpha_p * t + alpha + lambda_pol + 1)
+                )
+                + (
+                        (gamma(eta_1 + j - alpha_p * t + alpha - 1))
+                        * (
+                        alpha + eta_1 * (gamma_pdf + 1)
+                        + eta_2 + gamma_pdf * (alpha + j - alpha_p * t - 1)
+                        + j - alpha_p * t
+                        )
+                        / gamma(eta_1 + eta_2 + j - alpha_p * t + alpha + 1)
+                )
+                )
+        )
+        
+        return term1
+
+def integral_pdf_regge_error(A_pdf,delta_A_pdf,eta_1,delta_eta_1,eta_2,delta_eta_2,epsilon,delta_epsilon,gamma_pdf,delta_gamma_pdf,j,alpha_p,t, error_type="central"):
+        """ Returns the result of error added in quadrature of the integral of a 
+        Reggeized PDF f = \int pdf(x) x**(j-1 - alpha_p * t ) 
+        error_pdf = sqrt(df/dA_pdf**2 * delta_A_pdf**2 + df/deta_1**2 * delta_eta_1**2 + ...)
+        of the form 
+        pdf(x) = A_pdf * x**eta_1(1-x)**eta_2 * ( 1 + epsilon * sqrt(x) + gamma_pdf * x )
+
+        Parameters:
+        - A_pdf (float): Magnitude of the input PDF.
+        - delta_A_pdf (float): Error of A_pdf
+        - eta_1 (float): Exponent determining low-x behavior of input PDF.
+        - delta_eta_1 (float): Error of eta_1
+        - eta_2 (float): Exponent determining the large-x behavior of input PDF.
+        - delta_eta_2 (float): Error of eta_2
+        - epsilon (float): Prefacotr of sqrt(x) determining intermetiate behavior of input PDF.
+        - delta_epsilon (float): Error of delta_epsilon
+        - gamma_pdf (float): Prefactor of x determining intermetiate behavior of input PDF.
+        - delta_gamma_pdf (float): Error of gamma_pdf
+        - j (float): conformal spin.
+        - alpha_p (float): Regge slope.
+        - t (float): Mandelstam t (< 0 in physical region)
+        
+        Returns:
+        0 if the central value of the input PDF is picked.
+        +- error_pdf if error_type ="plus" or "minus".
+        """
+        check_error_type(error_type)
+        if error_type == "central":
+                return 0
+        def dpdf_dA_pdf(A_pdf, epsilon, eta_1, eta_2, j, t, alpha_p, gamma_pdf):
+                frac_1 = epsilon*gamma(eta_1+j-alpha_p*t -.5)/(gamma(eta_1+eta_2+j-alpha_p*t+.5))
+                frac_2 = (eta_1+eta_2-gamma_pdf+eta_1*gamma_pdf+j*(1+gamma_pdf)-(1+gamma_pdf)*alpha_p*t)*gamma(eta_1+j-alpha_p*t-1)/gamma(1+eta_1+eta_2+j-alpha_p*t)
+                result = gamma(1+eta_2)*(frac_1+frac_2)
+                return result
+
+        def dpdf_deta_1(A_pdf, epsilon, eta_1, eta_2, j, t, alpha_p, gamma_pdf):
+                term_1 = (epsilon * gamma(eta_1 + j - t * alpha_p - 0.5) * 
+                digamma(eta_1 + j - t * alpha_p - 0.5) / 
+                gamma(eta_1 + eta_2 + j - t * alpha_p + 0.5))
+
+                term_2 = (epsilon * gamma(eta_1 + j - t * alpha_p - 0.5) * 
+                        digamma(eta_1 + eta_2 + j - t * alpha_p + 0.5) / 
+                        gamma(eta_1 + eta_2 + j - t * alpha_p + 0.5))
+
+                term_3 = ((gamma_pdf + 1) * gamma(eta_1 + j - t * alpha_p - 1) / 
+                        gamma(eta_1 + eta_2 + j - t * alpha_p + 1))
+
+                factor = (eta_1 * (gamma_pdf + 1) + eta_2 + 
+                        gamma_pdf * (j - alpha_p * t - 1) + j - alpha_p * t)
+
+                term_4 = (gamma(eta_1 + j - t * alpha_p - 1) * digamma(eta_1 + j - t * alpha_p - 1) * factor /
+                        gamma(eta_1 + eta_2 + j - t * alpha_p + 1))
+
+                term_5 = (gamma(eta_1 + j - t * alpha_p - 1) * factor * 
+                        digamma(eta_1 + eta_2 + j - t * alpha_p + 1) /
+                        gamma(eta_1 + eta_2 + j - t * alpha_p + 1))
+
+                return A_pdf * gamma(eta_2 + 1) * (term_1 - term_2 + term_3 + term_4 - term_5)
+        def dpdf_deta_2(A_pdf, epsilon, eta_1, eta_2, j, t, alpha_p, gamma_pdf):
+                term_1 = (epsilon * gamma(eta_1 + j - t * alpha_p - 0.5) / 
+                        gamma(eta_1 + eta_2 + j - t * alpha_p + 0.5))
+
+                factor = (eta_1 * (gamma_pdf + 1) + eta_2 + 
+                        gamma_pdf * (j - alpha_p * t - 1) + j - alpha_p * t)
+
+                term_2 = (gamma(eta_1 + j - t * alpha_p - 1) * factor / 
+                        gamma(eta_1 + eta_2 + j - t * alpha_p + 1))
+
+                term_3 = (-epsilon * gamma(eta_1 + j - t * alpha_p - 0.5) * 
+                        digamma(eta_1 + eta_2 + j - t * alpha_p + 0.5) / 
+                        gamma(eta_1 + eta_2 + j - t * alpha_p + 0.5))
+
+                term_4 = (-gamma(eta_1 + j - t * alpha_p - 1) * factor * 
+                        digamma(eta_1 + eta_2 + j - t * alpha_p + 1) /
+                        gamma(eta_1 + eta_2 + j - t * alpha_p + 1))
+
+                term_5 = (gamma(eta_1 + j - t * alpha_p - 1) /
+                        gamma(eta_1 + eta_2 + j - t * alpha_p + 1))
+
+                return (A_pdf * gamma(eta_2 + 1) * digamma(eta_2 + 1) * (term_1 + term_2) +
+                        A_pdf * gamma(eta_2 + 1) * (term_3 + term_4 + term_5))
+
+        def dpdf_depsilon(A_pdf, epsilon, eta_1, eta_2, j, t, alpha_p, gamma_pdf):
+                term1 = A_pdf * gamma(eta_2 + 1) * gamma(eta_1 + j - alpha_p * t - 0.5)
+                term2 = gamma(eta_1 + eta_2 + j - alpha_p * t + 0.5)
+                return term1/term2
+        def dpdf_dgamma(A_pdf, epsilon, eta_1, eta_2, j, t, alpha_p, gamma_pdf):
+                term1 = A_pdf * gamma(eta_2 + 1) * (eta_1 + j - alpha_p * t - 1) * gamma(eta_1 + j - t * alpha_p - 1)
+                term2 = gamma(eta_1 + eta_2 + j - t * alpha_p + 1)
+                return term1/term2
+        Delta_A_pdf = dpdf_dA_pdf(A_pdf, epsilon, eta_1, eta_2, j, t, alpha_p, gamma_pdf) * delta_A_pdf
+        Delta_eta_1 = dpdf_deta_1(A_pdf, epsilon, eta_1, eta_2, j, t, alpha_p, gamma_pdf) * delta_eta_1
+        Delta_eta_2 = dpdf_deta_2(A_pdf, epsilon, eta_1, eta_2, j, t, alpha_p, gamma_pdf) * delta_eta_2
+        Delta_epsilon = dpdf_depsilon(A_pdf, epsilon, eta_1, eta_2, j, t, alpha_p, gamma_pdf) * delta_epsilon
+        Delta_gamma_pdf = dpdf_dgamma(A_pdf, epsilon, eta_1, eta_2, j, t, alpha_p, gamma_pdf) * delta_gamma_pdf
+        # Debug
+        #print(Delta_A_pdf,Delta_eta_1,Delta_eta_2,Delta_epsilon,Delta_gamma_pdf)
+        result = np.sqrt(Delta_A_pdf**2+Delta_eta_1**2+Delta_eta_2**2+Delta_epsilon**2+Delta_gamma_pdf**2)
+        if error_type == "plus":
+                return result
+        else:
+                return - result
+
+def integral_polarized_pdf_regge_error(A_pdf,eta_1,eta_2,epsilon,gamma_pdf,
+                                       Delta_A_pdf,err_Delta_A_pdf,alpha,err_alpha,gamma_pol,err_gamma_pol, lambda_pol,err_lambda_pol,
+                                       j,alpha_p,t, error_type="central"):
+        
+        if error_type == "central":
+                return 0
+        def dpol_pdf_dDelta_A_pdf(
+                        A_pdf,eta_1,eta_2,epsilon,gamma_pdf,
+                        Delta_A_pdf,alpha,gamma_pol, lambda_pol,
+                        j,alpha_p,t
+        ):
+                term1 = A_pdf * gamma(eta_2 + 1)
+                
+                term2 = (gamma_pol * epsilon * gamma(eta_1 + j - alpha_p * t + alpha + lambda_pol - 0.5)) / \
+                        gamma(eta_1 + eta_2 + j - alpha_p * t + alpha + lambda_pol + 0.5)
+                
+                term3 = (epsilon * gamma(eta_1 + j - alpha_p * t + alpha - 0.5)) / \
+                        gamma(eta_1 + eta_2 + j - alpha_p * t + alpha + 0.5)
+                
+                term4 = (gamma(eta_1 + j - alpha_p * t + alpha + lambda_pol - 1) * 
+                        (gamma_pol + (gamma_pol * gamma_pdf * 
+                        (alpha + lambda_pol + eta_1 + j - alpha_p * t - 1)) / 
+                        (alpha + lambda_pol + eta_1 + eta_2 + j - alpha_p * t))) / \
+                        gamma(eta_1 + eta_2 + j - alpha_p * t + alpha + lambda_pol)
+                
+                term5 = (gamma(eta_1 + j - alpha_p * t + alpha - 1) * 
+                        ((gamma_pdf * (alpha + eta_1 + j - alpha_p * t - 1)) / 
+                        (alpha + eta_1 + eta_2 + j - alpha_p * t) + 1)) / \
+                        gamma(eta_1 + eta_2 + j - alpha_p * t + alpha)
+                
+                return term1 * (term2 + term3 + term4 + term5)
+        def dpol_pdf_dalpha(
+                        A_pdf,eta_1,eta_2,epsilon,gamma_pdf,
+                        Delta_A_pdf,alpha,gamma_pol, lambda_pol,
+                        j,alpha_p,t
+        ):
+                term1 = A_pdf * Delta_A_pdf * gamma(eta_2 + 1)
+    
+                term2 = (gamma_pol * epsilon * gamma(eta_1 + j - alpha_p * t + alpha + lambda_pol - 0.5) 
+                        * digamma(eta_1 + j - alpha_p * t + alpha + lambda_pol - 0.5)) \
+                        / gamma(eta_1 + eta_2 + j - alpha_p * t + alpha + lambda_pol + 0.5)
+                
+                term3 = - (gamma_pol * epsilon * gamma(eta_1 + j - alpha_p * t + alpha + lambda_pol - 0.5) 
+                                * digamma(eta_1 + eta_2 + j - alpha_p * t + alpha + lambda_pol + 0.5)) \
+                        / gamma(eta_1 + eta_2 + j - alpha_p * t + alpha + lambda_pol + 0.5)
+                
+                term4 = (epsilon * gamma(eta_1 + j - alpha_p * t + alpha - 0.5) 
+                        * digamma(eta_1 + j - alpha_p * t + alpha - 0.5)) \
+                        / gamma(eta_1 + eta_2 + j - alpha_p * t + alpha + 0.5)
+                
+                term5 = - (epsilon * gamma(eta_1 + j - alpha_p * t + alpha - 0.5) 
+                        * digamma(eta_1 + eta_2 + j - alpha_p * t + alpha + 0.5)) \
+                        / gamma(eta_1 + eta_2 + j - alpha_p * t + alpha + 0.5)
+                
+                term6 = (gamma_pol * (eta_2 + 1) * gamma_pdf * gamma(eta_1 + j - alpha_p * t + alpha + lambda_pol - 1)) \
+                        / ((alpha + lambda_pol + eta_1 + eta_2 + j - alpha_p * t)**2 
+                        * gamma(eta_1 + eta_2 + j - alpha_p * t + alpha + lambda_pol))
+                
+                term7 = (gamma(eta_1 + j - alpha_p * t + alpha + lambda_pol - 1) 
+                        * digamma(eta_1 + j - alpha_p * t + alpha + lambda_pol - 1)
+                        * (gamma_pol + (gamma_pol * gamma_pdf * (alpha + lambda_pol + eta_1 + j - alpha_p * t - 1))
+                                / (alpha + lambda_pol + eta_1 + eta_2 + j - alpha_p * t))) \
+                        / gamma(eta_1 + eta_2 + j - alpha_p * t + alpha + lambda_pol)
+                
+                term8 = - (gamma(eta_1 + j - alpha_p * t + alpha + lambda_pol - 1) 
+                                * digamma(eta_1 + eta_2 + j - alpha_p * t + alpha + lambda_pol)
+                                * (gamma_pol + (gamma_pol * gamma_pdf * (alpha + lambda_pol + eta_1 + j - alpha_p * t - 1))
+                                / (alpha + lambda_pol + eta_1 + eta_2 + j - alpha_p * t))) \
+                        / gamma(eta_1 + eta_2 + j - alpha_p * t + alpha + lambda_pol)
+                
+                term9 = ((eta_2 + 1) * gamma_pdf * gamma(eta_1 + j - alpha_p * t + alpha - 1)) \
+                        / ((alpha + eta_1 + eta_2 + j - alpha_p * t)**2 * gamma(eta_1 + eta_2 + j - alpha_p * t + alpha))
+                
+                term10 = (gamma(eta_1 + j - alpha_p * t + alpha - 1) * digamma(eta_1 + j - alpha_p * t + alpha - 1)
+                        * (1 + (gamma_pdf * (alpha + eta_1 + j - alpha_p * t - 1))
+                                / (alpha + eta_1 + eta_2 + j - alpha_p * t))) \
+                        / gamma(eta_1 + eta_2 + j - alpha_p * t + alpha)
+                
+                term11 = - (gamma(eta_1 + j - alpha_p * t + alpha - 1) * digamma(eta_1 + eta_2 + j - alpha_p * t + alpha)
+                                * (1 + (gamma_pdf * (alpha + eta_1 + j - alpha_p * t - 1))
+                                / (alpha + eta_1 + eta_2 + j - alpha_p * t))) \
+                        / gamma(eta_1 + eta_2 + j - alpha_p * t + alpha)
+                
+                return term1 * (term2 + term3 + term4 + term5 + term6 + term7 + term8 + term9 + term10 + term11)
+        
+        
+        def dpol_pdf_dgamma_pol(
+                        A_pdf,eta_1,eta_2,epsilon,gamma_pdf,
+                        Delta_A_pdf,alpha,gamma_pol, lambda_pol,
+                        j,alpha_p,t
+        ):
+                term1 = A_pdf * Delta_A_pdf * gamma(eta_2 + 1)
+    
+                term2 = (epsilon * gamma(eta_1 + j - alpha_p * t + alpha + lambda_pol - 0.5)) \
+                        / gamma(eta_1 + eta_2 + j - alpha_p * t + alpha + lambda_pol + 0.5)
+                
+                term3 = (gamma(eta_1 + j - alpha_p * t + alpha + lambda_pol - 1) * 
+                        (- alpha_p * t  + alpha + lambda_pol + eta_1 * (gamma_pdf + 1) + eta_2 +
+                        gamma_pdf * (- alpha_p * t  + alpha + lambda_pol + j - 1) + j)) \
+                        / gamma(eta_1 + eta_2 + j - alpha_p * t + alpha + lambda_pol + 1)
+                
+                return term1 * (term2 + term3)
+        
+        def dpol_pdf_dlambda_pol(
+                        A_pdf,eta_1,eta_2,epsilon,gamma_pdf,
+                        Delta_A_pdf,alpha,gamma_pol, lambda_pol,
+                        j,alpha_p,t
+        ):
+                term1 = A_pdf * Delta_A_pdf * gamma(eta_2 + 1)
+                
+                term2 = (gamma_pol * epsilon * gamma(eta_1 + j - alpha_p * t + alpha + lambda_pol - 0.5) * 
+                        digamma(eta_1 + j - alpha_p * t + alpha + lambda_pol - 0.5)) / \
+                        gamma(eta_1 + eta_2 + j - alpha_p * t + alpha + lambda_pol + 0.5)
+                
+                term3 = -(gamma_pol * epsilon * gamma(eta_1 + j - alpha_p * t + alpha + lambda_pol - 0.5) * 
+                        digamma(eta_1 + eta_2 + j - alpha_p * t + alpha + lambda_pol + 0.5)) / \
+                        gamma(eta_1 + eta_2 + j - alpha_p * t + alpha + lambda_pol + 0.5)
+                
+                term4 = (gamma_pol * (eta_2 + 1) * gamma_pdf * gamma(eta_1 + j - alpha_p * t + alpha + lambda_pol - 1)) / \
+                        ((alpha + lambda_pol + eta_1 + eta_2 + j - alpha_p * t)**2 * 
+                        gamma(eta_1 + eta_2 + j - alpha_p * t + alpha + lambda_pol))
+                
+                term5 = (gamma(eta_1 + j - alpha_p * t + alpha + lambda_pol - 1) * 
+                        digamma(eta_1 + j - alpha_p * t + alpha + lambda_pol - 1) * 
+                        (gamma_pol + (gamma_pol * gamma_pdf * 
+                        (alpha + lambda_pol + eta_1 + j - alpha_p * t - 1)) / 
+                        (alpha + lambda_pol + eta_1 + eta_2 + j - alpha_p * t))) / \
+                        gamma(eta_1 + eta_2 + j - alpha_p * t + alpha + lambda_pol)
+                
+                term6 = -(gamma(eta_1 + j - alpha_p * t + alpha + lambda_pol - 1) * 
+                        digamma(eta_1 + eta_2 + j - alpha_p * t + alpha + lambda_pol) * 
+                        (gamma_pol + (gamma_pol * gamma_pdf * 
+                        (alpha + lambda_pol + eta_1 + j - alpha_p * t - 1)) / 
+                        (alpha + lambda_pol + eta_1 + eta_2 + j - alpha_p * t))) / \
+                        gamma(eta_1 + eta_2 + j - alpha_p * t + alpha + lambda_pol)
+                                
+                return term1 * (term2 + term3 + term4 + term5 + term6)
+        
+        Delta_Delta_A_pdf = dpol_pdf_dDelta_A_pdf(
+                        A_pdf,eta_1,eta_2,epsilon,gamma_pdf,
+                        Delta_A_pdf,alpha,gamma_pol, lambda_pol,
+                        j,alpha_p,t
+                        ) * err_Delta_A_pdf
+        Delta_alpha = dpol_pdf_dalpha(
+                        A_pdf,eta_1,eta_2,epsilon,gamma_pdf,
+                        Delta_A_pdf,alpha,gamma_pol, lambda_pol,
+                        j,alpha_p,t
+                        ) * err_alpha
+        Delta_gamma_pol = dpol_pdf_dgamma_pol(
+                        A_pdf,eta_1,eta_2,epsilon,gamma_pdf,
+                        Delta_A_pdf,alpha,gamma_pol, lambda_pol,
+                        j,alpha_p,t
+                        ) * err_gamma_pol
+        Delta_lambda_pol= dpol_pdf_dlambda_pol(
+                        A_pdf,eta_1,eta_2,epsilon,gamma_pdf,
+                        Delta_A_pdf,alpha,gamma_pol, lambda_pol,
+                        j,alpha_p,t
+                        ) * err_lambda_pol
+
+        #Debug
+        # print(A_pdf,eta_1,eta_2,epsilon,gamma_pdf,
+        #                 Delta_A_pdf,alpha,gamma_pol, lambda_pol)
+        # print(dpol_pdf_dDelta_A_pdf(
+        #                 A_pdf,eta_1,eta_2,epsilon,gamma_pdf,
+        #                 Delta_A_pdf,alpha,gamma_pol, lambda_pol,
+        #                 j,alpha_p,t
+        # ))
+        # print(dpol_pdf_dalpha(
+        #                 A_pdf,eta_1,eta_2,epsilon,gamma_pdf,
+        #                 Delta_A_pdf,alpha,gamma_pol, lambda_pol,
+        #                 j,alpha_p,t
+        # ))
+        # print(dpol_pdf_dgamma_pol(
+        #                 A_pdf,eta_1,eta_2,epsilon,gamma_pdf,
+        #                 Delta_A_pdf,alpha,gamma_pol, lambda_pol,
+        #                 j,alpha_p,t
+        # ))
+        # print(dpol_pdf_dlambda_pol(
+        #                 A_pdf,eta_1,eta_2,epsilon,gamma_pdf,
+        #                 Delta_A_pdf,alpha,gamma_pol, lambda_pol,
+        #                 j,alpha_p,t
+        # ))
+
+        result = np.sqrt(Delta_Delta_A_pdf**2+Delta_alpha**2+Delta_gamma_pol**2+Delta_lambda_pol**2)
+        if error_type == "plus":
+                return result
+        else:
+                return - result
+
 def integral_uv_pdf_regge(j,eta,alpha_p,t, error_type="central"):
     """
     Result of the integral of the Reggeized uv(x) PDF based on the given LO parameters and selected errors.
@@ -261,7 +632,7 @@ def integral_uv_pdf_regge(j,eta,alpha_p,t, error_type="central"):
     }
     
     # Get the column index corresponding to the error_type
-    error_col_index = error_mapping.get(error_type, 0)  # Default to 'central' if error_type is invalid
+    error_col_index = error_mapping.get(error_type) 
 
     # Get row index of entry
     index_A_u=MSTW_PDF[MSTW_PDF["Parameter"] == "A_u"].index[0]
@@ -270,31 +641,22 @@ def integral_uv_pdf_regge(j,eta,alpha_p,t, error_type="central"):
     index_epsilon_u=MSTW_PDF[MSTW_PDF["Parameter"] == "epsilon_u"].index[0]
     index_gamma_u=MSTW_PDF[MSTW_PDF["Parameter"] == "gamma_u"].index[0]
 
-    # Extracting parameter values based on the error_type argument
-    A_u = MSTW_PDF_LO.iloc[index_A_u,0][0] + int(error_col_index>0)*MSTW_PDF_LO.iloc[index_A_u,0][error_col_index]
-    eta_1 = MSTW_PDF_LO.iloc[index_eta_1,0][0] + int(error_col_index>0)*MSTW_PDF_LO.iloc[index_eta_1,0][error_col_index]
-    eta_2 = MSTW_PDF_LO.iloc[index_eta_2,0][0] + int(error_col_index>0)*MSTW_PDF_LO.iloc[index_eta_2,0][error_col_index]
-    epsilon_u = MSTW_PDF_LO.iloc[index_epsilon_u,0][0] + int(error_col_index>0)*MSTW_PDF_LO.iloc[index_epsilon_u,0][error_col_index]
-    gamma_u = MSTW_PDF_LO.iloc[index_gamma_u,0][0] + int(error_col_index>0)*MSTW_PDF_LO.iloc[index_gamma_u,0][error_col_index]
-    
-    # Convert eta and t to numpy arrays for vectorized operations
-    eta = np.atleast_1d(eta)
-    t = np.atleast_1d(t)
-    
-    # If eta and t are 1D, ensure compatibility by broadcasting
-    if eta.ndim == 1:
-        eta = eta[:, np.newaxis]  # Make eta a column vector
-    if t.ndim == 1:
-        t = t[np.newaxis, :]      # Make t a row vector
+    # Extracting parameter values
+    A_pdf = MSTW_PDF_LO.iloc[index_A_u,0][0]
+    eta_1 = MSTW_PDF_LO.iloc[index_eta_1,0][0]
+    eta_2 = MSTW_PDF_LO.iloc[index_eta_2,0][0]
+    epsilon = MSTW_PDF_LO.iloc[index_epsilon_u,0][0]
+    gamma_pdf = MSTW_PDF_LO.iloc[index_gamma_u,0][0]
+    # Extracting errors
+    delta_A_pdf  = MSTW_PDF_LO.iloc[index_A_u,0][error_col_index]
+    delta_eta_1 = MSTW_PDF_LO.iloc[index_eta_1,0][error_col_index]
+    delta_eta_2 = MSTW_PDF_LO.iloc[index_eta_2,0][error_col_index]
+    delta_epsilon = MSTW_PDF_LO.iloc[index_epsilon_u,0][error_col_index]
+    delta_gamma_pdf = MSTW_PDF_LO.iloc[index_gamma_u,0][error_col_index]
 
-    # Analytical result of the integral
-    frac_1 = epsilon_u*gamma(eta_1+j-alpha_p*t -.5)/(gamma(eta_1+eta_2+j-alpha_p*t+.5))
-    frac_2 = (eta_1+eta_2-gamma_u+eta_1*gamma_u+j*(1+gamma_u)-(1+gamma_u)*alpha_p*t)*gamma(eta_1+j-alpha_p*t-1)/gamma(1+eta_1+eta_2+j-alpha_p*t)
-    result = A_u*gamma(1+eta_2)*(frac_1+frac_2)
-
-    # Return the result while preserving the original dimensions
-    if result.size == 1:
-        return result.item()  # Return a scalar if the result is a single value
+    pdf = integral_pdf_regge(A_pdf,eta_1,eta_2,epsilon,gamma_pdf,j,alpha_p,t)
+    pdf_error = integral_pdf_regge_error(A_pdf,delta_A_pdf,eta_1,delta_eta_1,eta_2,delta_eta_2,epsilon,delta_epsilon,gamma_pdf,delta_gamma_pdf,j,alpha_p,t,error_type)
+    result = pdf + pdf_error
     return result
 
 def integral_dv_pdf_regge(j,eta,alpha_p,t, error_type="central"):
@@ -314,7 +676,7 @@ def integral_dv_pdf_regge(j,eta,alpha_p,t, error_type="central"):
     # Check type
     check_error_type(error_type)
 
-    # Define a dictionary that maps the error_type to column indices
+     # Define a dictionary that maps the error_type to column indices
     error_mapping = {
         "central": 0,  # The column with the central value
         "plus": 1,     # The column with the + error value
@@ -322,7 +684,7 @@ def integral_dv_pdf_regge(j,eta,alpha_p,t, error_type="central"):
     }
     
     # Get the column index corresponding to the error_type
-    error_col_index = error_mapping.get(error_type, 0)
+    error_col_index = error_mapping.get(error_type)
 
     # Get row index of entry
     index_A_d = MSTW_PDF[MSTW_PDF["Parameter"] == "A_d"].index[0]
@@ -333,30 +695,22 @@ def integral_dv_pdf_regge(j,eta,alpha_p,t, error_type="central"):
     index_epsilon_d = MSTW_PDF[MSTW_PDF["Parameter"] == "epsilon_d"].index[0]
     index_gamma_d = MSTW_PDF[MSTW_PDF["Parameter"] == "gamma_d"].index[0]
 
-    # Extracting parameter values based on the error_type argument
-    A_d = MSTW_PDF_LO.iloc[index_A_d, 0][0] + int(error_col_index>0) * MSTW_PDF_LO.iloc[index_A_d, 0][error_col_index]
-    eta_3 = MSTW_PDF_LO.iloc[index_eta_3, 0][0] + int(error_col_index>0) * MSTW_PDF_LO.iloc[index_eta_3, 0][error_col_index]
-    # eta_4=(eta_4-eta_2) + eta_2, Add errors in quadrature
-    eta_4 = (MSTW_PDF_LO.iloc[index_eta_42, 0][0] + MSTW_PDF_LO.iloc[index_eta_2, 0][0]) + int(error_col_index>0) *np.sign(MSTW_PDF_LO.iloc[index_eta_42, 0][error_col_index]) * np.sqrt(MSTW_PDF_LO.iloc[index_eta_42, 0][error_col_index]**2+MSTW_PDF_LO.iloc[index_eta_2, 0][error_col_index]**2)
-    epsilon_d = MSTW_PDF_LO.iloc[index_epsilon_d, 0][0] + int(error_col_index>0) * MSTW_PDF_LO.iloc[index_epsilon_d, 0][error_col_index]
-    gamma_d = MSTW_PDF_LO.iloc[index_gamma_d, 0][0] + int(error_col_index>0) * MSTW_PDF_LO.iloc[index_gamma_d, 0][error_col_index]
-    
-    # Convert eta and t to numpy arrays for vectorized operations
-    eta = np.atleast_1d(eta)
-    t = np.atleast_1d(t)
-    
-    # If eta and t are 1D, ensure compatibility by broadcasting
-    if eta.ndim == 1:
-        eta = eta[:, np.newaxis]  # Make eta a column vector
-    if t.ndim == 1:
-        t = t[np.newaxis, :]      # Make t a row vector
-    # Analytical result of the integral
-    frac_1 = epsilon_d*gamma(eta_3+j-alpha_p*t -.5)/(gamma(eta_3+eta_4+j-alpha_p*t+.5))
-    frac_2 = (eta_3+eta_4-gamma_d+eta_3*gamma_d+j*(1+gamma_d)-(1+gamma_d)*alpha_p*t)*gamma(eta_3+j-alpha_p*t-1)/gamma(1+eta_3+eta_4+j-alpha_p*t)
-    result = A_d*gamma(1+eta_4)*(frac_1+frac_2)
-    # Return the result while preserving the original dimensions
-    if result.size == 1:
-        return result.item()  # Return a scalar if the result is a single value
+    # Extracting parameter values
+    A_pdf = MSTW_PDF_LO.iloc[index_A_d,0][0]
+    eta_1 = MSTW_PDF_LO.iloc[index_eta_3,0][0]
+    eta_2 = MSTW_PDF_LO.iloc[index_eta_42, 0][0] + MSTW_PDF_LO.iloc[index_eta_2, 0][0]
+    epsilon = MSTW_PDF_LO.iloc[index_epsilon_d,0][0]
+    gamma_pdf = MSTW_PDF_LO.iloc[index_gamma_d,0][0]
+    # Extracting errors
+    delta_A_pdf  = MSTW_PDF_LO.iloc[index_A_d,0][error_col_index]
+    delta_eta_1 = MSTW_PDF_LO.iloc[index_eta_3,0][error_col_index]
+    delta_eta_2 = np.sign(MSTW_PDF_LO.iloc[index_eta_42, 0][error_col_index]) * np.sqrt(MSTW_PDF_LO.iloc[index_eta_42, 0][error_col_index]**2+MSTW_PDF_LO.iloc[index_eta_2, 0][error_col_index]**2)
+    delta_epsilon = MSTW_PDF_LO.iloc[index_epsilon_d,0][error_col_index]
+    delta_gamma_pdf = MSTW_PDF_LO.iloc[index_gamma_d,0][error_col_index]
+
+    pdf = integral_pdf_regge(A_pdf,eta_1,eta_2,epsilon,gamma_pdf,j,alpha_p,t)
+    pdf_error = integral_pdf_regge_error(A_pdf,delta_A_pdf,eta_1,delta_eta_1,eta_2,delta_eta_2,epsilon,delta_epsilon,gamma_pdf,delta_gamma_pdf,j,alpha_p,t,error_type)
+    result = pdf + pdf_error
     return result
 
 def integral_sv_pdf_regge(j,eta,alpha_p,t, error_type="central"):
@@ -373,6 +727,87 @@ def integral_sv_pdf_regge(j,eta,alpha_p,t, error_type="central"):
     Returns:
     The value of the Reggeized integral of sv(x) based on the selected parameters and error type.
     """
+    # eta_1 = delta_minus, eta_2 = eta_minus, epsilon = 0, gamma = 0
+    def integral_sv_pdf_regge(A_m,delta_m,eta_m,x_0,j,alpha_p,t):
+        frac = gamma(1+eta_m)*gamma(j+delta_m-1-alpha_p*t)/(x_0*gamma(1+delta_m+eta_m+j-alpha_p*t))
+        result = -A_m*(j-1-delta_m*(x_0-1)-x_0*(eta_m+j-alpha_p*t)-alpha_p*t)*frac
+        return result
+    def integral_sv_pdf_regge_error(A_m,delta_A_m,delta_m,delta_delta_m,eta_m,delta_eta_m,x_0,delta_x_0,j,alpha_p,t, error_type="central"):
+        if error_type == "central":
+            return 0
+        def dpdf_dA_m(A_m, delta_m, eta_m,x_0, j, alpha_p,t):
+            result = (
+                    gamma(eta_m + 1) * gamma(delta_m + j - alpha_p * t - 1) *
+                    ((delta_m + j - alpha_p * t - 1) / (delta_m + eta_m + j - alpha_p * t) - x_0)
+                ) / (x_0 * gamma(delta_m + eta_m + j - alpha_p * t))
+        
+            return result
+        def dpdf_ddelta_m(A_m,delta_m,eta_m,x_0,j,alpha_p,t):
+            term_1 = (
+                A_m * gamma(eta_m + 1) * 
+                ((1 / (delta_m + eta_m + j - alpha_p * t)) -
+                ((delta_m + j - alpha_p * t - 1) / (delta_m + eta_m + j - alpha_p * t) ** 2)) *
+                gamma(delta_m + j - alpha_p * t - 1)
+            ) / (x_0 * gamma(delta_m + eta_m + j - alpha_p * t))
+            
+            term_2 = (
+                A_m * gamma(eta_m + 1) * gamma(delta_m + j - alpha_p * t - 1) *
+                digamma(delta_m + j - alpha_p * t - 1) *
+                ((delta_m + j - alpha_p * t - 1) / (delta_m + eta_m + j - alpha_p * t) - x_0)
+            ) / (x_0 * gamma(delta_m + eta_m + j - alpha_p * t))
+            
+            term_3 = (
+                A_m * gamma(eta_m + 1) * gamma(delta_m + j - alpha_p * t - 1) *
+                digamma(delta_m + eta_m + j - alpha_p * t) *
+                ((delta_m + j - alpha_p * t - 1) / (delta_m + eta_m + j - alpha_p * t) - x_0)
+            ) / (x_0 * gamma(delta_m + eta_m + j - alpha_p * t))
+            
+            return term_1 + term_2 - term_3
+        def dpdf_deta_m(A_m,delta_m,eta_m,x_0,j,alpha_p,t):
+            term_1 = -(
+                A_m * gamma(eta_m + 1) * (delta_m + j - alpha_p * t - 1) * gamma(delta_m + j - alpha_p * t - 1)
+            ) / (x_0 * (delta_m + eta_m + j - alpha_p * t) ** 2 * gamma(delta_m + eta_m + j - alpha_p * t))
+            
+            term_2 = (
+                A_m * gamma(eta_m + 1) * digamma(eta_m + 1) * gamma(delta_m + j - alpha_p * t - 1) *
+                ((delta_m + j - alpha_p * t - 1) / (delta_m + eta_m + j - alpha_p * t) - x_0)
+            ) / (x_0 * gamma(delta_m + eta_m + j - alpha_p * t))
+            
+            term_3 = (
+                A_m * gamma(eta_m + 1) * gamma(delta_m + j - alpha_p * t - 1) *
+                digamma(delta_m + eta_m + j - alpha_p * t) *
+                ((delta_m + j - alpha_p * t - 1) / (delta_m + eta_m + j - alpha_p * t) - x_0)
+            ) / (x_0 * gamma(delta_m + eta_m + j - alpha_p * t))
+            
+            return term_1 + term_2 - term_3
+        
+        def dpdf_dx_0(A_m,delta_m,eta_m,x_0,j,alpha_p,t):
+            term_1 = -(
+                A_m * gamma(eta_m + 1) * gamma(delta_m + j - alpha_p * t - 1) *
+                ((delta_m + j - alpha_p * t - 1) / (delta_m + eta_m + j - alpha_p * t) - x_0)
+            ) / (x_0 ** 2 * gamma(delta_m + eta_m + j - alpha_p * t))
+            
+            term_2 = -(
+                A_m * gamma(eta_m + 1) * gamma(delta_m + j - alpha_p * t - 1)
+            ) / (x_0 * gamma(delta_m + eta_m + j - alpha_p * t))
+            
+            return term_1 + term_2
+        
+        Delta_A_m = dpdf_dA_m(A_m,delta_m,eta_m,x_0,j,alpha_p,t) * delta_A_m
+        Delta_delta_m = dpdf_ddelta_m(A_m,delta_m,eta_m,x_0,j,alpha_p,t) * delta_delta_m
+        Delta_eta_m = dpdf_deta_m(A_m,delta_m,eta_m,x_0,j,alpha_p,t) * delta_eta_m
+        Delta_x_0= dpdf_dx_0(A_m,delta_m,eta_m,x_0,j,alpha_p,t) * delta_x_0
+
+        # Debug
+        # print(dpdf_dA_m(A_m,delta_m,eta_m,x_0,j,alpha_p,t),dpdf_ddelta_m(A_m,delta_m,eta_m,x_0,j,alpha_p,t),dpdf_deta_m(A_m,delta_m,eta_m,x_0,j,alpha_p,t),dpdf_dx_0(A_m,delta_m,eta_m,x_0,j,alpha_p,t))
+        # print(Delta_A_m,Delta_delta_m,Delta_eta_m,Delta_x_0)
+
+        result = np.sqrt(Delta_A_m**2+Delta_delta_m**2+Delta_eta_m**2+Delta_x_0**2)
+        if error_type == "plus":
+                return result
+        else:
+                return - result
+        
     # Check type
     check_error_type(error_type)
 
@@ -382,34 +817,30 @@ def integral_sv_pdf_regge(j,eta,alpha_p,t, error_type="central"):
         "minus": 2
     }
     
-    error_col_index = error_mapping.get(error_type, 0)
+    error_col_index = error_mapping.get(error_type)
 
     # delta_- fixed to 0.2
     index_A_m = MSTW_PDF[MSTW_PDF["Parameter"] == "A_-"].index[0]
     index_eta_m = MSTW_PDF[MSTW_PDF["Parameter"] == "eta_-"].index[0]
     index_x_0 = MSTW_PDF[MSTW_PDF["Parameter"] == "x_0"].index[0]
 
-    A_m = MSTW_PDF_LO.iloc[index_A_m, 0][0] + int(error_col_index>0) * MSTW_PDF_LO.iloc[index_A_m, 0][error_col_index]
-    delta_m = .2
-    eta_m = MSTW_PDF_LO.iloc[index_eta_m, 0][0] + int(error_col_index>0) * MSTW_PDF_LO.iloc[index_eta_m, 0][error_col_index]
-    x_0 = MSTW_PDF_LO.iloc[index_x_0, 0][0] + int(error_col_index>0) * MSTW_PDF_LO.iloc[index_x_0, 0][error_col_index]
-    
-    # Convert eta and t to numpy arrays for vectorized operations
-    eta = np.atleast_1d(eta)
-    t = np.atleast_1d(t)
-    
-    # If eta and t are 1D, ensure compatibility by broadcasting
-    if eta.ndim == 1:
-        eta = eta[:, np.newaxis]  # Make eta a column vector
-    if t.ndim == 1:
-        t = t[np.newaxis, :]      # Make t a row vector
+    # Extracting parameter values
+    A_m = MSTW_PDF_LO.iloc[index_A_m,0][0]
+    delta_m = 0.2
+    eta_m = MSTW_PDF_LO.iloc[index_eta_m,0][0]
+    x_0 = MSTW_PDF_LO.iloc[index_x_0,0][0]
 
-    # Analytical result of the integral
-    frac = gamma(1+eta_m)*gamma(j+delta_m-1-alpha_p*t)/(x_0*gamma(1+delta_m+eta_m+j-alpha_p*t))
-    result = -A_m*(j-1-delta_m*(x_0-1)-x_0*(eta_m+j-alpha_p*t)-alpha_p*t)*frac
-     # Return the result while preserving the original dimensions
-    if result.size == 1:
-        return result.item()  # Return a scalar if the result is a single value
+    # Extracting errors
+    delta_A_m  = MSTW_PDF_LO.iloc[index_A_m,0][error_col_index]
+    delta_delta_m = 0
+    delta_eta_m = MSTW_PDF_LO.iloc[index_eta_m,0][error_col_index]
+    delta_x_0 = MSTW_PDF_LO.iloc[index_x_0,0][error_col_index]
+    # Debug
+    # print(A_m,delta_m,eta_m,x_0)
+    # print(delta_A_m,delta_delta_m,delta_eta_m,delta_x_0)
+    pdf = integral_sv_pdf_regge(A_m,delta_m,eta_m,x_0,j,alpha_p,t)
+    pdf_error = integral_sv_pdf_regge_error(A_m,delta_A_m,delta_m,delta_delta_m,eta_m,delta_eta_m,x_0,delta_x_0,j,alpha_p,t, error_type)
+    result = pdf + pdf_error
     return result
 
 def integral_S_pdf_regge(j,eta,alpha_p,t, error_type="central"):
@@ -435,7 +866,7 @@ def integral_S_pdf_regge(j,eta,alpha_p,t, error_type="central"):
         "minus": 2
     }
     
-    error_col_index = error_mapping.get(error_type, 0)
+    error_col_index = error_mapping.get(error_type)
 
     index_A_S = MSTW_PDF[MSTW_PDF["Parameter"] == "A_S"].index[0]
     index_delta_S = MSTW_PDF[MSTW_PDF["Parameter"] == "delta_S"].index[0]
@@ -443,28 +874,22 @@ def integral_S_pdf_regge(j,eta,alpha_p,t, error_type="central"):
     index_epsilon_S = MSTW_PDF[MSTW_PDF["Parameter"] == "epsilon_S"].index[0]
     index_gamma_S = MSTW_PDF[MSTW_PDF["Parameter"] == "gamma_S"].index[0]
 
-    A_S = MSTW_PDF_LO.iloc[index_A_S, 0][0] + int(error_col_index>0) * MSTW_PDF_LO.iloc[index_A_S, 0][error_col_index]
-    delta_S = MSTW_PDF_LO.iloc[index_delta_S, 0][0] + int(error_col_index>0) * MSTW_PDF_LO.iloc[index_delta_S, 0][error_col_index]
-    eta_S = MSTW_PDF_LO.iloc[index_eta_S, 0][0] + int(error_col_index>0) * MSTW_PDF_LO.iloc[index_eta_S, 0][error_col_index]
-    epsilon_S = MSTW_PDF_LO.iloc[index_epsilon_S, 0][0] + int(error_col_index>0) * MSTW_PDF_LO.iloc[index_epsilon_S, 0][error_col_index]
-    gamma_S = MSTW_PDF_LO.iloc[index_gamma_S, 0][0] + int(error_col_index>0) * MSTW_PDF_LO.iloc[index_gamma_S, 0][error_col_index]
-    
-    # Convert eta and t to numpy arrays for vectorized operations
-    eta = np.atleast_1d(eta)
-    t = np.atleast_1d(t)
-    
-    # If eta and t are 1D, ensure compatibility by broadcasting
-    if eta.ndim == 1:
-        eta = eta[:, np.newaxis]  # Make eta a column vector
-    if t.ndim == 1:
-        t = t[np.newaxis, :]      # Make t a row vector
-    # Analytical result of the integral
-    frac_1 = epsilon_S*gamma(delta_S+j-alpha_p*t -.5)/(gamma(delta_S+eta_S+j-alpha_p*t+.5))
-    frac_2 = (delta_S+eta_S-gamma_S+delta_S*gamma_S+j*(1+gamma_S)-(1+gamma_S)*alpha_p*t)*gamma(delta_S+j-alpha_p*t-1)/gamma(1+delta_S+eta_S+j-alpha_p*t)
-    result = A_S*gamma(1+eta_S)*(frac_1+frac_2)
-    # Return the result while preserving the original dimensions
-    if result.size == 1:
-        return result.item()  # Return a scalar if the result is a single value
+    # Extracting parameter values
+    A_pdf = MSTW_PDF_LO.iloc[index_A_S,0][0]
+    eta_1 = MSTW_PDF_LO.iloc[index_delta_S,0][0]
+    eta_2 = MSTW_PDF_LO.iloc[index_eta_S,0][0]
+    epsilon = MSTW_PDF_LO.iloc[index_epsilon_S,0][0]
+    gamma_pdf = MSTW_PDF_LO.iloc[index_gamma_S,0][0]
+    # Extracting errors
+    delta_A_pdf  = MSTW_PDF_LO.iloc[index_A_S,0][error_col_index]
+    delta_eta_1 = MSTW_PDF_LO.iloc[index_delta_S,0][error_col_index]
+    delta_eta_2 = MSTW_PDF_LO.iloc[index_eta_S,0][error_col_index]
+    delta_epsilon = MSTW_PDF_LO.iloc[index_epsilon_S,0][error_col_index]
+    delta_gamma_pdf = MSTW_PDF_LO.iloc[index_gamma_S,0][error_col_index]
+
+    pdf = integral_pdf_regge(A_pdf,eta_1,eta_2,epsilon,gamma_pdf,j,alpha_p,t)
+    pdf_error = integral_pdf_regge_error(A_pdf,delta_A_pdf,eta_1,delta_eta_1,eta_2,delta_eta_2,epsilon,delta_epsilon,gamma_pdf,delta_gamma_pdf,j,alpha_p,t,error_type)
+    result = pdf + pdf_error
     return result
 
 def integral_s_plus_pdf_regge(j,eta,alpha_p,t, error_type="central"):
@@ -490,7 +915,7 @@ def integral_s_plus_pdf_regge(j,eta,alpha_p,t, error_type="central"):
         "minus": 2
     }
     
-    error_col_index = error_mapping.get(error_type, 0)
+    error_col_index = error_mapping.get(error_type)
 
     index_A_p = MSTW_PDF[MSTW_PDF["Parameter"] == "A_+"].index[0]
     index_delta_S = MSTW_PDF[MSTW_PDF["Parameter"] == "delta_S"].index[0]
@@ -498,34 +923,27 @@ def integral_s_plus_pdf_regge(j,eta,alpha_p,t, error_type="central"):
     index_epsilon_S = MSTW_PDF[MSTW_PDF["Parameter"] == "epsilon_S"].index[0]
     index_gamma_S = MSTW_PDF[MSTW_PDF["Parameter"] == "gamma_S"].index[0]
 
-    A_p = MSTW_PDF_LO.iloc[index_A_p, 0][0] + int(error_col_index>0) * MSTW_PDF_LO.iloc[index_A_p, 0][error_col_index]
-    delta_S = MSTW_PDF_LO.iloc[index_delta_S, 0][0] + int(error_col_index>0) * MSTW_PDF_LO.iloc[index_delta_S, 0][error_col_index]
-    eta_p = MSTW_PDF_LO.iloc[index_eta_p, 0][0] + int(error_col_index>0) * MSTW_PDF_LO.iloc[index_eta_p, 0][error_col_index]
-    epsilon_S = MSTW_PDF_LO.iloc[index_epsilon_S, 0][0] + int(error_col_index>0) * MSTW_PDF_LO.iloc[index_epsilon_S, 0][error_col_index]
-    gamma_S = MSTW_PDF_LO.iloc[index_gamma_S, 0][0] + int(error_col_index>0) * MSTW_PDF_LO.iloc[index_gamma_S, 0][error_col_index]
+    # Extracting parameter values
+    A_pdf = MSTW_PDF_LO.iloc[index_A_p,0][0]
+    eta_1 = MSTW_PDF_LO.iloc[index_delta_S,0][0]
+    eta_2 = MSTW_PDF_LO.iloc[index_eta_p,0][0]
+    epsilon = MSTW_PDF_LO.iloc[index_epsilon_S,0][0]
+    gamma_pdf = MSTW_PDF_LO.iloc[index_gamma_S,0][0]
+    # Extracting errors
+    delta_A_pdf  = MSTW_PDF_LO.iloc[index_A_p,0][error_col_index]
+    delta_eta_1 = MSTW_PDF_LO.iloc[index_delta_S,0][error_col_index]
+    delta_eta_2 = MSTW_PDF_LO.iloc[index_eta_p,0][error_col_index]
+    delta_epsilon = MSTW_PDF_LO.iloc[index_epsilon_S,0][error_col_index]
+    delta_gamma_pdf = MSTW_PDF_LO.iloc[index_gamma_S,0][error_col_index]
 
-    # Convert eta and t to numpy arrays for vectorized operations
-    eta = np.atleast_1d(eta)
-    t = np.atleast_1d(t)
-    
-    # If eta and t are 1D, ensure compatibility by broadcasting
-    if eta.ndim == 1:
-        eta = eta[:, np.newaxis]  # Make eta a column vector
-    if t.ndim == 1:
-        t = t[np.newaxis, :]      # Make t a row vector
-
-    # Analytical result of the integral
-    frac_1 = epsilon_S*gamma(delta_S+j-alpha_p*t -.5)/(gamma(delta_S+eta_p+j-alpha_p*t+.5))
-    frac_2 = (delta_S+eta_p-gamma_S+delta_S*gamma_S+j*(1+gamma_S)-(1+gamma_S)*alpha_p*t)*gamma(delta_S+j-alpha_p*t-1)/gamma(1+delta_S+eta_p+j-alpha_p*t)
-    result = A_p*gamma(1+eta_p)*(frac_1+frac_2)
-    # Return the result while preserving the original dimensions
-    if result.size == 1:
-        return result.item()  # Return a scalar if the result is a single value
+    pdf = integral_pdf_regge(A_pdf,eta_1,eta_2,epsilon,gamma_pdf,j,alpha_p,t)
+    pdf_error = integral_pdf_regge_error(A_pdf,delta_A_pdf,eta_1,delta_eta_1,eta_2,delta_eta_2,epsilon,delta_epsilon,gamma_pdf,delta_gamma_pdf,j,alpha_p,t,error_type)
+    result = pdf + pdf_error
     return result
 
 def integral_Delta_pdf_regge(j,eta,alpha_p,t, error_type="central"):
     """
-    Result of the integral of the Reggeized Delta(x)=ubar(x)-dbar(x) PDF based on the given LO parameters and selected errors.
+    Result of the integral of the Reggeized uv(x) PDF based on the given LO parameters and selected errors.
     
     Arguments:
     j -- conformal spin,
@@ -535,11 +953,211 @@ def integral_Delta_pdf_regge(j,eta,alpha_p,t, error_type="central"):
     error_type -- A string indicating whether to use 'central', 'plus', or 'minus' errors. Default is 'central'.
     
     Returns:
-    The value of the Reggeized integral of Delta(x) based on the selected parameters and error type.
+    The value of the Reggeized integral of uv(x) based on the selected parameters and error type.
     """
-    # Check type
+    def integral_Delta_pdf_regge(A_Delta,eta_Delta,eta_S,gamma_Delta,delta_Delta,j,alpha_p,t):
+        frac_1 = (2+eta_Delta+eta_S+j-alpha_p*t)*(3+eta_Delta+eta_S+j-alpha_p*t)
+        frac_2 = gamma(3+eta_S)*gamma(j+eta_Delta-1-alpha_p*t)/(gamma(2+eta_Delta+eta_S+j-alpha_p*t))
+        result = A_Delta*(1+((delta_Delta*(eta_Delta+j-alpha_p*t)+gamma_Delta*(3+eta_Delta+eta_S+j-alpha_p*t))*(eta_Delta+j-1+alpha_p*t))/frac_1)*frac_2
+        return result
+    def integral_Delta_pdf_regge_error(A_Delta,delta_A_Delta,eta_Delta,delta_eta_Delta,eta_S,delta_eta_S,gamma_Delta,delta_gamma_Delta,delta_Delta,delta_delta_Delta,j,alpha_p,t, error_type="central"):
+        if error_type == "central":
+             return 0
+        def dpdf_dA_Delta(A_Delta,eta_Delta,eta_S,gamma_Delta,delta_Delta,j,alpha_p,t):
+            term = (
+            gamma(eta_S + 3) * gamma(eta_Delta + j - alpha_p * t - 1) *
+            (
+                (
+                    (eta_Delta + j - alpha_p * t - 1) *
+                    (
+                        delta_Delta * (eta_Delta + j - alpha_p * t) +
+                        gamma_Delta * (eta_Delta + eta_S + j - alpha_p * t + 3)
+                    )
+                ) / (
+                    (eta_Delta + eta_S + j - alpha_p * t + 2) *
+                    (eta_Delta + eta_S + j - alpha_p * t + 3)
+                ) + 1
+            )
+            ) / gamma(eta_Delta + eta_S + j - alpha_p * t + 2)
+        
+            return term
+        def dpdf_deta_Delta(A_Delta,eta_Delta,eta_S,gamma_Delta,delta_Delta,j,alpha_p,t):
+            term_1 = (
+                A_Delta * gamma(eta_S + 3) * gamma(eta_Delta + j - alpha_p * t - 1) *
+                (
+                    -(
+                        (eta_Delta + j - alpha_p * t - 1) *
+                        (
+                            delta_Delta * (eta_Delta + j - alpha_p * t) +
+                            gamma_Delta * (eta_Delta + eta_S + j - alpha_p * t + 3)
+                        )
+                    ) / (
+                        (eta_Delta + eta_S + j - alpha_p * t + 2) ** 2 *
+                        (eta_Delta + eta_S + j - alpha_p * t + 3)
+                    )
+                    - (
+                        (eta_Delta + j - alpha_p * t - 1) *
+                        (
+                            delta_Delta * (eta_Delta + j - alpha_p * t) +
+                            gamma_Delta * (eta_Delta + eta_S + j - alpha_p * t + 3)
+                        )
+                    ) / (
+                        (eta_Delta + eta_S + j - alpha_p * t + 2) *
+                        (eta_Delta + eta_S + j - alpha_p * t + 3) ** 2
+                    )
+                    + (
+                        (delta_Delta + gamma_Delta) * (eta_Delta + j - alpha_p * t - 1)
+                    ) / (
+                        (eta_Delta + eta_S + j - alpha_p * t + 2) *
+                        (eta_Delta + eta_S + j - alpha_p * t + 3)
+                    )
+                    + (
+                        delta_Delta * (eta_Delta + j - alpha_p * t) +
+                        gamma_Delta * (eta_Delta + eta_S + j - alpha_p * t + 3)
+                    ) / (
+                        (eta_Delta + eta_S + j - alpha_p * t + 2) *
+                        (eta_Delta + eta_S + j - alpha_p * t + 3)
+                    )
+                )
+            ) / gamma(eta_Delta + eta_S + j - alpha_p * t + 2)
+        
+            term_2 = (
+                A_Delta * gamma(eta_S + 3) * gamma(eta_Delta + j - alpha_p * t - 1) *
+                digamma(eta_Delta + j - alpha_p * t - 1) *
+                (
+                    (
+                        (eta_Delta + j - alpha_p * t - 1) *
+                        (
+                            delta_Delta * (eta_Delta + j - alpha_p * t) +
+                            gamma_Delta * (eta_Delta + eta_S + j - alpha_p * t + 3)
+                        )
+                    ) / (
+                        (eta_Delta + eta_S + j - alpha_p * t + 2) *
+                        (eta_Delta + eta_S + j - alpha_p * t + 3)
+                    ) + 1
+                )
+            ) / gamma(eta_Delta + eta_S + j - alpha_p * t + 2)
+            
+            term_3 = (
+                -A_Delta * gamma(eta_S + 3) * gamma(eta_Delta + j - alpha_p * t - 1) *
+                digamma(eta_Delta + eta_S + j - alpha_p * t + 2) *
+                (
+                    (
+                        (eta_Delta + j - alpha_p * t - 1) *
+                        (
+                            delta_Delta * (eta_Delta + j - alpha_p * t) +
+                            gamma_Delta * (eta_Delta + eta_S + j - alpha_p * t + 3)
+                        )
+                    ) / (
+                        (eta_Delta + eta_S + j - alpha_p * t + 2) *
+                        (eta_Delta + eta_S + j - alpha_p * t + 3)
+                    ) + 1
+                )
+            ) / gamma(eta_Delta + eta_S + j - alpha_p * t + 2)
+            
+            return term_1 + term_2 + term_3
+        
+        def dpdf_deta_S(A_Delta,eta_Delta,eta_S,gamma_Delta,delta_Delta,j,alpha_p,t):
+            term_1 = (
+                A_Delta * gamma(eta_S + 3) * gamma(eta_Delta + j - alpha_p * t - 1) *
+                (
+                    -(
+                        (eta_Delta + j - alpha_p * t - 1) *
+                        (
+                            delta_Delta * (eta_Delta + j - alpha_p * t) +
+                            gamma_Delta * (eta_Delta + eta_S + j - alpha_p * t + 3)
+                        )
+                    ) / (
+                        (eta_Delta + eta_S + j - alpha_p * t + 2) ** 2 *
+                        (eta_Delta + eta_S + j - alpha_p * t + 3)
+                    )
+                    - (
+                        (eta_Delta + j - alpha_p * t - 1) *
+                        (
+                            delta_Delta * (eta_Delta + j - alpha_p * t) +
+                            gamma_Delta * (eta_Delta + eta_S + j - alpha_p * t + 3)
+                        )
+                    ) / (
+                        (eta_Delta + eta_S + j - alpha_p * t + 2) *
+                        (eta_Delta + eta_S + j - alpha_p * t + 3) ** 2
+                    )
+                    + (
+                        gamma_Delta * (eta_Delta + j - alpha_p * t - 1)
+                    ) / (
+                        (eta_Delta + eta_S + j - alpha_p * t + 2) *
+                        (eta_Delta + eta_S + j - alpha_p * t + 3)
+                    )
+                )
+            ) / gamma(eta_Delta + eta_S + j - alpha_p * t + 2)
+            
+            term_2 = (
+                A_Delta * gamma(eta_S + 3) * digamma(eta_S + 3) * gamma(eta_Delta + j - alpha_p * t - 1) *
+                (
+                    (
+                        (eta_Delta + j - alpha_p * t - 1) *
+                        (
+                            delta_Delta * (eta_Delta + j - alpha_p * t) +
+                            gamma_Delta * (eta_Delta + eta_S + j - alpha_p * t + 3)
+                        )
+                    ) / (
+                        (eta_Delta + eta_S + j - alpha_p * t + 2) *
+                        (eta_Delta + eta_S + j - alpha_p * t + 3)
+                    ) + 1
+                )
+            ) / gamma(eta_Delta + eta_S + j - alpha_p * t + 2)
+            
+            term_3 = (
+                -A_Delta * gamma(eta_S + 3) * gamma(eta_Delta + j - alpha_p * t - 1) *
+                digamma(eta_Delta + eta_S + j - alpha_p * t + 2) *
+                (
+                    (
+                        (eta_Delta + j - alpha_p * t - 1) *
+                        (
+                            delta_Delta * (eta_Delta + j - alpha_p * t) +
+                            gamma_Delta * (eta_Delta + eta_S + j - alpha_p * t + 3)
+                        )
+                    ) / (
+                        (eta_Delta + eta_S + j - alpha_p * t + 2) *
+                        (eta_Delta + eta_S + j - alpha_p * t + 3)
+                    ) + 1
+                )
+            ) / gamma(eta_Delta + eta_S + j - alpha_p * t + 2)
+            
+            return term_1 + term_2 + term_3
+        def dpdf_dgamma_Delta(A_Delta,eta_Delta,eta_S,gamma_Delta,delta_Delta,j,alpha_p,t):
+            term_1 = gamma(eta_Delta + j - alpha_p * t)
+            term_2 = gamma(3 + eta_Delta + eta_S + j - alpha_p * t)
+            result = A_Delta * gamma(3+eta_S) * term_1 / term_2
+            return result
+        def dpdf_ddelta_Delta(A_Delta,eta_Delta,eta_S,gamma_Delta,delta_Delta,j,alpha_p,t):
+            return (
+                A_Delta * gamma(eta_S + 3) * (eta_Delta + j - alpha_p * t - 1) * (eta_Delta + j - alpha_p * t) * 
+                gamma(eta_Delta + j - alpha_p * t - 1)
+            ) / (
+                (eta_Delta + eta_S + j - alpha_p * t + 2) *
+                (eta_Delta + eta_S + j - alpha_p * t + 3) *
+                gamma(eta_Delta + eta_S + j - alpha_p * t + 2)
+            )
+        # Debug
+        # print(dpdf_dA_Delta(A_Delta,eta_Delta,eta_S,gamma_Delta,delta_Delta,j,alpha_p,t))
+        # print(dpdf_deta_Delta(A_Delta,eta_Delta,eta_S,gamma_Delta,delta_Delta,j,alpha_p,t))
+        # print(dpdf_deta_S(A_Delta,eta_Delta,eta_S,gamma_Delta,delta_Delta,j,alpha_p,t))
+        # print(dpdf_dgamma_Delta(A_Delta,eta_Delta,eta_S,gamma_Delta,delta_Delta,j,alpha_p,t))
+        # print(dpdf_ddelta_Delta(A_Delta,eta_Delta,eta_S,gamma_Delta,delta_Delta,j,alpha_p,t))
+        # Check type
+        Delta_A_Delta = dpdf_dA_Delta(A_Delta,eta_Delta,eta_S,gamma_Delta,delta_Delta,j,alpha_p,t) * delta_A_Delta
+        Delta_eta_Delta = dpdf_deta_Delta(A_Delta,eta_Delta,eta_S,gamma_Delta,delta_Delta,j,alpha_p,t) * delta_eta_Delta
+        Delta_eta_S = dpdf_deta_S(A_Delta,eta_Delta,eta_S,gamma_Delta,delta_Delta,j,alpha_p,t) * delta_eta_S
+        Delta_gamma_Delta = dpdf_dgamma_Delta(A_Delta,eta_Delta,eta_S,gamma_Delta,delta_Delta,j,alpha_p,t) * delta_gamma_Delta
+        Delta_delta_Delta = dpdf_ddelta_Delta(A_Delta,eta_Delta,eta_S,gamma_Delta,delta_Delta,j,alpha_p,t) * delta_delta_Delta
+
+        result = np.sqrt(Delta_A_Delta**2+Delta_eta_Delta**2+Delta_eta_S**2+Delta_gamma_Delta**2+Delta_delta_Delta**2)
+        if error_type == "plus":
+                return result
+        else:
+                return - result
     check_error_type(error_type)
-    
+
      # Define a dictionary that maps the error_type to column indices
     error_mapping = {
         "central": 0,  # The column with the central value
@@ -548,39 +1166,32 @@ def integral_Delta_pdf_regge(j,eta,alpha_p,t, error_type="central"):
     }
     
     # Get the column index corresponding to the error_type
-    error_col_index = error_mapping.get(error_type, 0)  # Default to 'central' if error_type is invalid
+    error_col_index = error_mapping.get(error_type) 
 
     # Get row index of entry
     index_A_Delta=MSTW_PDF[MSTW_PDF["Parameter"] == "A_Delta"].index[0]
     index_eta_Delta=MSTW_PDF[MSTW_PDF["Parameter"] == "eta_Delta"].index[0]
     index_eta_S=MSTW_PDF[MSTW_PDF["Parameter"] == "eta_S"].index[0]
-    index_gamma_Delta=MSTW_PDF[MSTW_PDF["Parameter"] == "gamma_Delta"].index[0]
     index_delta_Delta=MSTW_PDF[MSTW_PDF["Parameter"] == "delta_Delta"].index[0]
+    index_gamma_Delta=MSTW_PDF[MSTW_PDF["Parameter"] == "gamma_Delta"].index[0]
 
-    # Extracting parameter values based on the error_type argument
-    A_Delta = MSTW_PDF_LO.iloc[index_A_Delta,0][0] + int(error_col_index>0)*MSTW_PDF_LO.iloc[index_A_Delta,0][error_col_index]
-    eta_Delta = MSTW_PDF_LO.iloc[index_eta_Delta,0][0] + int(error_col_index>0)*MSTW_PDF_LO.iloc[index_eta_Delta,0][error_col_index]
-    eta_S = MSTW_PDF_LO.iloc[index_eta_S,0][0] + int(error_col_index>0)*MSTW_PDF_LO.iloc[index_eta_S,0][error_col_index]
-    gamma_Delta = MSTW_PDF_LO.iloc[index_gamma_Delta,0][0] + int(error_col_index>0)*MSTW_PDF_LO.iloc[index_gamma_Delta,0][error_col_index]
-    delta_Delta = MSTW_PDF_LO.iloc[index_delta_Delta,0][0] + int(error_col_index>0)*MSTW_PDF_LO.iloc[index_delta_Delta,0][error_col_index]
+    # Extracting parameter values
+    A_Delta = MSTW_PDF_LO.iloc[index_A_Delta,0][0]
+    eta_Delta = MSTW_PDF_LO.iloc[index_eta_Delta,0][0]
+    eta_S = MSTW_PDF_LO.iloc[index_eta_S,0][0]
+    delta_Delta = MSTW_PDF_LO.iloc[index_delta_Delta,0][0]
+    gamma_Delta = MSTW_PDF_LO.iloc[index_gamma_Delta,0][0]
+    # Extracting errors
+    delta_A_Delta  = MSTW_PDF_LO.iloc[index_A_Delta,0][error_col_index]
+    delta_eta_Delta = MSTW_PDF_LO.iloc[index_eta_Delta,0][error_col_index]
+    delta_eta_S = MSTW_PDF_LO.iloc[index_eta_S,0][error_col_index]
+    delta_delta_Delta = MSTW_PDF_LO.iloc[index_delta_Delta,0][error_col_index]
+    delta_gamma_Delta = MSTW_PDF_LO.iloc[index_gamma_Delta,0][error_col_index]
 
-    # Convert eta and t to numpy arrays for vectorized operations
-    eta = np.atleast_1d(eta)
-    t = np.atleast_1d(t)
-    
-    # If eta and t are 1D, ensure compatibility by broadcasting
-    if eta.ndim == 1:
-        eta = eta[:, np.newaxis]  # Make eta a column vector
-    if t.ndim == 1:
-        t = t[np.newaxis, :]      # Make t a row vector
+    pdf = integral_Delta_pdf_regge(A_Delta,eta_Delta,eta_S,gamma_Delta,delta_Delta,j,alpha_p,t)
+    pdf_error = integral_Delta_pdf_regge_error(A_Delta,delta_A_Delta,eta_Delta,delta_eta_Delta,eta_S,delta_eta_S,gamma_Delta,delta_gamma_Delta,delta_Delta,delta_delta_Delta,j,alpha_p,t, error_type)
+    result = pdf + pdf_error
 
-    # Analytical result of the integral
-    frac_1 = (2+eta_Delta+eta_S+j-alpha_p*t)*(3+eta_Delta+eta_S+j-alpha_p*t)
-    frac_2 = gamma(3+eta_S)*gamma(j+eta_Delta-1-alpha_p*t)/(gamma(2+eta_Delta+eta_S+j-alpha_p*t))
-    result = A_Delta*(1+((delta_Delta*(eta_Delta+j-alpha_p*t)+gamma_Delta*(3+eta_Delta+eta_S+j-alpha_p*t))*(eta_Delta+j-1+alpha_p*t))/frac_1)*frac_2
-    # Return the result while preserving the original dimensions
-    if result.size == 1:
-        return result.item()  # Return a scalar if the result is a single value
     return result
 
 def integral_gluon_pdf_regge(j,eta,alpha_p,t, error_type="central"):
@@ -608,7 +1219,7 @@ def integral_gluon_pdf_regge(j,eta,alpha_p,t, error_type="central"):
     }
     
     # Get the column index corresponding to the error_type
-    error_col_index = error_mapping.get(error_type, 0)  # Default to 'central' if error_type is invalid
+    error_col_index = error_mapping.get(error_type) 
 
     # Get row index of entry
     index_A_g=MSTW_PDF[MSTW_PDF["Parameter"] == "A_g"].index[0]
@@ -617,333 +1228,292 @@ def integral_gluon_pdf_regge(j,eta,alpha_p,t, error_type="central"):
     index_epsilon_g=MSTW_PDF[MSTW_PDF["Parameter"] == "epsilon_g"].index[0]
     index_gamma_g=MSTW_PDF[MSTW_PDF["Parameter"] == "gamma_g"].index[0]
 
-    # Extracting parameter values based on the error_type argument
-    A_g = MSTW_PDF_LO.iloc[index_A_g,0][0] + int(error_col_index>0)*MSTW_PDF_LO.iloc[index_A_g,0][error_col_index]
-    delta_g = MSTW_PDF_LO.iloc[index_delta_g,0][0] + int(error_col_index>0)*MSTW_PDF_LO.iloc[index_delta_g,0][error_col_index]
-    eta_g = MSTW_PDF_LO.iloc[index_eta_g,0][0] + int(error_col_index>0)*MSTW_PDF_LO.iloc[index_eta_g,0][error_col_index]
-    epsilon_g = MSTW_PDF_LO.iloc[index_epsilon_g,0][0] + int(error_col_index>0)*MSTW_PDF_LO.iloc[index_epsilon_g,0][error_col_index]
-    gamma_g = MSTW_PDF_LO.iloc[index_gamma_g,0][0] + int(error_col_index>0)*MSTW_PDF_LO.iloc[index_gamma_g,0][error_col_index]
+    # Extracting parameter values
+    A_pdf = MSTW_PDF_LO.iloc[index_A_g,0][0]
+    eta_1 = MSTW_PDF_LO.iloc[index_delta_g,0][0]
+    eta_2 = MSTW_PDF_LO.iloc[index_eta_g,0][0]
+    epsilon = MSTW_PDF_LO.iloc[index_epsilon_g,0][0]
+    gamma_pdf = MSTW_PDF_LO.iloc[index_gamma_g,0][0]
+    # Extracting errors
+    delta_A_pdf  = MSTW_PDF_LO.iloc[index_A_g,0][error_col_index]
+    delta_eta_1 = MSTW_PDF_LO.iloc[index_delta_g,0][error_col_index]
+    delta_eta_2 = MSTW_PDF_LO.iloc[index_eta_g,0][error_col_index]
+    delta_epsilon = MSTW_PDF_LO.iloc[index_epsilon_g,0][error_col_index]
+    delta_gamma_pdf = MSTW_PDF_LO.iloc[index_gamma_g,0][error_col_index]
 
-    # Convert eta and t to numpy arrays for vectorized operations
-    eta = np.atleast_1d(eta)
-    t = np.atleast_1d(t)
-    
-    # If eta and t are 1D, ensure compatibility by broadcasting
-    if eta.ndim == 1:
-        eta = eta[:, np.newaxis]  # Make eta a column vector
-    if t.ndim == 1:
-        t = t[np.newaxis, :]      # Make t a row vector
-
-    # Analytical result of the integral
-    frac_1 = epsilon_g*gamma(delta_g+j-alpha_p*t -.5)/(gamma(delta_g+eta_g+j-alpha_p*t+.5))
-    frac_2 = (delta_g+eta_g-gamma_g+delta_g*gamma_g+j*(1+gamma_g)-(1+gamma_g)*alpha_p*t)*gamma(delta_g+j-alpha_p*t-1)/gamma(delta_g+eta_g+j-alpha_p*t+1)
-    result = A_g*gamma(1+eta_g)*(frac_1+frac_2)
-     # Return the result while preserving the original dimensions
-    if result.size == 1:
-        return result.item()  # Return a scalar if the result is a single value
+    pdf = integral_pdf_regge(A_pdf,eta_1,eta_2,epsilon,gamma_pdf,j,alpha_p,t)
+    pdf_error = integral_pdf_regge_error(A_pdf,delta_A_pdf,eta_1,delta_eta_1,eta_2,delta_eta_2,epsilon,delta_epsilon,gamma_pdf,delta_gamma_pdf,j,alpha_p,t,error_type)
+    result = pdf + pdf_error
     return result
 
 def integral_polarized_uv_pdf_regge(j,eta,alpha_p,t, error_type="central"):
-    """
-    Result of the integral of the Reggeized uv(x) PDF based on the given LO parameters and selected errors.
-    
-    Arguments:
-    j -- conformal spin,
-    eta -- skewness (scalar or array)(placeholder for now),
-    alpha_p -- Regge slope,
-    t -- Mandelstam t (scalar or array),
-    error_type -- A string indicating whether to use 'central', 'plus', or 'minus' errors. Default is 'central'.
-    
-    Returns:
-    The value of the Reggeized integral of uv(x) based on the selected parameters and error type.
-    """
-    # Check type
-    check_error_type(error_type)
+        """
+        Result of the integral of the Reggeized uv(x) PDF based on the given LO parameters and selected errors.
 
-     # Define a dictionary that maps the error_type to column indices
-    error_mapping = {
+        Arguments:
+        j -- conformal spin,
+        eta -- skewness (scalar or array)(placeholder for now),
+        alpha_p -- Regge slope,
+        t -- Mandelstam t (scalar or array),
+        error_type -- A string indicating whether to use 'central', 'plus', or 'minus' errors. Default is 'central'.
+
+        Returns:
+        The value of the Reggeized integral of uv(x) based on the selected parameters and error type.
+        """
+        # Check type
+        check_error_type(error_type)
+
+        # Define a dictionary that maps the error_type to column indices
+        error_mapping = {
         "central": 0,  # The column with the central value
         "plus": 1,     # The column with the + error value
         "minus": 2     # The column with the - error value
-    }
-    
-    # Get the column index corresponding to the error_type
-    error_col_index = error_mapping.get(error_type, 0)  # Default to 'central' if error_type is invalid
+        }
 
-    # Get row index of entry
-    index_A_u=MSTW_PDF[MSTW_PDF["Parameter"] == "A_u"].index[0]
-    index_eta_1=MSTW_PDF[MSTW_PDF["Parameter"] == "eta_1"].index[0]
-    index_eta_2=MSTW_PDF[MSTW_PDF["Parameter"] == "eta_2"].index[0]
-    index_epsilon_u=MSTW_PDF[MSTW_PDF["Parameter"] == "epsilon_u"].index[0]
-    index_gamma_u=MSTW_PDF[MSTW_PDF["Parameter"] == "gamma_u"].index[0]
+        # Get the column index corresponding to the error_type
+        error_col_index = error_mapping.get(error_type, 0)  # Default to 'central' if error_type is invalid
 
-    # Get row index of entry
-    index_delta_A_u=AAC_PDF[AAC_PDF["Parameter"] == "Delta_A_u"].index[0]
-    index_alpha_u=AAC_PDF[AAC_PDF["Parameter"] == "alpha_u"].index[0]
-    index_delta_lambda_u=AAC_PDF[AAC_PDF["Parameter"] == "Delta_lambda_u"].index[0]
-    index_delta_gamma_u=AAC_PDF[AAC_PDF["Parameter"] == "Delta_gamma_u"].index[0]
+        # Get row index of entry
+        index_A_u=MSTW_PDF[MSTW_PDF["Parameter"] == "A_u"].index[0]
+        index_eta_1=MSTW_PDF[MSTW_PDF["Parameter"] == "eta_1"].index[0]
+        index_eta_2=MSTW_PDF[MSTW_PDF["Parameter"] == "eta_2"].index[0]
+        index_epsilon_u=MSTW_PDF[MSTW_PDF["Parameter"] == "epsilon_u"].index[0]
+        index_gamma_u=MSTW_PDF[MSTW_PDF["Parameter"] == "gamma_u"].index[0]
 
-    # Extracting central parameter values
-    A_u = MSTW_PDF_LO.iloc[index_A_u,0][0]
-    eta_1 = MSTW_PDF_LO.iloc[index_eta_1,0][0]
-    eta_2 = MSTW_PDF_LO.iloc[index_eta_2,0][0]
-    epsilon_u = MSTW_PDF_LO.iloc[index_epsilon_u,0][0]
-    gamma_u = MSTW_PDF_LO.iloc[index_gamma_u,0][0]
-    # Extracting parameter values based on error type
-    delta_A_u = AAC_PDF_LO.iloc[index_delta_A_u,0][0] + int(error_col_index>0)*AAC_PDF_LO.iloc[index_delta_A_u,0][error_col_index]
-    alpha_u = AAC_PDF_LO.iloc[index_alpha_u,0][0] + int(error_col_index>0)*AAC_PDF_LO.iloc[index_alpha_u,0][error_col_index]
-    delta_gamma_u = AAC_PDF_LO.iloc[index_delta_gamma_u,0][0] + int(error_col_index>0)*AAC_PDF_LO.iloc[index_delta_gamma_u,0][error_col_index]
-    delta_lambda_u = AAC_PDF_LO.iloc[index_delta_lambda_u,0][0] + int(error_col_index>0)*AAC_PDF_LO.iloc[index_delta_lambda_u,0][error_col_index]
+        # Get row index of entry
+        index_delta_A_u=AAC_PDF[AAC_PDF["Parameter"] == "Delta_A_u"].index[0]
+        index_alpha_u=AAC_PDF[AAC_PDF["Parameter"] == "alpha_u"].index[0]
+        index_delta_lambda_u=AAC_PDF[AAC_PDF["Parameter"] == "Delta_lambda_u"].index[0]
+        index_delta_gamma_u=AAC_PDF[AAC_PDF["Parameter"] == "Delta_gamma_u"].index[0]
 
-    # Convert eta and t to numpy arrays for vectorized operations
-    eta = np.atleast_1d(eta)
-    t = np.atleast_1d(t)
-    
-    # If eta and t are 1D, ensure compatibility by broadcasting
-    if eta.ndim == 1:
-        eta = eta[:, np.newaxis]  # Make eta a column vector
-    if t.ndim == 1:
-        t = t[np.newaxis, :]      # Make t a row vector
+        # Extracting central parameter values
+        A_pdf = MSTW_PDF_LO.iloc[index_A_u,0][0]
+        eta_1 = MSTW_PDF_LO.iloc[index_eta_1,0][0]
+        eta_2 = MSTW_PDF_LO.iloc[index_eta_2,0][0]
+        epsilon = MSTW_PDF_LO.iloc[index_epsilon_u,0][0]
+        gamma_pdf = MSTW_PDF_LO.iloc[index_gamma_u,0][0]
+        # Extracting parameter values based on error type
+        delta_A_pdf = AAC_PDF_LO.iloc[index_delta_A_u,0][0]
+        alpha = AAC_PDF_LO.iloc[index_alpha_u,0][0]
+        gamma_pol = AAC_PDF_LO.iloc[index_delta_gamma_u,0][0]
+        lambda_pol = AAC_PDF_LO.iloc[index_delta_lambda_u,0][0]
 
-    # Analytical result of the integral
-    frac_1 =(1 + gamma_u * (-1 + alpha_u +eta_1 + j - alpha_p * t)/(alpha_u+eta_1+eta_2+j-alpha_p * t)) * gamma(-1 + alpha_u + eta_1 +j - alpha_p *t )/gamma(alpha_u + eta_1 +eta_2 + j - alpha_p*t)
-    frac_2 = epsilon_u*gamma(-.5 + alpha_u + eta_1+j-alpha_p*t)/(gamma(+.5 + alpha_u+eta_1+eta_2+j-alpha_p*t))
-    frac_3 = ((delta_gamma_u + gamma_u*delta_gamma_u * (-1+alpha_u+eta_1+j-alpha_p*t+delta_lambda_u)/(alpha_u+eta_1+eta_2+j-alpha_p*t+delta_lambda_u))
-              *gamma(-1+alpha_u+eta_1+j-alpha_p*t+delta_lambda_u)/(gamma(alpha_u+eta_1+eta_2+j-alpha_p*t+delta_lambda_u)))
-    frac_4 = epsilon_u*delta_gamma_u*gamma(-.5 + alpha_u + eta_1+j-alpha_p*t+delta_lambda_u)/(gamma(+.5 + alpha_u+eta_1+eta_2+j-alpha_p*t+delta_lambda_u))
-    result = A_u * delta_A_u * gamma(1+eta_2)*(frac_1+frac_2+frac_3+frac_4)
+        err_delta_A_pdf = AAC_PDF_LO.iloc[index_delta_A_u,0][error_col_index]
+        err_alpha = AAC_PDF_LO.iloc[index_alpha_u,0][error_col_index]
+        err_gamma_pol = AAC_PDF_LO.iloc[index_delta_gamma_u,0][error_col_index]
+        err_lambda_pol = AAC_PDF_LO.iloc[index_delta_lambda_u,0][error_col_index]
 
-    # Return the result while preserving the original dimensions
-    if result.size == 1:
-        return result.item()  # Return a scalar if the result is a single value
-    return result
+        pdf = integral_polarized_pdf_regge(A_pdf,eta_1,eta_2,epsilon,gamma_pdf,
+                                           delta_A_pdf,alpha,gamma_pol,lambda_pol,
+                                           j,alpha_p,t)
+        pdf_error = integral_polarized_pdf_regge_error(A_pdf,eta_1,eta_2,epsilon,gamma_pdf,
+                                           delta_A_pdf,err_delta_A_pdf,alpha,err_alpha,gamma_pol,err_gamma_pol,lambda_pol,err_lambda_pol,
+                                           j,alpha_p,t,error_type)
+        result = pdf + pdf_error
+        return result
 
 def integral_polarized_dv_pdf_regge(j,eta,alpha_p,t, error_type="central"):
-    """
-    Result of the integral of the Reggeized dv(x) PDF based on the given LO parameters and selected errors.
-    
-    Arguments:
-    j -- conformal spin,
-    eta -- skewness (scalar or array)(placeholder for now),
-    alpha_p -- Regge slope,
-    t -- Mandelstam t (scalar or array),
-    error_type -- A string indicating whether to use 'central', 'plus', or 'minus' errors. Default is 'central'.
-    
-    Returns:
-    The value of the Reggeized integral of dv(x) based on the selected parameters and error type.
-    """
-    # Check type
-    check_error_type(error_type)
+        """
+        Result of the integral of the Reggeized dv(x) PDF based on the given LO parameters and selected errors.
 
-     # Define a dictionary that maps the error_type to column indices
-    error_mapping = {
+        Arguments:
+        j -- conformal spin,
+        eta -- skewness (scalar or array)(placeholder for now),
+        alpha_p -- Regge slope,
+        t -- Mandelstam t (scalar or array),
+        error_type -- A string indicating whether to use 'central', 'plus', or 'minus' errors. Default is 'central'.
+
+        Returns:
+        The value of the Reggeized integral of dv(x) based on the selected parameters and error type.
+        """
+        # Check type
+        check_error_type(error_type)
+
+        # Define a dictionary that maps the error_type to column indices
+        error_mapping = {
         "central": 0,  # The column with the central value
         "plus": 1,     # The column with the + error value
         "minus": 2     # The column with the - error value
-    }
-    
-    # Get the column index corresponding to the error_type
-    error_col_index = error_mapping.get(error_type, 0)  # Default to 'central' if error_type is invalid
+        }
 
-    # Get row index of entry
-    index_A_d=MSTW_PDF[MSTW_PDF["Parameter"] == "A_d"].index[0]
-    index_eta_3=MSTW_PDF[MSTW_PDF["Parameter"] == "eta_3"].index[0]
-    index_eta_2=MSTW_PDF[MSTW_PDF["Parameter"] == "eta_2"].index[0]
-    index_eta_42 = MSTW_PDF[MSTW_PDF["Parameter"] == "eta_4-eta_2"].index[0]
-    index_epsilon_d=MSTW_PDF[MSTW_PDF["Parameter"] == "epsilon_d"].index[0]
-    index_gamma_d=MSTW_PDF[MSTW_PDF["Parameter"] == "gamma_d"].index[0]
+        # Get the column index corresponding to the error_type
+        error_col_index = error_mapping.get(error_type, 0)  # Default to 'central' if error_type is invalid
 
-    # Get row index of entry
-    index_delta_A_d=AAC_PDF[AAC_PDF["Parameter"] == "Delta_A_d"].index[0]
-    index_alpha_d=AAC_PDF[AAC_PDF["Parameter"] == "alpha_d"].index[0]
-    index_delta_lambda_d=AAC_PDF[AAC_PDF["Parameter"] == "Delta_lambda_d"].index[0]
-    index_delta_gamma_d=AAC_PDF[AAC_PDF["Parameter"] == "Delta_gamma_d"].index[0]
+        # Get row index of entry
+        index_A_d = MSTW_PDF[MSTW_PDF["Parameter"] == "A_d"].index[0]
+        index_eta_3 = MSTW_PDF[MSTW_PDF["Parameter"] == "eta_3"].index[0]
+        index_eta_2=MSTW_PDF[MSTW_PDF["Parameter"] == "eta_2"].index[0]
+        # Only eta_4-eta_2 given
+        index_eta_42 = MSTW_PDF[MSTW_PDF["Parameter"] == "eta_4-eta_2"].index[0]
+        index_epsilon_d = MSTW_PDF[MSTW_PDF["Parameter"] == "epsilon_d"].index[0]
+        index_gamma_d = MSTW_PDF[MSTW_PDF["Parameter"] == "gamma_d"].index[0]
 
-    # Extracting central parameter values
-    A_d = MSTW_PDF_LO.iloc[index_A_d,0][0]
-    eta_3 = MSTW_PDF_LO.iloc[index_eta_3,0][0]
-    eta_4 = (MSTW_PDF_LO.iloc[index_eta_42, 0][0] + MSTW_PDF_LO.iloc[index_eta_2, 0][0])
-    epsilon_d = MSTW_PDF_LO.iloc[index_epsilon_d,0][0]
-    gamma_d = MSTW_PDF_LO.iloc[index_gamma_d,0][0]
-    # Extracting parameter values based on error type
-    delta_A_d = AAC_PDF_LO.iloc[index_delta_A_d,0][0] + int(error_col_index>0)*AAC_PDF_LO.iloc[index_delta_A_d,0][error_col_index]
-    alpha_d = AAC_PDF_LO.iloc[index_alpha_d,0][0] + int(error_col_index>0)*AAC_PDF_LO.iloc[index_alpha_d,0][error_col_index]
-    delta_gamma_d = AAC_PDF_LO.iloc[index_delta_gamma_d,0][0] + int(error_col_index>0)*AAC_PDF_LO.iloc[index_delta_gamma_d,0][error_col_index]
-    delta_lambda_d = AAC_PDF_LO.iloc[index_delta_lambda_d,0][0] + int(error_col_index>0)*AAC_PDF_LO.iloc[index_delta_lambda_d,0][error_col_index]
+        # Get row index of entry
+        index_delta_A_d=AAC_PDF[AAC_PDF["Parameter"] == "Delta_A_d"].index[0]
+        index_alpha_d=AAC_PDF[AAC_PDF["Parameter"] == "alpha_d"].index[0]
+        index_delta_lambda_d=AAC_PDF[AAC_PDF["Parameter"] == "Delta_lambda_d"].index[0]
+        index_delta_gamma_d=AAC_PDF[AAC_PDF["Parameter"] == "Delta_gamma_d"].index[0]
 
-    # Convert eta and t to numpy arrays for vectorized operations
-    eta = np.atleast_1d(eta)
-    t = np.atleast_1d(t)
-    
-    # If eta and t are 1D, ensure compatibility by broadcasting
-    if eta.ndim == 1:
-        eta = eta[:, np.newaxis]  # Make eta a column vector
-    if t.ndim == 1:
-        t = t[np.newaxis, :]      # Make t a row vector
+        # Extracting central parameter values
+        # Extracting parameter values
+        A_pdf = MSTW_PDF_LO.iloc[index_A_d,0][0]
+        eta_1 = MSTW_PDF_LO.iloc[index_eta_3,0][0]
+        eta_2 = MSTW_PDF_LO.iloc[index_eta_42, 0][0] + MSTW_PDF_LO.iloc[index_eta_2, 0][0]
+        epsilon = MSTW_PDF_LO.iloc[index_epsilon_d,0][0]
+        gamma_pdf = MSTW_PDF_LO.iloc[index_gamma_d,0][0]
 
-    # Analytical result of the integral
-    frac_1 =(1 + gamma_d * (-1 + alpha_d +eta_3 + j - alpha_p * t)/(alpha_d+eta_3+eta_4+j-alpha_p * t)) * gamma(-1 + alpha_d + eta_3 +j - alpha_p *t )/gamma(alpha_d + eta_3 +eta_4 + j - alpha_p*t)
-    frac_2 = epsilon_d*gamma(-.5 + alpha_d + eta_3+j-alpha_p*t)/(gamma(+.5 + alpha_d+eta_3+eta_4+j-alpha_p*t))
-    frac_3 = ((delta_gamma_d + gamma_d*delta_gamma_d * (-1+alpha_d+eta_3+j-alpha_p*t+delta_lambda_d)/(alpha_d+eta_3+eta_4+j-alpha_p*t+delta_lambda_d))
-              *gamma(-1+alpha_d+eta_3+j-alpha_p*t+delta_lambda_d)/(gamma(alpha_d+eta_3+eta_4+j-alpha_p*t+delta_lambda_d)))
-    frac_4 = epsilon_d*delta_gamma_d*gamma(-.5 + alpha_d + eta_3+j-alpha_p*t+delta_lambda_d)/(gamma(+.5 + alpha_d+eta_3+eta_4+j-alpha_p*t+delta_lambda_d))
-    result = A_d * delta_A_d * gamma(1+eta_4)*(frac_1+frac_2+frac_3+frac_4)
+        # Extracting parameter values based on error type
+        Delta_A_pdf = AAC_PDF_LO.iloc[index_delta_A_d,0][0]
+        alpha = AAC_PDF_LO.iloc[index_alpha_d,0][0]
+        gamma_pol = AAC_PDF_LO.iloc[index_delta_gamma_d,0][0]
+        lambda_pol = AAC_PDF_LO.iloc[index_delta_lambda_d,0][0]
 
-    # Return the result while preserving the original dimensions
-    if result.size == 1:
-        return result.item()  # Return a scalar if the result is a single value
-    return result
+        err_delta_A_pdf = AAC_PDF_LO.iloc[index_delta_A_d,0][error_col_index]
+        err_alpha = AAC_PDF_LO.iloc[index_alpha_d,0][error_col_index]
+        err_gamma_pol = AAC_PDF_LO.iloc[index_delta_gamma_d,0][error_col_index]
+        err_lambda_pol = AAC_PDF_LO.iloc[index_delta_lambda_d,0][error_col_index]
 
+        pdf = integral_polarized_pdf_regge(A_pdf,eta_1,eta_2,epsilon,gamma_pdf,
+                                           Delta_A_pdf,alpha,gamma_pol,lambda_pol,
+                                           j,alpha_p,t)
+        pdf_error = integral_polarized_pdf_regge_error(A_pdf,eta_1,eta_2,epsilon,gamma_pdf,
+                                           Delta_A_pdf,err_delta_A_pdf,alpha,err_alpha,gamma_pol,err_gamma_pol,lambda_pol,err_lambda_pol,
+                                           j,alpha_p,t,error_type)
+        result = pdf + pdf_error
+        return result
 
 def integral_polarized_S_pdf_regge(j,eta,alpha_p,t, error_type="central"):
-    """
-    Result of the integral of the Reggeized S(x) PDF based on the given LO parameters and selected errors.
-    
-    Arguments:
-    j -- conformal spin,
-    eta -- skewness (scalar or array)(placeholder for now),
-    alpha_p -- Regge slope,
-    t -- Mandelstam t (scalar or array),
-    error_type -- A string indicating whether to use 'central', 'plus', or 'minus' errors. Default is 'central'.
-    
-    Returns:
-    The value of the Reggeized integral of S(x) based on the selected parameters and error type.
-    """
-    # Check type
-    check_error_type(error_type)
+        """
+        Result of the integral of the Reggeized S(x) PDF based on the given LO parameters and selected errors.
+        
+        Arguments:
+        j -- conformal spin,
+        eta -- skewness (scalar or array)(placeholder for now),
+        alpha_p -- Regge slope,
+        t -- Mandelstam t (scalar or array),
+        error_type -- A string indicating whether to use 'central', 'plus', or 'minus' errors. Default is 'central'.
+        
+        Returns:
+        The value of the Reggeized integral of S(x) based on the selected parameters and error type.
+        """
+        # Check type
+        check_error_type(error_type)
 
-     # Define a dictionary that maps the error_type to column indices
-    error_mapping = {
-        "central": 0,  # The column with the central value
-        "plus": 1,     # The column with the + error value
-        "minus": 2     # The column with the - error value
-    }
-    
-    # Get the column index corresponding to the error_type
-    error_col_index = error_mapping.get(error_type, 0)  # Default to 'central' if error_type is invalid
+        # Define a dictionary that maps the error_type to column indices
+        error_mapping = {
+                "central": 0,  # The column with the central value
+                "plus": 1,     # The column with the + error value
+                "minus": 2     # The column with the - error value
+        }
+        
+        # Get the column index corresponding to the error_type
+        error_col_index = error_mapping.get(error_type, 0)  # Default to 'central' if error_type is invalid
 
-    # Get row index of entry
-    index_A_S=MSTW_PDF[MSTW_PDF["Parameter"] == "A_S"].index[0]
-    index_delta_S=MSTW_PDF[MSTW_PDF["Parameter"] == "delta_S"].index[0]
-    index_eta_S=MSTW_PDF[MSTW_PDF["Parameter"] == "eta_S"].index[0]
-    index_epsilon_S=MSTW_PDF[MSTW_PDF["Parameter"] == "epsilon_S"].index[0]
-    index_gamma_S=MSTW_PDF[MSTW_PDF["Parameter"] == "gamma_S"].index[0]
+        # Get row index of entry
+        index_A_S=MSTW_PDF[MSTW_PDF["Parameter"] == "A_S"].index[0]
+        index_delta_S=MSTW_PDF[MSTW_PDF["Parameter"] == "delta_S"].index[0]
+        index_eta_S=MSTW_PDF[MSTW_PDF["Parameter"] == "eta_S"].index[0]
+        index_epsilon_S=MSTW_PDF[MSTW_PDF["Parameter"] == "epsilon_S"].index[0]
+        index_gamma_S=MSTW_PDF[MSTW_PDF["Parameter"] == "gamma_S"].index[0]
 
-    # Get row index of entry
-    index_delta_A_S=AAC_PDF[AAC_PDF["Parameter"] == "Delta_A_S"].index[0]
-    index_alpha_S=AAC_PDF[AAC_PDF["Parameter"] == "alpha_S"].index[0]
-    index_delta_lambda_S=AAC_PDF[AAC_PDF["Parameter"] == "Delta_lambda_S"].index[0]
-    index_delta_gamma_S=AAC_PDF[AAC_PDF["Parameter"] == "Delta_gamma_S"].index[0]
+        # Get row index of entry
+        index_delta_A_S=AAC_PDF[AAC_PDF["Parameter"] == "Delta_A_S"].index[0]
+        index_alpha_S=AAC_PDF[AAC_PDF["Parameter"] == "alpha_S"].index[0]
+        index_delta_lambda_S=AAC_PDF[AAC_PDF["Parameter"] == "Delta_lambda_S"].index[0]
+        index_delta_gamma_S=AAC_PDF[AAC_PDF["Parameter"] == "Delta_gamma_S"].index[0]
 
-    # Extracting central parameter values
-    A_S = MSTW_PDF_LO.iloc[index_A_S,0][0]
-    delta_S = MSTW_PDF_LO.iloc[index_delta_S,0][0]
-    eta_S = MSTW_PDF_LO.iloc[index_eta_S,0][0]
-    epsilon_S = MSTW_PDF_LO.iloc[index_epsilon_S,0][0]
-    gamma_S = MSTW_PDF_LO.iloc[index_gamma_S,0][0]
-    # Extracting parameter values based on error type
-    delta_A_S = AAC_PDF_LO.iloc[index_delta_A_S,0][0] + int(error_col_index>0)*AAC_PDF_LO.iloc[index_delta_A_S,0][error_col_index]
-    alpha_S = AAC_PDF_LO.iloc[index_alpha_S,0][0] + int(error_col_index>0)*AAC_PDF_LO.iloc[index_alpha_S,0][error_col_index]
-    delta_gamma_S = AAC_PDF_LO.iloc[index_delta_gamma_S,0][0] + int(error_col_index>0)*AAC_PDF_LO.iloc[index_delta_gamma_S,0][error_col_index]
-    delta_lambda_S = AAC_PDF_LO.iloc[index_delta_lambda_S,0][0] + int(error_col_index>0)*AAC_PDF_LO.iloc[index_delta_lambda_S,0][error_col_index]
+        # Extracting central parameter values
+        A_pdf = MSTW_PDF_LO.iloc[index_A_S,0][0]
+        eta_1 = MSTW_PDF_LO.iloc[index_delta_S,0][0]
+        eta_2 = MSTW_PDF_LO.iloc[index_eta_S,0][0]
+        epsilon = MSTW_PDF_LO.iloc[index_epsilon_S,0][0]
+        gamma_pdf = MSTW_PDF_LO.iloc[index_gamma_S,0][0]
+        # Extracting parameter values based on error type
+        delta_A_pdf = AAC_PDF_LO.iloc[index_delta_A_S,0][0]
+        alpha = AAC_PDF_LO.iloc[index_alpha_S,0][0]
+        gamma_pol = AAC_PDF_LO.iloc[index_delta_gamma_S,0][0]
+        lambda_pol = AAC_PDF_LO.iloc[index_delta_lambda_S,0][0]
 
-    # Convert eta and t to numpy arrays for vectorized operations
-    eta = np.atleast_1d(eta)
-    t = np.atleast_1d(t)
-    
-    # If eta and t are 1D, ensure compatibility by broadcasting
-    if eta.ndim == 1:
-        eta = eta[:, np.newaxis]  # Make eta a column vector
-    if t.ndim == 1:
-        t = t[np.newaxis, :]      # Make t a row vector
+        err_delta_A_pdf = AAC_PDF_LO.iloc[index_delta_A_S,0][error_col_index]
+        err_alpha = AAC_PDF_LO.iloc[index_alpha_S,0][error_col_index]
+        err_gamma_pol = AAC_PDF_LO.iloc[index_delta_gamma_S,0][error_col_index]
+        err_lambda_pol = AAC_PDF_LO.iloc[index_delta_lambda_S,0][error_col_index]
 
-    # Analytical result of the integral
-    frac_1 =(1 + gamma_S * (-1 + alpha_S +delta_S + j - alpha_p * t)/(alpha_S+delta_S+eta_S+j-alpha_p * t)) * gamma(-1 + alpha_S + delta_S +j - alpha_p *t )/gamma(alpha_S + delta_S +eta_S + j - alpha_p*t)
-    frac_2 = epsilon_S*gamma(-.5 + alpha_S + delta_S+j-alpha_p*t)/(gamma(+.5 + alpha_S+delta_S+eta_S+j-alpha_p*t))
-    frac_3 = ((delta_gamma_S + gamma_S*delta_gamma_S * (-1+alpha_S+delta_S+j-alpha_p*t+delta_lambda_S)/(alpha_S+delta_S+eta_S+j-alpha_p*t+delta_lambda_S))
-              *gamma(-1+alpha_S+delta_S+j-alpha_p*t+delta_lambda_S)/(gamma(alpha_S+delta_S+eta_S+j-alpha_p*t+delta_lambda_S)))
-    frac_4 = epsilon_S*delta_gamma_S*gamma(-.5 + alpha_S + delta_S+j-alpha_p*t+delta_lambda_S)/(gamma(+.5 + alpha_S+delta_S+eta_S+j-alpha_p*t+delta_lambda_S))
-    result = A_S * delta_A_S * gamma(1+eta_S)*(frac_1+frac_2+frac_3+frac_4)
-
-    # Return the result while preserving the original dimensions
-    if result.size == 1:
-        return result.item()  # Return a scalar if the result is a single value
-    return result
+        pdf = integral_polarized_pdf_regge(A_pdf,eta_1,eta_2,epsilon,gamma_pdf,
+                                           delta_A_pdf,alpha,gamma_pol,lambda_pol,
+                                           j,alpha_p,t)
+        pdf_error = integral_polarized_pdf_regge_error(A_pdf,eta_1,eta_2,epsilon,gamma_pdf,
+                                           delta_A_pdf,err_delta_A_pdf,alpha,err_alpha,gamma_pol,err_gamma_pol,lambda_pol,err_lambda_pol,
+                                           j,alpha_p,t,error_type)
+        result = pdf + pdf_error
+        return result
 
 def integral_polarized_gluon_pdf_regge(j,eta,alpha_p,t, error_type="central"):
-    """
-    Result of the integral of the Reggeized gluon(x) PDF based on the given LO parameters and selected errors.
-    
-    Arguments:
-    j -- conformal spin,
-    eta -- skewness (scalar or array)(placeholder for now),
-    alpha_p -- Regge slope,
-    t -- Mandelstam t (scalar or array),
-    error_type -- A string indicating whether to use 'central', 'plus', or 'minus' errors. Default is 'central'.
-    
-    Returns:
-    The value of the Reggeized integral of gluon(x) based on the selected parameters and error type.
-    """
-    # Check type
-    check_error_type(error_type)
+        """
+        Result of the integral of the Reggeized gluon(x) PDF based on the given LO parameters and selected errors.
+        
+        Arguments:
+        j -- conformal spin,
+        eta -- skewness (scalar or array)(placeholder for now),
+        alpha_p -- Regge slope,
+        t -- Mandelstam t (scalar or array),
+        error_type -- A string indicating whether to use 'central', 'plus', or 'minus' errors. Default is 'central'.
+        
+        Returns:
+        The value of the Reggeized integral of gluon(x) based on the selected parameters and error type.
+        """
+        # Check type
+        check_error_type(error_type)
 
-     # Define a dictionary that maps the error_type to column indices
-    error_mapping = {
-        "central": 0,  # The column with the central value
-        "plus": 1,     # The column with the + error value
-        "minus": 2     # The column with the - error value
-    }
-    
-    # Get the column index corresponding to the error_type
-    error_col_index = error_mapping.get(error_type, 0)  # Default to 'central' if error_type is invalid
+        # Define a dictionary that maps the error_type to column indices
+        error_mapping = {
+                "central": 0,  # The column with the central value
+                "plus": 1,     # The column with the + error value
+                "minus": 2     # The column with the - error value
+        }
+        
+        # Get the column index corresponding to the error_type
+        error_col_index = error_mapping.get(error_type, 0)  # Default to 'central' if error_type is invalid
 
-    # Get row index of entry
-    index_A_g=MSTW_PDF[MSTW_PDF["Parameter"] == "A_g"].index[0]
-    index_delta_g=MSTW_PDF[MSTW_PDF["Parameter"] == "delta_g"].index[0]
-    index_eta_g=MSTW_PDF[MSTW_PDF["Parameter"] == "eta_g"].index[0]
-    index_epsilon_g=MSTW_PDF[MSTW_PDF["Parameter"] == "epsilon_g"].index[0]
-    index_gamma_g=MSTW_PDF[MSTW_PDF["Parameter"] == "gamma_g"].index[0]
+        # Get row index of entry
+        index_A_g=MSTW_PDF[MSTW_PDF["Parameter"] == "A_g"].index[0]
+        index_delta_g=MSTW_PDF[MSTW_PDF["Parameter"] == "delta_g"].index[0]
+        index_eta_g=MSTW_PDF[MSTW_PDF["Parameter"] == "eta_g"].index[0]
+        index_epsilon_g=MSTW_PDF[MSTW_PDF["Parameter"] == "epsilon_g"].index[0]
+        index_gamma_g=MSTW_PDF[MSTW_PDF["Parameter"] == "gamma_g"].index[0]
 
-    # Get row index of entry
-    index_delta_A_g=AAC_PDF[AAC_PDF["Parameter"] == "Delta_A_g"].index[0]
-    index_alpha_g=AAC_PDF[AAC_PDF["Parameter"] == "alpha_g"].index[0]
-    index_delta_lambda_g=AAC_PDF[AAC_PDF["Parameter"] == "Delta_lambda_g"].index[0]
-    index_delta_gamma_g=AAC_PDF[AAC_PDF["Parameter"] == "Delta_gamma_g"].index[0]
+        # Get row index of entry
+        index_delta_A_g=AAC_PDF[AAC_PDF["Parameter"] == "Delta_A_g"].index[0]
+        index_alpha_g=AAC_PDF[AAC_PDF["Parameter"] == "alpha_g"].index[0]
+        index_delta_lambda_g=AAC_PDF[AAC_PDF["Parameter"] == "Delta_lambda_g"].index[0]
+        index_delta_gamma_g=AAC_PDF[AAC_PDF["Parameter"] == "Delta_gamma_g"].index[0]
 
-    # Extracting central parameter values
-    A_g = MSTW_PDF_LO.iloc[index_A_g,0][0]
-    delta_g = MSTW_PDF_LO.iloc[index_delta_g,0][0]
-    eta_g = MSTW_PDF_LO.iloc[index_eta_g,0][0]
-    epsilon_g = MSTW_PDF_LO.iloc[index_epsilon_g,0][0]
-    gamma_g = MSTW_PDF_LO.iloc[index_gamma_g,0][0]
-    # Extracting parameter values based on error type
-    delta_A_g = AAC_PDF_LO.iloc[index_delta_A_g,0][0] + int(error_col_index>0)*AAC_PDF_LO.iloc[index_delta_A_g,0][error_col_index]
-    alpha_g = AAC_PDF_LO.iloc[index_alpha_g,0][0] + int(error_col_index>0)*AAC_PDF_LO.iloc[index_alpha_g,0][error_col_index]
-    delta_gamma_g = AAC_PDF_LO.iloc[index_delta_gamma_g,0][0] + int(error_col_index>0)*AAC_PDF_LO.iloc[index_delta_gamma_g,0][error_col_index]
-    delta_lambda_g = AAC_PDF_LO.iloc[index_delta_lambda_g,0][0] + int(error_col_index>0)*AAC_PDF_LO.iloc[index_delta_lambda_g,0][error_col_index]
 
-    # Convert eta and t to numpy arrays for vectorized operations
-    eta = np.atleast_1d(eta)
-    t = np.atleast_1d(t)
-    
-    # If eta and t are 1D, ensure compatibility by broadcasting
-    if eta.ndim == 1:
-        eta = eta[:, np.newaxis]  # Make eta a column vector
-    if t.ndim == 1:
-        t = t[np.newaxis, :]      # Make t a row vector
+        # Extracting central parameter values
+        A_pdf = MSTW_PDF_LO.iloc[index_A_g,0][0]
+        eta_1 = MSTW_PDF_LO.iloc[index_delta_g,0][0]
+        eta_2 = MSTW_PDF_LO.iloc[index_eta_g,0][0]
+        epsilon = MSTW_PDF_LO.iloc[index_epsilon_g,0][0]
+        gamma_pdf = MSTW_PDF_LO.iloc[index_gamma_g,0][0]
+        # Extracting parameter values based on error type
+        delta_A_pdf = AAC_PDF_LO.iloc[index_delta_A_g,0][0]
+        alpha = AAC_PDF_LO.iloc[index_alpha_g,0][0]
+        gamma_pol = AAC_PDF_LO.iloc[index_delta_gamma_g,0][0]
+        lambda_pol = AAC_PDF_LO.iloc[index_delta_lambda_g,0][0]
 
-    # Analytical result of the integral
-    frac_1 =(1 + gamma_g * (-1 + alpha_g +delta_g + j - alpha_p * t)/(alpha_g+delta_g+eta_g+j-alpha_p * t)) * gamma(-1 + alpha_g + delta_g +j - alpha_p *t )/gamma(alpha_g + delta_g +eta_g + j - alpha_p*t)
-    frac_2 = epsilon_g*gamma(-.5 + alpha_g + delta_g+j-alpha_p*t)/(gamma(+.5 + alpha_g+delta_g+eta_g+j-alpha_p*t))
-    frac_3 = ((delta_gamma_g + gamma_g*delta_gamma_g * (-1+alpha_g+delta_g+j-alpha_p*t+delta_lambda_g)/(alpha_g+delta_g+eta_g+j-alpha_p*t+delta_lambda_g))
-              *gamma(-1+alpha_g+delta_g+j-alpha_p*t+delta_lambda_g)/(gamma(alpha_g+delta_g+eta_g+j-alpha_p*t+delta_lambda_g)))
-    frac_4 = epsilon_g*delta_gamma_g*gamma(-.5 + alpha_g + delta_g+j-alpha_p*t+delta_lambda_g)/(gamma(+.5 + alpha_g+delta_g+eta_g+j-alpha_p*t+delta_lambda_g))
-    result = A_g * delta_A_g * gamma(1+eta_g)*(frac_1+frac_2+frac_3+frac_4)
+        err_delta_A_pdf = AAC_PDF_LO.iloc[index_delta_A_g,0][error_col_index]
+        err_alpha = AAC_PDF_LO.iloc[index_alpha_g,0][error_col_index]
+        err_gamma_pol = AAC_PDF_LO.iloc[index_delta_gamma_g,0][error_col_index]
+        err_lambda_pol = AAC_PDF_LO.iloc[index_delta_lambda_g,0][error_col_index]
 
-    # Return the result while preserving the original dimensions
-    if result.size == 1:
-        return result.item()  # Return a scalar if the result is a single value
-    return result
+        pdf = integral_polarized_pdf_regge(A_pdf,eta_1,eta_2,epsilon,gamma_pdf,
+                                           delta_A_pdf,alpha,gamma_pol,lambda_pol,
+                                           j,alpha_p,t)
+        pdf_error = integral_polarized_pdf_regge_error(A_pdf,eta_1,eta_2,epsilon,gamma_pdf,
+                                           delta_A_pdf,err_delta_A_pdf,alpha,err_alpha,gamma_pol,err_gamma_pol,lambda_pol,err_lambda_pol,
+                                           j,alpha_p,t,error_type)
+        result = pdf + pdf_error
+        return result
 
 # Define Reggeized conformal moments
 def non_singlet_isovector_moment(j,eta,t, moment_label="A",evolve_type="vector", error_type="central"):
@@ -1493,6 +2063,7 @@ def fourier_transform_quark_helicity(eta,mu,b_vec,Nf=3,moment_type="NonSingletIs
 
     # Create a meshgrid for delta_x, delta_y
     Delta_x_grid, Delta_y_grid = np.meshgrid(Delta_x_vals, Delta_y_vals)
+    
     if moment_type in ["NonSingletIsovector","NonSingletIsoscalar"]:
         def integrand(Delta_x,Delta_y,b_x,b_y):
             t = -(Delta_x**2+Delta_y**2)
