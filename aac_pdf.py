@@ -436,17 +436,19 @@ def plot_polarized_uv_minus_dv_pdf(x_0=1e-2,logplot = False):
         plt.xscale('log')
     plt.show()
 
-def plot_polarized_uv_plus_dv_plus_S_pdf(x_0=1e-2,logplot = False):
+def plot_polarized_uv_plus_dv_plus_S_pdf(x_0=1e-2,logplot = False,error_bars=True):
     vectorized_polarized_uv_plus_dv_plus_S_pdf = np.vectorize(polarized_uv_plus_dv_plus_S_pdf)
     x_vals = np.linspace(x_0,1,100)
     y_vals = vectorized_polarized_uv_plus_dv_plus_S_pdf(x_vals)
     y_vals_plus = abs(vectorized_polarized_uv_plus_dv_plus_S_pdf(x_vals,"plus") - y_vals)
     y_vals_minus = abs(y_vals - vectorized_polarized_uv_plus_dv_plus_S_pdf(x_vals,"minus"))
-
-    plt.errorbar(
-            x_vals, y_vals,
-            yerr=(y_vals_minus, y_vals_plus),
-            fmt='o')
+    if error_bars:
+        plt.errorbar(
+                x_vals, y_vals,
+                yerr=(y_vals_minus, y_vals_plus),
+                fmt='o')
+    else:
+        plt.scatter(x_vals,y_vals)
     plt.grid(True)
     if logplot:
         plt.xscale('log')
