@@ -5,6 +5,7 @@ import matplotlib.pyplot as plt
 from scipy.integrate import quad, trapezoid
 from joblib import Parallel, delayed
 from scipy.special import gamma, digamma
+from scipy.interpolate import interp1d
 import time
 import re
 import os
@@ -27,6 +28,13 @@ PUBLICATION_MAPPING = {
     "0705.4295": ("orange",2),
     "1908.10706": (saturated_pink,2),
     "2410.03539": ("green",2)
+# Add more publication IDs and corresponding colors here
+}
+
+GPD_PUBLICATION_MAPPING = {
+    # publication ID, GPD type, GPD label, eta, t ,mu
+    ("2008.10573","NonSingletIsovector","Htilde",0.00, -0.69, 2.00): ("mediumturquoise","000_069_200"),
+    ("2008.10573","NonSingletIsovector","Htilde",0.33, -0.69, 2.00): ("purple","033_069_200")
 # Add more publication IDs and corresponding colors here
 }
 
@@ -95,7 +103,7 @@ def get_regge_slope(moment_type,moment_label,evolve_type):
             
 
 
-def load_lattice_data(moment_type, moment_label, pub_id):
+def load_lattice_moment_data(moment_type, moment_label, pub_id):
     """
     Load data from a .csv file, extracting 'n' values from the header and associating them with rows. 
     Modify FILE_NAME and FILE_PATH as needed
@@ -139,7 +147,7 @@ def Fn0_values(n, moment_type, moment_label, pub_id):
     """
     Return central values for An0 for a given n, moment type, label, and publication ID.
     """
-    data, n_to_row_map = load_lattice_data(moment_type, moment_label, pub_id)
+    data, n_to_row_map = load_lattice_moment_data(moment_type, moment_label, pub_id)
 
     if data is None and n_to_row_map is None:
         #print(f"No data found for {moment_type} {moment_label} {pub_id}. Skipping.")
@@ -159,7 +167,7 @@ def Fn0_errors(n, moment_type, moment_label, pub_id):
     """
     Return errors for An0 for a given n, moment type, label, and publication ID.
     """
-    data, n_to_row_map = load_lattice_data(moment_type, moment_label, pub_id)
+    data, n_to_row_map = load_lattice_moment_data(moment_type, moment_label, pub_id)
 
     if data is None and n_to_row_map is None:
         #print(f"No data found for {moment_type} {moment_label} {pub_id}. Skipping.")
@@ -178,7 +186,7 @@ def Fn0_errors(n, moment_type, moment_label, pub_id):
 def load_Cz_data(moment_type,pub_id_A,pub_id_Atilde):
     def t_values(moment_type, moment_label, pub_id):
         """Return the -t values for a given moment type, label, and publication ID."""
-        data, n_to_row_map = load_lattice_data(moment_type, moment_label, pub_id)
+        data, n_to_row_map = load_lattice_moment_data(moment_type, moment_label, pub_id)
         
         if data is not None:
             # Safely access data[:, 0] since data is not None
@@ -247,6 +255,123 @@ def error_sign(error,error_type):
     else:
         return error
 
+def generate_filename(eta, t, mu, prefix="FILE_NAME",error_type="central"):
+    """
+    Generate a filename based on eta, t, and mu formatted as three-digit values.
+    """
+    error_mapping = {
+        "central": "",  # The column with the central value
+        "plus": "_plus",     # The column with the + error value
+        "minus": "_minus"     # The column with the - error value
+    }
+    eta_str = f"{abs(eta):.2f}".replace(".", "").zfill(3)
+    t_str = f"{abs(t):.2f}".replace(".", "").zfill(3)
+    mu_str = f"{abs(mu):.2f}".replace(".", "").zfill(3)
+    err_str = error_mapping.get(error_type)
+    filename = f"{prefix}_{eta_str}_{t_str}_{mu_str}{err_str}.csv"
+    return filename
+
+def save_gpd_data(x_values, eta, t, mu,y_values,gpd_type="NonSingletIsovector",gpd_label="H",error_type="central"):
+    """
+    Save the function f(x, eta, t, mu) evaluated at x_values to a CSV file.
+    """
+    if len(x_values) != len(y_values):
+        raise ValueError(f"x_values ({len(x_values)}) and y_values({len(y_values)}) are of unequal length")
+
+    gpd_name = gpd_type + "GPD" + gpd_label
+    filename = os.path.join(BASE_PATH, generate_filename(eta, t, mu,gpd_name,error_type))
+    data = np.column_stack((x_values, y_values))
+    np.savetxt(filename, data, delimiter=",")
+    print(f"Saved data to {filename}")
+
+def load_gpd_data(eta, t, mu,gpd_type="NonSingletIsovector",gpd_label="H",error_type ="central"):
+    """
+    Load data from CSV if it exists, otherwise return None.
+    """
+    gpd_name = gpd_type + "GPD" + gpd_label
+    filename = os.path.join(BASE_PATH, generate_filename(eta, t, mu,gpd_name,error_type))
+    if os.path.exists(filename):
+        data = np.loadtxt(filename, delimiter=",")
+        x_values, y_values = data[:, 0], data[:, 1]
+        return x_values, y_values
+    else:
+        return None, None
+
+
+def load_lattice_gpd_data(eta_in,t_in,mu_in,gpd_type,gpd_label, pub_id,error_type="central"):
+    """
+    Load data from a .csv file, extracting 
+    Modify FILE_NAME and FILE_PATH as needed
+
+    Args:
+        eta_in (float): skewness parameter
+        t_in (float): Mandelstam t
+        mu_in (float): Resolution scale
+        gpd_type (str): The type of moment (e.g., "Isovector").
+        moment_label (str): The label of the moment (e.g., "A").
+        pub_id (str): The publication ID.
+        erorry_type(str): "central", "plus" or "minus"
+    Returns:
+        tuple: A tuple containing the data and a dictionary mapping 'n' values to row indices.
+    """
+    if (pub_id,gpd_type,gpd_label,eta_in,t_in,mu_in) in GPD_PUBLICATION_MAPPING:
+        (color,parameter_set) = GPD_PUBLICATION_MAPPING[(pub_id,gpd_type,gpd_label,eta_in,t_in,mu_in)]
+    else:
+        return None, None, None
+    check_error_type(error_type)
+    error_mapping = {
+        "central": "",  # The column with the central value
+        "plus": "_plus",     # The column with the + error value
+        "minus": "_minus"     # The column with the - error value
+    }
+    error = error_mapping.get(error_type) 
+    FILE_NAME = f"{gpd_type}GPD{gpd_label}{pub_id}_{parameter_set}{error}.csv"
+    FILE_PATH = f"{BASE_PATH}{FILE_NAME}"
+
+    # Check if the file exists
+    if not os.path.exists(FILE_PATH):
+        # print(f"No data available for {moment_type}{moment_label} in {pub_id}")
+        return None, None
+    data = []
+
+    with open(FILE_PATH, 'r') as f:
+        # Read and split the header by commas
+        comment = f.readline()
+        header = f.readline().strip().split(',')
+
+        # Load the rest of the file as data
+        data = np.loadtxt(f, delimiter=',')
+        x_values = data[:,0]
+        gpd_values = data[:,1]
+    return x_values, gpd_values
+
+def save_ft_to_csv(b_x_fm, b_y_fm, data, filename):
+    header = "b_x_fm,b_y_fm,FT[b_x_fm,b_y_fm]"
+    
+    # Ensure correct shape: Convert 2D grid into column format
+    b_x_flat = np.repeat(b_x_fm, len(b_y_fm))  # Repeat each b_x value for all b_y
+    b_y_flat = np.tile(b_y_fm, len(b_x_fm))    # Tile b_y values for each b_x
+    data_flat = data.ravel()                   # Flatten the data
+    
+    # Stack columns and save
+    data_with_b_x_b_y = np.column_stack((b_x_flat, b_y_flat, data_flat))
+    np.savetxt(filename, data_with_b_x_b_y, delimiter=",", header=header, comments='')
+    print(f"Saved data to {filename}")
+def read_ft_from_csv(filename):
+    # Load the data (skip the header row)
+    loaded_data = np.loadtxt(filename, delimiter=",", skiprows=1)
+
+    # Extract columns
+    b_x_flat, b_y_flat, data_flat = loaded_data[:, 0], loaded_data[:, 1], loaded_data[:, 2]
+
+    # Reconstruct unique x and y values
+    b_x_fm = np.unique(b_x_flat)
+    b_y_fm = np.unique(b_y_flat)
+
+    # Reshape data back into 2D grid
+    data = data_flat.reshape(len(b_y_fm), len(b_x_fm))  # Must match original shape
+
+    return b_x_fm, b_y_fm, data
 
 #####################################
 ### Input for Evolution Equations ###
@@ -2133,20 +2258,21 @@ def fourier_transform_moment(j,eta,mu,b_vec,Nf=3,particle="quark",moment_type="N
     def integrand(Delta_x,Delta_y,b_x,b_y):
         t = -(Delta_x**2+Delta_y**2)
         exponent = -1j * (b_x * Delta_x + b_y * Delta_y)
-        result = evolve_conformal_moment(j,eta,t,mu,Nf,particle,moment_type,moment_label,error_type)*np.exp(exponent)
+        moment = evolve_conformal_moment(j,eta,t,mu,Nf,particle,moment_type,moment_label,error_type)
+        result = moment*np.exp(exponent)
         return result
     
     # Compute the integrand for each pair of (Delta_x, Delta_y) values
     integrand_values = integrand(Delta_x_grid, Delta_y_grid, b_x, b_y)
     # Perform the numerical integration using the trapezoidal rule for efficiency
-    integral_result = np.real(trapezoid(trapezoid(integrand_values, Delta_x_vals, axis=0), Delta_y_vals))#/((2*np.pi)**2)
+    integral_result = np.real(trapezoid(trapezoid(integrand_values, Delta_x_vals, axis=0), Delta_y_vals))/((2*np.pi)**2)
 
     return integral_result
     
 
-def fourier_transform_quark_gluon_helicity(eta,mu,b_vec,Nf=3,particle="quark",moment_type="NonSingletIsovector", Delta_max = 10,num_points=100, error_type="central"):
+def inverse_fourier_transform_moment(j,eta,mu,Delta_vec,Nf=3,particle="quark",moment_type="NonSingletIsovector",moment_label="A", b_max = 9 ,num_points=500, Delta_max=10):
     """
-    Optimized calculation of Fourier transformed moments using adaptive integration.
+    Sanity check for Fourier transform. The result should be the input moment.
 
     Parameters:
     - eta (float): Skewness parameter
@@ -2165,49 +2291,79 @@ def fourier_transform_quark_gluon_helicity(eta,mu,b_vec,Nf=3,particle="quark",mo
     if moment_type not in ["Singlet","NonSingletIsovector","NonSingletIsoscalar","u","d"]:
         raise ValueError(f"Wrong moment_type {moment_type}")
 
-    b_x, b_y = b_vec
+    Delta_x, Delta_y = Delta_vec
     # Limits of integration for Delta_x, Delta_y on a square grid
-    x_min, x_max = -Delta_max, Delta_max
-    y_min, y_max = -Delta_max, Delta_max
+    x_min, x_max = -b_max, b_max
+    y_min, y_max = -b_max, b_max
     # Discretize the grid (vectorized)
-    Delta_x_vals = np.linspace(x_min, x_max, num_points)
-    Delta_y_vals = np.linspace(y_min, y_max, num_points)
+    b_x_vals = np.linspace(x_min, x_max, num_points)
+    b_y_vals = np.linspace(y_min, y_max, num_points)
 
-    # Create a meshgrid for delta_x, delta_y
-    Delta_x_grid, Delta_y_grid = np.meshgrid(Delta_x_vals, Delta_y_vals)
+    def integrand(b_x,b_y,Delta_x,Delta_y):
+        b_vec = (b_x,b_y)
+        exponent = 1j * (b_x * Delta_x + b_y * Delta_y)
+        moment = fourier_transform_moment(j,eta,mu,b_vec,Nf,particle,moment_type,moment_label,num_points=num_points,Delta_max=Delta_max)
+        result = moment*np.exp(exponent)
+        return result
+
+    # Compute the integrand for each pair of (Delta_x, Delta_y) values
+    integrand_values = np.array(Parallel(n_jobs=-1)(delayed(integrand)(b_x, b_y, Delta_x, Delta_y)
+                                                 for b_y in b_y_vals
+                                                 for b_x in b_x_vals))
+    integrand_values = integrand_values.reshape((num_points, num_points))
+
+    integral_result = trapezoid(trapezoid(integrand_values, b_x_vals, axis=1), b_y_vals,axis=0)
+
+    return integral_result.real
+
+def fourier_transform_quark_gluon_helicity(eta,mu,b_vec,Nf=3,particle="quark",moment_type="NonSingletIsovector", Delta_max = 10,num_points=100, error_type="central"):
+    """
+    Quark gluon helicity in impact parameter space
+
+    Parameters:
+    - eta (float): Skewness parameter
+    - mu (float): RGE scale
+    - b_vec: (b_x, b_y), the vector for which to compute the result
+    - Nf (int, optional): Number of active flavors. Default is 3.
+    - particle (str. optional): "quark" or "gluon"
+    - moment_type (str. optional): NonSingletIsovector, NonSingletIsoscalar or flavor separated u, d. Default is NonSingletIsovector.
+    - Delta_max (float, optional): maximum radius for the integration domain (limits the integration bounds)
+    - num_points: number of points for discretizing the domain (adapt as needed)
+    - error_type (str. optional): Whether to use central, plus or minus value of input PDF. Default is central.
+
+    Returns:
+    - The value of the quark gluon helicity at (b_vec)
+    """
+    check_particle_type(particle)
+    if moment_type not in ["Singlet","NonSingletIsovector","NonSingletIsoscalar","u","d"]:
+        raise ValueError(f"Wrong moment_type {moment_type}")
+    check_error_type(error_type)
     
-    if particle == "quark":
+    if moment_type != "Singlet":
         n = 1
     else:
         n = 2
 
     if moment_type in ["Singlet","NonSingletIsovector","NonSingletIsoscalar"]:
-        def integrand(Delta_x,Delta_y,b_x,b_y):
-            t = -(Delta_x**2+Delta_y**2)
-            exponent = 1j * (b_x * Delta_x + b_y * Delta_y)
-            moment = evolve_conformal_moment(n,eta,t,mu,Nf,particle=particle,moment_type=moment_type,moment_label="Atilde",error_type=error_type)/2
-            result = moment*np.exp(exponent)
-            return result
+        result = fourier_transform_moment(n,eta,mu,b_vec,Nf,particle,moment_type,moment_label="Atilde",Delta_max=Delta_max,num_points=num_points,error_type=error_type)/2
     elif moment_type in ["u","d"]:
         if moment_type == "u":
             prf = 1
         else:
             prf = -1
-        def integrand(Delta_x,Delta_y,b_x,b_y):
-            t = -(Delta_x**2+Delta_y**2)
-            exponent = 1j * (b_x * Delta_x + b_y * Delta_y)
-            moment_1 = evolve_conformal_moment(1,eta,t,mu,Nf,particle="quark",moment_type="NonSingletIsoscalar",moment_label="Atilde",error_type=error_type)/2
-            moment_2 = evolve_conformal_moment(1,eta,t,mu,Nf,particle="quark",moment_type="NonSingletIsovector",moment_label="Atilde",error_type=error_type)/2
-            moment = (moment_1 + prf * moment_2)/2
-            result = moment*np.exp(exponent)
-            return result
+        moment_1 = fourier_transform_moment(1,eta,mu,b_vec,Nf,particle,moment_type="NonSingletIsoscalar",moment_label="Atilde",Delta_max=Delta_max,num_points=num_points,error_type=error_type)/2
+        moment_2 = fourier_transform_moment(1,eta,mu,b_vec,Nf,particle,moment_type="NonSingletIsovector",moment_label="Atilde",Delta_max=Delta_max,num_points=num_points,error_type=error_type)/2
+        result = (moment_1 + prf * moment_2)/2
 
-    # Compute the integrand for each pair of (Delta_x, Delta_y) values
-    integrand_values = integrand(Delta_x_grid, Delta_y_grid, b_x, b_y)
-    # Perform the numerical integration using the trapezoidal rule for efficiency
-    integral_result = trapezoid(trapezoid(integrand_values, Delta_x_vals, axis=0), Delta_y_vals)#/((2*np.pi)**2)
+    return result
 
-    return integral_result.real
+def fourier_transform_quark_helicity(eta,mu,b_vec,Nf=3,moment_type="NonSingletIsovector", Delta_max = 10,num_points=100, error_type="central"):
+    result = fourier_transform_quark_gluon_helicity(eta,mu,b_vec,Nf,particle="quark",moment_type=moment_type,Delta_max=Delta_max,num_points=num_points,error_type=error_type)
+    return result
+
+def fourier_transform_gluon_helicity(eta,mu,b_vec,Nf=3,Delta_max = 10,num_points=100, error_type="central"):
+    result = fourier_transform_quark_gluon_helicity(eta,mu,b_vec,Nf,particle="gluon",moment_type="Singlet",Delta_max=Delta_max,num_points=num_points,error_type=error_type)
+    return result
 
 def fourier_transform_quark_helicity(eta,mu,b_vec,Nf=3,moment_type="NonSingletIsovector", Delta_max = 10,num_points=100, error_type="central"):
     result = fourier_transform_quark_gluon_helicity(eta,mu,b_vec,Nf,particle="quark",moment_type=moment_type,Delta_max=Delta_max,num_points=num_points,error_type=error_type)
@@ -2219,57 +2375,46 @@ def fourier_transform_gluon_helicity(eta,mu,b_vec,Nf=3,Delta_max = 10,num_points
 
 def fourier_transform_spin_orbit_correlation(eta,mu,b_vec,Nf=3,particle="quark",moment_type="NonSingletIsovector", Delta_max = 8,num_points=100, error_type="central"):
     """
-    Optimized calculation of Fourier transformed moments using adaptive integration.
+    Spin-orbit correlation in impact parameter space
 
     Parameters:
     - eta (float): Skewness parameter
     - mu (float): RGE scale
     - b_vec: (b_x, b_y), the vector for which to compute the result
     - Nf (int, optional): Number of active flavors. Default is 3.
+    - particle (str. optional): "quark" or "gluon"
     - moment_type (str. optional): NonSingletIsovector, NonSingletIsoscalar or flavor separated u, d. Default is NonSingletIsovector.
     - Delta_max (float, optional): maximum radius for the integration domain (limits the integration bounds)
     - num_points: number of points for discretizing the domain (adapt as needed)
     - error_type (str. optional): Whether to use central, plus or minus value of input PDF. Default is central.
 
     Returns:
-    - The value of the Fourier transformed moment at (b_vec)
+    - The value of the spin-orbit correlation at (b_vec)
     """
     check_particle_type(particle)
     if moment_type not in ["Singlet","NonSingletIsovector","NonSingletIsoscalar","u","d"]:
         raise ValueError(f"Wrong moment_type {moment_type}")
     check_error_type(error_type)
-    b_x, b_y = b_vec
-    # Limits of integration for Delta_x, Delta_y on a square grid
-    x_min, x_max = -Delta_max, Delta_max
-    y_min, y_max = -Delta_max, Delta_max
-    # Discretize the grid (vectorized)
-    Delta_x_vals = np.linspace(x_min, x_max, num_points)
-    Delta_y_vals = np.linspace(y_min, y_max, num_points)
 
     if particle == "quark":
         n = 1
     else: 
         n = 2
 
-    # Create a meshgrid for delta_x, delta_y
-    Delta_x_grid, Delta_y_grid = np.meshgrid(Delta_x_vals, Delta_y_vals)
     if moment_type in ["Singlet","NonSingletIsovector","NonSingletIsoscalar"]:
-        def integrand(Delta_x,Delta_y,b_x,b_y):
-            t = -(Delta_x**2+Delta_y**2)
-            exponent = 1j * (b_x * Delta_x + b_y * Delta_y)
-            term_1 = evolve_conformal_moment(n+1,eta,t,mu,Nf,particle=particle,moment_type=moment_type,moment_label="Atilde",error_type="central")
-            term_2 = evolve_conformal_moment(n,eta,t,mu,Nf,particle=particle,moment_type=moment_type,moment_label="A",error_type="central")
+            term_1 = fourier_transform_moment(n+1,eta,mu,b_vec,Nf,particle=particle,moment_type=moment_type,moment_label="Atilde",Delta_max=Delta_max,num_points=num_points,error_type="central")
+            term_2 = fourier_transform_moment(n,eta,mu,b_vec,Nf,particle=particle,moment_type=moment_type,moment_label="A",Delta_max=Delta_max,num_points=num_points,error_type="central")
             moment = (term_1-term_2)/2
             if error_type != "central":      
-                term_1_error = .5 * (evolve_conformal_moment(n+1,eta,t,mu,Nf,particle=particle,moment_type=moment_type,moment_label="Atilde",error_type=error_type)
+                term_1_error = .5 * (fourier_transform_moment(n+1,eta,mu,b_vec,Nf,particle=particle,moment_type=moment_type,moment_label="Atilde",Delta_max=Delta_max,num_points=num_points,error_type=error_type)
                                 - term_1)
-                term_2_error = .5 * (evolve_conformal_moment(n,eta,t,mu,Nf,particle=particle,moment_type=moment_type,moment_label="A",error_type=error_type)
+                term_2_error = .5 * (fourier_transform_moment(n,eta,mu,b_vec,Nf,particle=particle,moment_type=moment_type,moment_label="A",Delta_max=Delta_max,num_points=num_points,error_type=error_type)
                                 - term_2)
                 if error_type == "plus":
                     moment += np.sqrt(term_1_error**2+term_2_error**2)
                 else:
                     moment -= np.sqrt(term_1_error**2+term_2_error**2)
-            result = moment*np.exp(exponent)
+            result = moment
             return result
 
     elif moment_type in ["u","d"]:
@@ -2277,43 +2422,33 @@ def fourier_transform_spin_orbit_correlation(eta,mu,b_vec,Nf=3,particle="quark",
             prf = 1
         else:
             prf = -1
-        def integrand(Delta_x,Delta_y,b_x,b_y):
-            t = -(Delta_x**2+Delta_y**2)
-            exponent = 1j * (b_x * Delta_x + b_y * Delta_y)
-            term_1 = evolve_conformal_moment(2,eta,t,mu,Nf,particle="quark",moment_type="NonSingletIsoscalar",moment_label="Atilde",error_type="central")
-            term_2 = evolve_conformal_moment(1,eta,t,mu,Nf,particle="quark",moment_type="NonSingletIsoscalar",moment_label="A",error_type="central")
+            term_1 = fourier_transform_moment(2,eta,mu,b_vec,Nf,particle="quark",moment_type="NonSingletIsoscalar",moment_label="Atilde",Delta_max=Delta_max,num_points=num_points,error_type="central")
+            term_2 = fourier_transform_moment(1,eta,mu,b_vec,Nf,particle="quark",moment_type="NonSingletIsoscalar",moment_label="A",Delta_max=Delta_max,num_points=num_points,error_type="central")
             moment_1 = (term_1-term_2)/2
             if error_type != "central":      
-                term_1_error = (evolve_conformal_moment(2,eta,t,mu,Nf,particle="quark",moment_type="NonSingletIsoscalar",moment_label="Atilde",error_type=error_type)
+                term_1_error = (fourier_transform_moment(2,eta,mu,b_vec,Nf,particle="quark",moment_type="NonSingletIsoscalar",moment_label="Atilde",Delta_max=Delta_max,num_points=num_points,error_type=error_type)
                                 - term_1)
-                term_2_error = (evolve_conformal_moment(1,eta,t,mu,Nf,particle="quark",moment_type="NonSingletIsoscalar",moment_label="A",error_type=error_type)
+                term_2_error = (fourier_transform_moment(1,eta,mu,b_vec,Nf,particle="quark",moment_type="NonSingletIsoscalar",moment_label="A",Delta_max=Delta_max,num_points=num_points,error_type=error_type)
                                 - term_2)
                 if error_type == "plus":
                     moment_1 += np.sqrt(term_1_error**2+term_2_error**2)
                 else:
                     moment_1 -= np.sqrt(term_1_error**2+term_2_error**2)
-            term_1 = evolve_conformal_moment(2,eta,t,mu,Nf,particle="quark",moment_type="NonSingletIsovector",moment_label="Atilde",error_type="central")
-            term_2 = evolve_conformal_moment(1,eta,t,mu,Nf,particle="quark",moment_type="NonSingletIsovector",moment_label="A",error_type="central")
+            term_1 = fourier_transform_moment(2,eta,mu,b_vec,Nf,particle="quark",moment_type="NonSingletIsovector",moment_label="Atilde",Delta_max=Delta_max,num_points=num_points,error_type="central")
+            term_2 = fourier_transform_moment(1,eta,mu,b_vec,Nf,particle="quark",moment_type="NonSingletIsovector",moment_label="A",Delta_max=Delta_max,num_points=num_points,error_type="central")
             moment_2 = (term_1-term_2)/2 
             if error_type != "central":      
-                term_1_error = (evolve_conformal_moment(2,eta,t,mu,Nf,particle="quark",moment_type="NonSingletIsovector",moment_label="Atilde",error_type=error_type)
+                term_1_error = (fourier_transform_moment(2,eta,mu,b_vec,Nf,particle="quark",moment_type="NonSingletIsovector",moment_label="Atilde",Delta_max=Delta_max,num_points=num_points,error_type=error_type)
                                 - term_1)
-                term_2_error = (evolve_conformal_moment(1,eta,t,mu,Nf,particle="quark",moment_type="NonSingletIsovector",moment_label="A",error_type=error_type)
+                term_2_error = (fourier_transform_moment(1,eta,mu,b_vec,Nf,particle="quark",moment_type="NonSingletIsovector",moment_label="A",Delta_max=Delta_max,num_points=num_points,error_type=error_type)
                                 - term_2)
                 if error_type == "plus":
                     moment_2 += np.sqrt(term_1_error**2+term_2_error**2)
                 else:
                     moment_2 -= np.sqrt(term_1_error**2+term_2_error**2)
             moment = (moment_1 + prf * moment_2)/2
-            result = moment*np.exp(exponent)
+            result = moment
             return result
-
-    # Compute the integrand for each pair of (Delta_x, Delta_y) values
-    integrand_values = integrand(Delta_x_grid, Delta_y_grid, b_x, b_y)
-    # Perform the numerical integration using the trapezoidal rule for efficiency
-    integral_result = trapezoid(trapezoid(integrand_values, Delta_x_vals, axis=0), Delta_y_vals)#/((2*np.pi)**2)
-
-    return integral_result.real
 
 
 ################################
@@ -2723,7 +2858,7 @@ def spin_orbit_corelation(t,mu, particle="quark",moment_type="NonSingletIsovecto
                            "NonSingletIsovector"]:
         raise ValueError(f"Wrong moment type {moment_type}")
     
-    if particle == "quark":
+    if moment_type != "Singlet":
         n = 1
     else:
         n = 2
@@ -2759,7 +2894,7 @@ def quark_gluon_helicity(t,mu, particle="quark",moment_type="NonSingletIsovector
         raise ValueError(f"Wrong moment type {moment_type}")
     if particle == "gluon" and moment_type != "Singlet":
         raise ValueError(f"Wrong moment_type {moment_type} for {particle}")
-    if particle == "quark":
+    if moment_type != "Singlet":
         n = 1
     else:
         n = 2
@@ -2812,7 +2947,7 @@ def plot_moment(n,eta,y_label,mu_in=2,t_max=3,Nf=3,particle="quark",moment_type=
     # Accessor functions for -t, values, and errors
     def t_values(moment_type, moment_label, pub_id):
         """Return the -t values for a given moment type, label, and publication ID."""
-        data, n_to_row_map = load_lattice_data(moment_type, moment_label, pub_id)
+        data, n_to_row_map = load_lattice_moment_data(moment_type, moment_label, pub_id)
 
         if data is None and n_to_row_map is None:
             print(f"No data found for {moment_type} {moment_label} {pub_id}. Skipping.")
@@ -2859,7 +2994,7 @@ def plot_moment(n,eta,y_label,mu_in=2,t_max=3,Nf=3,particle="quark",moment_type=
     for pub_id, (color,mu) in PUBLICATION_MAPPING.items():
         if mu != mu_in:
             continue
-        data, n_to_row_map = load_lattice_data(moment_type, moment_label, pub_id)
+        data, n_to_row_map = load_lattice_moment_data(moment_type, moment_label, pub_id)
         if data is None or n not in n_to_row_map:
             continue
         t_vals = t_values(moment_type, moment_label, pub_id)
@@ -2888,7 +3023,7 @@ def plot_moments_on_grid(eta, y_label, t_max=3, Nf=3, particle="quark", moment_t
     # Accessor functions for -t, values, and errors
     def t_values(moment_type, moment_label, pub_id):
         """Return the -t values for a given moment type, label, and publication ID."""
-        data, n_to_row_map = load_lattice_data(moment_type, moment_label, pub_id)
+        data, n_to_row_map = load_lattice_moment_data(moment_type, moment_label, pub_id)
 
         if data is None and n_to_row_map is None:
             print(f"No data found for {moment_type} {moment_label} {pub_id}. Skipping.")
@@ -2922,7 +3057,7 @@ def plot_moments_on_grid(eta, y_label, t_max=3, Nf=3, particle="quark", moment_t
     publication_data = {}
     mu = None
     for pub_id, (color,mu) in PUBLICATION_MAPPING.items():
-        data, n_to_row_map = load_lattice_data(moment_type, moment_label, pub_id)
+        data, n_to_row_map = load_lattice_moment_data(moment_type, moment_label, pub_id)
         if data is None and n_to_row_map is None:
             continue
         num_n_values = (data.shape[1] - 1) // 2
@@ -2963,7 +3098,7 @@ def plot_moments_on_grid(eta, y_label, t_max=3, Nf=3, particle="quark", moment_t
         # Plot data from publications
         if publication_data:
             for pub_id, (color, mu) in PUBLICATION_MAPPING.items():
-                data, n_to_row_map = load_lattice_data(moment_type, moment_label, pub_id)
+                data, n_to_row_map = load_lattice_moment_data(moment_type, moment_label, pub_id)
                 if data is None or n not in n_to_row_map:
                     continue
                 t_vals = t_values(moment_type, moment_label, pub_id)
@@ -2992,7 +3127,7 @@ def plot_moments_on_grid(eta, y_label, t_max=3, Nf=3, particle="quark", moment_t
         # Plot data from publications
         if publication_data:
             for pub_id, (color, mu) in PUBLICATION_MAPPING.items():
-                data, n_to_row_map = load_lattice_data(moment_type, moment_label, pub_id)
+                data, n_to_row_map = load_lattice_moment_data(moment_type, moment_label, pub_id)
                 if data is None or n not in n_to_row_map:
                     continue
                 t_vals = t_values(moment_type, moment_label, pub_id)
@@ -3184,7 +3319,7 @@ def plot_spin_orbit_correlation(particle="quark",n_t = 50):
     padding = 0
     plt.xlim(t_min-padding,t_max+padding)
     plt.xlabel("$-t\,[\mathrm{GeV}^2]$")
-    plt.legend()
+    plt.legend(fontsize=10, markerscale=1.5)
     plt.grid(True)
     #plt.yscale('log') # set y axis to log scale
     #plt.xscale('log') # set x axis to log scale
@@ -3242,8 +3377,8 @@ def plot_fourier_transform_moments(j,eta,mu,plot_title,Nf=3,particle="quark",mom
 
 
 def plot_fourier_transform_spin_orbit_correlation(eta, mu, Nf=3, particle="quark", moment_type="NonSingletIsovector", 
-                                          b_max=6, Delta_max=10, num_points=100, n_b=50, 
-                                          plot_option="both"):
+                                          b_max=4.5, Delta_max=10, num_points=100, n_b=50, 
+                                          plot_option="both",write_to_file = False, read_from_file = True):
     """
     Generates a density plot of the 2D Fourier transform of the quark spin-orbit correlation
     It also includes a 1D slice at b_y = 0.
@@ -3259,9 +3394,20 @@ def plot_fourier_transform_spin_orbit_correlation(eta, mu, Nf=3, particle="quark
     - n_b (int, optional): Number of points the interval [-b_max, b_max] is split into (default is 50).
     - plot_option (str, optional): "upper", "lower", or "both" to control which plots are shown (default is "both").
     """
+    
     check_particle_type(particle)
     if moment_type not in ["NonSingletIsovector", "NonSingletIsoscalar", "u", "d", "all"]:
         raise ValueError(f"Wrong moment_type {moment_type}")
+
+    if write_to_file and read_from_file:
+        raise ValueError("write_to_file and read_from_file can't simultaneously be True")
+
+
+    if moment_type not in ["NonSingletIsovector", "NonSingletIsoscalar", "u", "d", "all"]:
+        raise ValueError(f"Wrong moment_type {moment_type}")
+
+    FILE_PATH = PLOT_PATH + "ImpactParameterSpinOrbit" + moment_type  +".pdf"
+    READ_WRITE_PATH = BASE_PATH + "ImpactParameterSpinOrbit" + moment_type 
 
     # Define the grid for b_vec
     b_x = np.linspace(-b_max, b_max, n_b)
@@ -3302,16 +3448,26 @@ def plot_fourier_transform_spin_orbit_correlation(eta, mu, Nf=3, particle="quark
         # Compute Fourier transform and cache the results for NonSingletIsovector and NonSingletIsoscalar
         if mom_type in ["NonSingletIsovector", "NonSingletIsoscalar"] or moment_type != "all":
             if mom_type not in cache:
-                fourier_transform_moment_values_flat = Parallel(n_jobs=-1)(delayed(fourier_transform_spin_orbit_correlation)(
-                    eta, mu, b_vec, Nf, particle,mom_type, Delta_max, num_points, "central") for b_vec in b_vecs)
+                if read_from_file:
+                    file_name = generate_filename(eta,0,mu,READ_WRITE_PATH,"central")
+                    b_x_fm, b_y_fm, fourier_transform_moment_values_flat = read_ft_from_csv(file_name)
+                else:
+                    fourier_transform_moment_values_flat = Parallel(n_jobs=-1)(delayed(fourier_transform_spin_orbit_correlation)(
+                        eta, mu, b_vec, Nf, particle,mom_type, Delta_max, num_points, "central") for b_vec in b_vecs)
                 cache[mom_type] = np.array(fourier_transform_moment_values_flat).reshape(b_x_grid.shape)
 
             # Generate error bars for lower plot
             if plot_option in ["lower", "both"]:
-                fourier_transform_moment_values_flat_plus = Parallel(n_jobs=-1)(delayed(fourier_transform_spin_orbit_correlation)(
-                    eta, mu, b_vec, Nf, particle,mom_type, Delta_max, num_points, "plus") for b_vec in b_vecs)
-                fourier_transform_moment_values_flat_minus = Parallel(n_jobs=-1)(delayed(fourier_transform_spin_orbit_correlation)(
-                    eta, mu, b_vec, Nf, particle, mom_type, Delta_max, num_points, "minus") for b_vec in b_vecs)
+                if read_from_file:
+                    file_name = generate_filename(eta,0,mu,READ_WRITE_PATH,"plus")
+                    _, _, fourier_transform_moment_values_flat_plus = read_ft_from_csv(file_name)
+                    file_name = generate_filename(eta,0,mu,READ_WRITE_PATH,"minus")
+                    _, _, fourier_transform_moment_values_flat_minus = read_ft_from_csv(file_name)
+                else:
+                    fourier_transform_moment_values_flat_plus = Parallel(n_jobs=-1)(delayed(fourier_transform_spin_orbit_correlation)(
+                        eta, mu, b_vec, Nf, particle,mom_type, Delta_max, num_points, "plus") for b_vec in b_vecs)
+                    fourier_transform_moment_values_flat_minus = Parallel(n_jobs=-1)(delayed(fourier_transform_spin_orbit_correlation)(
+                        eta, mu, b_vec, Nf, particle, mom_type, Delta_max, num_points, "minus") for b_vec in b_vecs)
 
                 cache[f"{mom_type}_plus"] = np.array(fourier_transform_moment_values_flat_plus).reshape(b_x_grid.shape)
                 cache[f"{mom_type}_minus"] = np.array(fourier_transform_moment_values_flat_minus).reshape(b_x_grid.shape)
@@ -3321,19 +3477,6 @@ def plot_fourier_transform_spin_orbit_correlation(eta, mu, Nf=3, particle="quark
                 fourier_transform_moment_values_flat_plus = cache.get(f"{mom_type}_plus", None)
                 fourier_transform_moment_values_flat_minus = cache.get(f"{mom_type}_minus", None)
 
-        # # Cache values for u and d
-        # if moment_type == "all":
-        #     if mom_type == "u":
-        #         fourier_transform_moment_values_flat = (cache["NonSingletIsoscalar"] + cache["NonSingletIsovector"]) / 2
-        #         fourier_transform_moment_values_flat_plus = (cache["NonSingletIsoscalar_plus"] + cache["NonSingletIsovector_plus"]) / 2
-        #         fourier_transform_moment_values_flat_minus = (cache["NonSingletIsoscalar_minus"] + cache["NonSingletIsovector_minus"]) / 2
-        #     if mom_type == "d":
-        #         fourier_transform_moment_values_flat = (cache["NonSingletIsoscalar"] - cache["NonSingletIsovector"]) / 2
-        #         fourier_transform_moment_values_flat_plus = (cache["NonSingletIsoscalar_plus"] - cache["NonSingletIsovector_plus"]) / 2
-        #         fourier_transform_moment_values_flat_minus = (cache["NonSingletIsoscalar_minus"] - cache["NonSingletIsovector_minus"]) / 2
-
-            # Cache values for u and d
-            #if moment_type == "all":
         if mom_type in ["u","d"]:
             error_plus = np.sqrt((cache["NonSingletIsoscalar_plus"]-cache["NonSingletIsoscalar"])**2
                                     + (cache["NonSingletIsovector_plus"]-cache["NonSingletIsovector"])**2)/2
@@ -3349,11 +3492,13 @@ def plot_fourier_transform_spin_orbit_correlation(eta, mu, Nf=3, particle="quark
         # Upper plot: 2D density plot
         if plot_option in ["upper", "both"]:
             im = ax.pcolormesh(b_x_fm, b_y_fm, fourier_transform_moment_values_flat, 
-                               shading='auto', cmap='jet', vmin=-3, vmax=2.5)
+                               shading='auto', cmap='jet', vmin=-3/(2*np.pi)**2, vmax=2.5/(2*np.pi)**2)
             ax.set_xlabel(r'$b_x\,[\mathrm{fm}]$', fontsize=14)
             if i == 0:
                 ax.set_ylabel(r'$b_y\,[\mathrm{fm}]$', fontsize=14)
             ax.set_title(rf"$C_z^{{{title}}}$", fontsize=14)
+            ax.set_xlim([-b_max * hbarc, b_max * hbarc])
+            ax.set_ylim([-b_max * hbarc, b_max * hbarc])
 
             # Add colorbar only once per row
             if col == len(moment_types)-1:
@@ -3370,7 +3515,7 @@ def plot_fourier_transform_spin_orbit_correlation(eta, mu, Nf=3, particle="quark
                                   color='gray', alpha=0.5)
             ax_lower.set_xlabel(r'$b_x\,[\mathrm{fm}]$', fontsize=14)
             ax_lower.set_xlim([-b_max * hbarc, b_max * hbarc])
-            ax_lower.set_ylim([-3.5, 1])
+            ax_lower.set_ylim([-3.5/(2*np.pi)**2, 1/(2*np.pi)**2])
 
             if moment_type == "all" and i == 0:
                 ax_lower.set_ylabel(rf'$C_z^{{q}}$', fontsize=14)
@@ -3387,17 +3532,24 @@ def plot_fourier_transform_spin_orbit_correlation(eta, mu, Nf=3, particle="quark
     plt.subplots_adjust(wspace=0, hspace=0)
 
     # File export
-    FILE_PATH = PLOT_PATH + "ImpactParameterSpinOrbit" + moment_type  +".pdf"
     plt.savefig(FILE_PATH,format="pdf",bbox_inches="tight")
 
+    if write_to_file:
+        file_name = generate_filename(eta,0,mu,READ_WRITE_PATH,"central")
+        save_ft_to_csv(b_x_fm,b_y_fm,fourier_transform_moment_values_flat,file_name)
+        if plot_option in ["lower", "both"]:
+            file_name = generate_filename(eta,0,mu,READ_WRITE_PATH,"plus")
+            save_ft_to_csv(b_x_fm,b_y_fm,fourier_transform_moment_values_flat_plus,file_name)
+            file_name = generate_filename(eta,0,mu,READ_WRITE_PATH,"minus")
+            save_ft_to_csv(b_x_fm,b_y_fm,fourier_transform_moment_values_flat_minus,file_name)
 
     # Adjust layout and show the plot
     plt.show()
     plt.close()
 
 def plot_fourier_transform_quark_helicity(eta, mu, Nf=3, moment_type="NonSingletIsovector", 
-                                          b_max=6, Delta_max=8, num_points=100, n_b=50, 
-                                          plot_option="both"):
+                                          b_max=4.5, Delta_max=8, num_points=100, n_b=50, 
+                                          plot_option="both", read_from_file=True, write_to_file = False):
     """
     Generates a density plot of the 2D Fourier transform of RGE-evolved conformal moments.
     It also includes a 1D slice at b_y = 0.
@@ -3412,9 +3564,16 @@ def plot_fourier_transform_quark_helicity(eta, mu, Nf=3, moment_type="NonSinglet
     - num_points (int, optional): Number of intervals to split [-Delta_max, Delta_max] interval for trapezoid (default is 100).
     - n_b (int, optional): Number of points the interval [-b_max, b_max] is split into (default is 50).
     - plot_option (str, optional): "upper", "lower", or "both" to control which plots are shown (default is "both").
-    """
+    """   
+    if write_to_file and read_from_file:
+        raise ValueError("write_to_file and read_from_file can't simultaneously be True")
+
+
     if moment_type not in ["NonSingletIsovector", "NonSingletIsoscalar", "u", "d", "all"]:
         raise ValueError(f"Wrong moment_type {moment_type}")
+
+    FILE_PATH = PLOT_PATH + "ImpactParameterQuarkHelicity" + moment_type +".pdf"
+    READ_WRITE_PATH = BASE_PATH + "ImpactParameterQuarkHelicity" + moment_type 
 
     # Define the grid for b_vec
     b_x = np.linspace(-b_max, b_max, n_b)
@@ -3455,16 +3614,26 @@ def plot_fourier_transform_quark_helicity(eta, mu, Nf=3, moment_type="NonSinglet
         # Compute Fourier transform and cache the results for NonSingletIsovector and NonSingletIsoscalar
         if mom_type in ["NonSingletIsovector", "NonSingletIsoscalar"] or moment_type != "all":
             if mom_type not in cache:
-                fourier_transform_moment_values_flat = Parallel(n_jobs=-1)(delayed(fourier_transform_quark_helicity)(
-                    eta, mu, b_vec, Nf, mom_type, Delta_max, num_points, "central") for b_vec in b_vecs)
+                if read_from_file:
+                    file_name = generate_filename(eta,0,mu,READ_WRITE_PATH,"central")
+                    b_x_fm, b_y_fm, fourier_transform_moment_values_flat = read_ft_from_csv(file_name)
+                else:
+                    fourier_transform_moment_values_flat = Parallel(n_jobs=-1)(delayed(fourier_transform_quark_helicity)(
+                        eta, mu, b_vec, Nf, mom_type, Delta_max, num_points, "central") for b_vec in b_vecs)
                 cache[mom_type] = np.array(fourier_transform_moment_values_flat).reshape(b_x_grid.shape)
 
                 # Generate error bars for lower plot
                 if plot_option in ["lower", "both"]:
-                    fourier_transform_moment_values_flat_plus = Parallel(n_jobs=-1)(delayed(fourier_transform_quark_helicity)(
-                        eta, mu, b_vec, Nf, mom_type, Delta_max, num_points, "plus") for b_vec in b_vecs)
-                    fourier_transform_moment_values_flat_minus = Parallel(n_jobs=-1)(delayed(fourier_transform_quark_helicity)(
-                        eta, mu, b_vec, Nf, mom_type, Delta_max, num_points, "minus") for b_vec in b_vecs)
+                    if read_from_file:
+                        file_name = generate_filename(eta,0,mu,READ_WRITE_PATH,"plus")
+                        _, _, fourier_transform_moment_values_flat_plus = read_ft_from_csv(file_name)
+                        file_name = generate_filename(eta,0,mu,READ_WRITE_PATH,"minus")
+                        _, _, fourier_transform_moment_values_flat_minus = read_ft_from_csv(file_name)
+                    else:
+                        fourier_transform_moment_values_flat_plus = Parallel(n_jobs=-1)(delayed(fourier_transform_quark_helicity)(
+                            eta, mu, b_vec, Nf, mom_type, Delta_max, num_points, "plus") for b_vec in b_vecs)
+                        fourier_transform_moment_values_flat_minus = Parallel(n_jobs=-1)(delayed(fourier_transform_quark_helicity)(
+                            eta, mu, b_vec, Nf, mom_type, Delta_max, num_points, "minus") for b_vec in b_vecs)
 
                     cache[f"{mom_type}_plus"] = np.array(fourier_transform_moment_values_flat_plus).reshape(b_x_grid.shape)
                     cache[f"{mom_type}_minus"] = np.array(fourier_transform_moment_values_flat_minus).reshape(b_x_grid.shape)
@@ -3488,11 +3657,13 @@ def plot_fourier_transform_quark_helicity(eta, mu, Nf=3, moment_type="NonSinglet
         # Upper plot: 2D density plot
         if plot_option in ["upper", "both"]:
             im = ax.pcolormesh(b_x_fm, b_y_fm, fourier_transform_moment_values_flat, 
-                               shading='auto', cmap='jet', vmin=-1.5, vmax=3)
+                               shading='auto', cmap='jet', vmin=-1.5/(2*np.pi)**2, vmax=3/(2*np.pi)**2)
             ax.set_xlabel(r'$b_x\,[\mathrm{fm}]$', fontsize=14)
             if i == 0:
                 ax.set_ylabel(r'$b_y\,[\mathrm{fm}]$', fontsize=14)
             ax.set_title(rf"$S_z^{{{title}}}$", fontsize=14)
+            ax.set_xlim([-b_max * hbarc, b_max * hbarc])
+            ax.set_ylim([-b_max * hbarc, b_max * hbarc])
 
             # Add colorbar only once per row
             if col == len(moment_types)-1:
@@ -3509,7 +3680,7 @@ def plot_fourier_transform_quark_helicity(eta, mu, Nf=3, moment_type="NonSinglet
                                   color='gray', alpha=0.5)
             ax_lower.set_xlabel(r'$b_x\,[\mathrm{fm}]$', fontsize=14)
             ax_lower.set_xlim([-b_max * hbarc, b_max * hbarc])
-            ax_lower.set_ylim([-1, 3.5])
+            ax_lower.set_ylim([-1/(2*np.pi)**2, 3.5/(2*np.pi)**2])
 
             if moment_type == "all" and i == 0:
                 ax_lower.set_ylabel(rf'$S_z^{{q}}$', fontsize=14)
@@ -3524,17 +3695,24 @@ def plot_fourier_transform_quark_helicity(eta, mu, Nf=3, moment_type="NonSinglet
                 ax_lower.set_yticks([])
                 ax_lower.set_yticklabels([])
     plt.subplots_adjust(wspace=0, hspace=0)
-    FILE_PATH = PLOT_PATH + "ImpactParameterQuarkHelicity" + moment_type +".pdf"
     plt.savefig(FILE_PATH,format="pdf",bbox_inches="tight")
 
+    if write_to_file:
+        file_name = generate_filename(eta,0,mu,READ_WRITE_PATH,"central")
+        save_ft_to_csv(b_x_fm,b_y_fm,fourier_transform_moment_values_flat,file_name)
+        if plot_option in ["lower", "both"]:
+            file_name = generate_filename(eta,0,mu,READ_WRITE_PATH,"plus")
+            save_ft_to_csv(b_x_fm,b_y_fm,fourier_transform_moment_values_flat_plus,file_name)
+            file_name = generate_filename(eta,0,mu,READ_WRITE_PATH,"minus")
+            save_ft_to_csv(b_x_fm,b_y_fm,fourier_transform_moment_values_flat_minus,file_name)
 
     # Adjust layout and show the plot
     plt.show()
     plt.close()
 
 def plot_fourier_transform_gluon_helicity(eta, mu, Nf=3, 
-                                          b_max=3, Delta_max=8, num_points=100, n_b=50, 
-                                          plot_option="both"):
+                                          b_max=4.5, Delta_max=8, num_points=100, n_b=50, 
+                                          plot_option="both", read_from_file=True, write_to_file = False):
     """
     Generates a density plot of the 2D Fourier transform of RGE-evolved conformal moments.
     It also includes a 1D slice at b_y = 0.
@@ -3549,7 +3727,14 @@ def plot_fourier_transform_gluon_helicity(eta, mu, Nf=3,
     - num_points (int, optional): Number of intervals to split [-Delta_max, Delta_max] interval for trapezoid (default is 100).
     - n_b (int, optional): Number of points the interval [-b_max, b_max] is split into (default is 50).
     - plot_option (str, optional): "upper", "lower", or "both" to control which plots are shown (default is "both").
-    """
+    - read_from_file (bool): Whether to load data from file system
+    - write_to_file (bool): Whether to write data to file system
+    """   
+    if write_to_file and read_from_file:
+        raise ValueError("write_to_file and read_from_file can't simultaneously be True")
+    
+    FILE_PATH = PLOT_PATH + "ImpactParameterGluonHelicity.pdf" 
+    READ_WRITE_PATH = BASE_PATH + "ImpactParameterGluonHelicity"
 
     # Define the grid for b_vec
     b_x = np.linspace(-b_max, b_max, n_b)
@@ -3569,23 +3754,32 @@ def plot_fourier_transform_gluon_helicity(eta, mu, Nf=3,
     ax = axs[0, 0]
     ax_lower = axs[1, 0]
 
-    fourier_transform_moment_values_flat = Parallel(n_jobs=-1)(delayed(fourier_transform_gluon_helicity)(
+    if read_from_file:
+        file_name = generate_filename(eta,0,mu,READ_WRITE_PATH,"central")
+        b_x_fm, b_y_fm, fourier_transform_moment_values_flat = read_ft_from_csv(file_name)
+    else:
+        fourier_transform_moment_values_flat = Parallel(n_jobs=-1)(delayed(fourier_transform_gluon_helicity)(
                     eta, mu, b_vec, Nf, Delta_max, num_points, "central") for b_vec in b_vecs)
-
-    fourier_transform_moment_values_flat = np.array(fourier_transform_moment_values_flat, dtype=object).reshape(b_x_grid.shape).real
-    fourier_transform_moment_values_flat = fourier_transform_moment_values_flat.astype(np.float64)
+        fourier_transform_moment_values_flat = np.array(fourier_transform_moment_values_flat, dtype=object).reshape(b_x_grid.shape).real
+        fourier_transform_moment_values_flat = fourier_transform_moment_values_flat.astype(np.float64)
 
     # Generate error bars for lower plot
     if plot_option in ["lower", "both"]:
-        fourier_transform_moment_values_flat_plus = Parallel(n_jobs=-1)(delayed(fourier_transform_gluon_helicity)(
-            eta, mu, b_vec, Nf, Delta_max, num_points, "plus") for b_vec in b_vecs)
-        fourier_transform_moment_values_flat_minus = Parallel(n_jobs=-1)(delayed(fourier_transform_gluon_helicity)(
-            eta, mu, b_vec, Nf, Delta_max, num_points, "minus") for b_vec in b_vecs)
-        
-        fourier_transform_moment_values_flat_plus = np.array(fourier_transform_moment_values_flat_plus, dtype=object).reshape(b_x_grid.shape).real
-        fourier_transform_moment_values_flat_plus = fourier_transform_moment_values_flat_plus.astype(np.float64)
-        fourier_transform_moment_values_flat_minus = np.array(fourier_transform_moment_values_flat_minus, dtype=object).reshape(b_x_grid.shape).real
-        fourier_transform_moment_values_flat_minus = fourier_transform_moment_values_flat_minus.astype(np.float64)
+        if read_from_file:
+            file_name = generate_filename(eta,0,mu,READ_WRITE_PATH,"plus")
+            _, _, fourier_transform_moment_values_flat_plus = read_ft_from_csv(file_name)
+            file_name = generate_filename(eta,0,mu,READ_WRITE_PATH,"minus")
+            _, _, fourier_transform_moment_values_flat_minus = read_ft_from_csv(file_name)
+        else:
+            fourier_transform_moment_values_flat_plus = Parallel(n_jobs=-1)(delayed(fourier_transform_gluon_helicity)(
+                eta, mu, b_vec, Nf, Delta_max, num_points, "plus") for b_vec in b_vecs)
+            fourier_transform_moment_values_flat_minus = Parallel(n_jobs=-1)(delayed(fourier_transform_gluon_helicity)(
+                eta, mu, b_vec, Nf, Delta_max, num_points, "minus") for b_vec in b_vecs)
+            
+            fourier_transform_moment_values_flat_plus = np.array(fourier_transform_moment_values_flat_plus, dtype=object).reshape(b_x_grid.shape).real
+            fourier_transform_moment_values_flat_plus = fourier_transform_moment_values_flat_plus.astype(np.float64)
+            fourier_transform_moment_values_flat_minus = np.array(fourier_transform_moment_values_flat_minus, dtype=object).reshape(b_x_grid.shape).real
+            fourier_transform_moment_values_flat_minus = fourier_transform_moment_values_flat_minus.astype(np.float64)
 
     
     # Upper plot: 2D density plot
@@ -3594,6 +3788,8 @@ def plot_fourier_transform_gluon_helicity(eta, mu, Nf=3,
                             shading='auto', cmap='jet')
         ax.set_xlabel(r'$b_x\,[\mathrm{fm}]$', fontsize=14)
         ax.set_ylabel(r'$b_y\,[\mathrm{fm}]$', fontsize=14)
+        ax.set_xlim([-b_max * hbarc, b_max * hbarc])
+        ax.set_ylim([-b_max * hbarc, b_max * hbarc])
         ax.set_title(rf"$S_z^{{g}}$", fontsize=14)
 
         # Add colorbar
@@ -3610,14 +3806,21 @@ def plot_fourier_transform_gluon_helicity(eta, mu, Nf=3,
                                   color='gray', alpha=0.5)
             ax_lower.set_xlabel(r'$b_x\,[\mathrm{fm}]$', fontsize=14)
             ax_lower.set_xlim([-b_max * hbarc, b_max * hbarc])
-            #ax_lower.set_ylim([-1, 3.5])
-
+            
+            ax_lower.set_ylim([-0.08, 0.12 ])
             ax_lower.set_ylabel(rf'$S_z^{{g}}$', fontsize=14)
 
     plt.subplots_adjust(wspace=0, hspace=0)
-    FILE_PATH = PLOT_PATH + "ImpactParameterGluonHelicity" +".pdf"
     plt.savefig(FILE_PATH,format="pdf",bbox_inches="tight")
 
+    if write_to_file:
+        file_name = generate_filename(eta,0,mu,FILE_PATH,"central")
+        save_ft_to_csv(b_x_fm,b_y_fm,fourier_transform_moment_values_flat,file_name)
+        if plot_option in ["lower", "both"]:
+            file_name = generate_filename(eta,0,mu,FILE_PATH,"plus")
+            save_ft_to_csv(b_x_fm,b_y_fm,fourier_transform_moment_values_flat_plus,file_name)
+            file_name = generate_filename(eta,0,mu,FILE_PATH,"minus")
+            save_ft_to_csv(b_x_fm,b_y_fm,fourier_transform_moment_values_flat_minus,file_name)
 
     # Adjust layout and show the plot
     plt.show()
@@ -3709,7 +3912,7 @@ def plot_evolved_moment_over_j(eta,t,mu,Nf = 3,j_base = 3,particle="quark",momen
     plt.title(f"Evolution of Conformal Moment for {particle}, {moment_label}")
     plt.axhline(0, color='black', linewidth=0.5, linestyle='dotted')
     plt.axvline(0, color='black', linewidth=0.5, linestyle='dotted')
-    plt.legend()
+    plt.legend(fontsize=10, markerscale=1.5)
     plt.grid()
     plt.show()
 
@@ -3841,6 +4044,183 @@ def plot_mellin_barnes_gpd_integrand(x, eta, t, mu, Nf=3, particle="quark", mome
     plt.tight_layout(rect=[0, 0, 1, 0.96])
     plt.show()
 
+
+def plot_gpd_data(Nf=3,particle="quark",gpd_type="NonSingletIsovector",gpd_label="Htilde",n_int=300,n_gpd=50,sampling=True,n_init=os.cpu_count(), plot_gpd =True, error_bars=True,write_to_file = False, read_from_file = True):
+    def compute_result(x, eta,t,mu,error_type="central"):
+        return mellin_barnes_gpd(x, eta, t, mu, Nf,particle,gpd_type,moment_label, real_imag="real", error_type=error_type,n_jobs=1)
+    
+    gpd_label_map ={"H": "A",
+                    "Htilde": "Atilde"
+                    }
+    y_label_map = {
+            ("NonSingletIsovector","Htilde"): "$\\widetilde{{H}}^{{u-d}}(x,\eta,t;\mu)$",
+            ("NonSingletIsoscalar", "Htilde"): "$\\widetilde{{H}}^{{u+d}}(x,\eta,t;\mu)$",
+            ("u","Htilde"): "$\\widetilde{{H}}^{{u}}(x,\eta,t;\mu)$",
+            ("d","Htilde"): "$\\widetilde{{H}}^{{d}}(x,\eta,t;\mu)$"
+    }
+
+    if (gpd_type, gpd_label) in y_label_map:
+        y_label = y_label_map[(gpd_type, gpd_label)]
+    else:
+        print(f"Key ({gpd_type}, {gpd_label}) not found in y_label_map - abort")
+        return
+    if (gpd_label) in gpd_label_map:
+        moment_label = gpd_label_map[gpd_label]
+    else:
+        print(f"Key {gpd_label} not found in gpd_label_map - abort")
+        return
+
+    if write_to_file and read_from_file:
+        raise ValueError("write_to_file and read_from_file can't simultaneously be True")
+
+
+    for (pub_id,gpd_type,gpd_label,eta,t,mu), (color,_) in GPD_PUBLICATION_MAPPING.items():
+        gpd_interpolation={} # Initialize dictionary
+        for error_type in ["central","plus","minus"]:
+            x_values, gpd_values = load_lattice_gpd_data(eta,t,mu,gpd_type,gpd_label,pub_id,error_type)
+            if x_values is None:
+                continue
+            x_values = np.around(x_values, decimals=4)
+            gpd_values = np.around(gpd_values, decimals=4)
+            x_min = np.min(x_values)
+            x_max = np.max(x_values)
+            x_fine = np.linspace(x_min, x_max, n_int)
+
+            gpd_interpolation[error_type] = np.zeros_like(x_fine)
+
+            for i, x in enumerate(x_fine):  # More Pythonic way to iterate with index
+                region_mask = (
+                    (x <= -eta) & (x_values <= -eta) |  # Use & and |
+                    (-eta <= x <= eta) & ( (x_values >= -eta) & (x_values <= eta)) | #Use & and |
+                    (x >= eta) & (x_values >= eta)      # Use & and |
+                )
+
+                x_region = x_values[region_mask]
+                y_region = gpd_values[region_mask]
+
+                if len(x_region) > 1:
+                    interpolate_function = interp1d(x_region, y_region,bounds_error=False, fill_value="extrapolate")
+                    gpd_interpolation[error_type][i] = interpolate_function(x)
+                else:
+                    gpd_interpolation[error_type][i] = np.interp(x, x_region, y_region)
+        if sampling:
+            x_val = np.linspace(x_min,x_max,n_init)
+            # Measure time for sampling initial points
+            start_time_sampling = time.time()
+            results = Parallel(n_jobs=-1)(delayed(compute_result)(x,eta,t,mu) for x in x_val)
+            end_time_sampling = time.time()
+
+            # Compute differences and scale intervals
+            diffs = np.abs(np.diff(results))
+            # Ensure diffs is not zero for power
+            diffs += 1e-6
+            scaled_intervals = np.power(diffs, 0.5) / np.sum(np.power(diffs, 0.5))
+            cumulative_intervals = np.cumsum(np.insert(scaled_intervals, 0, 0))
+            cumulative_intervals = x_min + (x_max - x_min) * (
+                cumulative_intervals - cumulative_intervals[0]) / (
+                    cumulative_intervals[-1] - cumulative_intervals[0])
+            x_val = np.interp(np.linspace(x_min, x_max, n_gpd), cumulative_intervals, x_val)
+        else:
+            x_val = np.linspace(x_min, x_max, n_gpd)
+
+        # Add crossover points
+        if eta not in x_val:
+            x_val = np.append(x_val,eta)
+        if - eta not in x_val and x_min < 0:
+            x_val = np.append(x_val,-eta)
+        x_val = np.sort(x_val)
+        # Output sampling time
+        print(f"Time for initial sampling for parameters (eta,t) = ({eta,t}): {end_time_sampling - start_time_sampling:.6f} seconds")
+
+        indices = []
+        x_lin = np.linspace(x_min,x_max,n_gpd)
+        for x in x_lin:
+            # Compute the absolute difference between x and each element in x_values
+            diff = np.abs(x_fine- x)
+            
+            # Find indices where the difference is within the tolerance
+            close_indices = np.where(diff <= 1e-1)[0]
+            
+            # If there's a match, append only one index (the first closest match)
+            if len(close_indices) > 0:
+                # Find the index of the closest value (the smallest difference)
+                closest_index = int(close_indices[np.argmin(diff[close_indices])])
+                indices.append(closest_index)
+            else:
+                # Handle case when no close match is found, can append None or skip
+                indices.append(None) 
+        valid_indices = [i for i in indices if i is not None]
+        # Convert indices to a numpy array for easy access
+        #indices =  np.concatenate([idx for idx in indices if len(idx) > 0])
+        #indices = np.array(indices)
+        # gpd_errorbar_plot_values = []
+        # gpd_errorbar_plot_errors = []
+        gpd_errorbar_plot_values = gpd_interpolation["central"][valid_indices]
+        error_p = gpd_interpolation["plus"][valid_indices] - gpd_errorbar_plot_values
+        error_m = gpd_errorbar_plot_values - gpd_interpolation["minus"][valid_indices]
+        gpd_errorbar_plot_errors = np.sqrt(error_p**2+error_m**2)/2
+
+        if plot_gpd:
+            # Measure time for adaptive grid computation
+            start_time_adaptive = time.time()
+            if read_from_file:
+                x_val, results = load_gpd_data(eta,t,mu,gpd_type,gpd_label)
+                if x_val is None:
+                    raise ValueError("No data found on system. Change write_to_file = True")
+            else:
+                results = Parallel(n_jobs=-1)(delayed(compute_result)(x,eta,t,mu) for x in x_val)
+
+            # Error bar computations
+            if error_bars:
+                if read_from_file:
+                    x_plus, results_plus = load_gpd_data(eta,t,mu,gpd_type,gpd_label,"plus")
+                    x_minus,results_minus = load_gpd_data(eta,t,mu,gpd_type,gpd_label,"minus")
+                    if not np.array_equal(x_plus, x_minus) or not np.array_equal(x_plus, x_val):
+                        raise ValueError("Mismatch in x-values between error data files")
+                else:
+                    results_plus = Parallel(n_jobs=-1)(delayed(compute_result)(x,eta,t,mu, error_type="plus") for x in x_val)
+                    results_minus = Parallel(n_jobs=-1)(delayed(compute_result)(x,eta,t,mu, error_type="minus") for x in x_val)
+            else:
+                results_plus = results
+                results_minus = results
+            end_time_adaptive = time.time()
+            print(f"Time for plot computation for parameters (eta,t) = ({eta,t}): {end_time_adaptive - start_time_adaptive:.6f} seconds")
+            if error_bars:
+                plt.plot(x_val, results,label=(f"$\\eta={eta:.2f}$, "
+                        f"$t={t:.2f} \\text{{ GeV}}^2$"), color=color)
+                plt.fill_between(x_val,results_minus,results_plus,color=color,alpha=.2)
+            else:
+                plt.plot(x_val, results,label=(f"$\\eta={eta:.2f}$, "
+                        f"$t={t:.2f} \\text{{ GeV}}^2$"), color=color)
+            plt.errorbar(x_lin, gpd_errorbar_plot_values, yerr=gpd_errorbar_plot_errors, fmt='o', color=color)
+        else: 
+        # Errorbar plot for interpolation
+            plt.errorbar(x_lin, gpd_errorbar_plot_values, yerr=gpd_errorbar_plot_errors, fmt='o', color=color,label=f'$\eta = {eta},\ t ={t:.2f}\\ GeV $')
+                    #,\ \mu = {mu:.2f}\\ GeV$')
+
+        plt.axvline(x=eta, linestyle='--', color = color)   
+        plt.axvline(x=-eta, linestyle='--', color = color)
+
+        # Interpolation line
+        #plt.plot(x_fine, gpd_interpolation["central"], '-', color=color,label=f'$\eta = {eta},\ t ={t:.2f}\\ GeV $')
+                 #,\ \mu = {mu:.2f}\\ GeV$')
+
+        # Filled area for interpolation uncertainty
+        #plt.fill_between(x_fine, gpd_interpolation["minus"], gpd_interpolation["plus"], alpha=0.2, color=color) 
+        if write_to_file:
+            save_gpd_data(x_val,eta,t,mu,results,gpd_type,gpd_label)
+            save_gpd_data(x_val,eta,t,mu,results_plus,gpd_type,gpd_label,"plus")
+            save_gpd_data(x_val,eta,t,mu,results_minus,gpd_type,gpd_label,"minus")
+    if gpd_type == "NonSingletIsovector":
+        plt.ylim(-1, 3)
+    plt.xlabel("x")  # Add axis labels
+    plt.ylabel(y_label, fontsize =14)
+    plt.legend(fontsize=10, markerscale=1.5)
+    plt.grid(True)  # Add a grid for better readability
+
+    FILE_PATH = PLOT_PATH + gpd_type + particle + "GPD_" + moment_label + "_comparison" + ".pdf"
+    plt.savefig(FILE_PATH,format="pdf",bbox_inches="tight")
+    plt.show()  
 
 def plot_singlet_quark_gpd(eta, t, mu, Nf=3, moment_label="A", real_imag="real", sampling=True, n_init=os.cpu_count(), n_points=20, x_0=1e-2, x_1=1, error_bars=True):
     """
@@ -3985,7 +4365,7 @@ def plot_singlet_quark_gpd(eta, t, mu, Nf=3, moment_label="A", real_imag="real",
 
     plt.xlim(x_0, x_1)
     plt.xlabel('x')
-    plt.legend()
+    plt.legend(fontsize=10, markerscale=1.5)
     plt.grid(True)
     plt.show()
 
@@ -4137,7 +4517,7 @@ def plot_non_singlet_quark_gpd(eta, t, mu, Nf=3, moment_type="NonSingletIsovecto
 
     plt.xlim(x_0, x_1)
     plt.xlabel('x')
-    plt.legend()
+    plt.legend(fontsize=10, markerscale=1.5)
     plt.grid(True)
     plt.show()
     
@@ -4283,7 +4663,163 @@ def plot_gluon_gpd(eta, t, mu, Nf=3,moment_label="A", real_imag="real", sampling
 
     plt.xlim(x_0, x_1)
     plt.xlabel('x')
-    plt.legend()
+    plt.legend(fontsize=10, markerscale=1.5)
     plt.grid(True)
     plt.show()
 
+def plot_gpds(particle="quark",moment_type="NonSingletIsovector",moment_label="A",sampling=True, n_init=os.cpu_count(), n_points=50, x_0=-1, x_1=1, y_0 = -1e-2, y_1 = 3, error_bars=True, plot_legend = False):
+    """
+    Plot the real or imaginary part of the singlet quark GPD
+    with dynamically adjusted x intervals, including error bars.
+    The function supports both positive and negative values of parton x.
+
+    Parameters:
+    - sampling (True or False): Choose whether to plot using importance sampling  
+    - n_init (int): Sampling size, default is available number of CPUs
+    - n_points (int): Number of plot points
+    - x_0 (float): lower bound on parton x
+    - x_1 (float): upper bound on parton x
+    - error_bars (bool): Compute error bars as well
+    - plot_legend (bool): Show plot legend
+    """
+    check_particle_type(particle)
+    check_moment_type_label(moment_type,moment_label)
+    # Set plot parameters
+    Nf, mu = 3,2
+    
+    eta_array = [0.0,0.1,1/3]
+    t_array = [-1e-4,-0.23,-0.69]
+    colors = ["purple","orange","green"]
+    # eta_array = [0.0,0.1]
+    # t_array = [-1e-4,-0.23]
+    # colors = ["purple","orange"]
+
+    if moment_type == "Singlet":
+        x_0 = 1e-2
+
+    def compute_result(x, eta,t,mu,error_type="central"):
+        return mellin_barnes_gpd(x, eta, t, mu, Nf,particle,moment_type,moment_label, real_imag="real", error_type=error_type,n_jobs=1)
+        # Test
+        # if error_type == "central":
+        #     norm = 1
+        # elif error_type == "plus":
+        #     norm = 1.1
+        # elif error_type == "minus":
+        #     norm =.9
+        # return norm * (x + eta + t)
+
+    for eta, t, color in zip(eta_array,t_array,colors):
+        if sampling:
+
+            x_values = np.linspace(x_0, x_1, n_init)
+
+            # Measure time for sampling initial points
+            start_time_sampling = time.time()
+            results = Parallel(n_jobs=-1)(delayed(compute_result)(x,eta,t,mu) for x in x_values)
+            end_time_sampling = time.time()
+
+            # Compute differences and scale intervals
+            diffs = np.abs(np.diff(results))
+            # Ensure diffs is not zero for power
+            diffs += 1e-6
+            scaled_intervals = np.power(diffs, 0.5) / np.sum(np.power(diffs, 0.5))
+            cumulative_intervals = np.cumsum(np.insert(scaled_intervals, 0, 0))
+            cumulative_intervals = x_0 + (x_1 - x_0) * (
+                cumulative_intervals - cumulative_intervals[0]) / (
+                    cumulative_intervals[-1] - cumulative_intervals[0])
+
+            # Output sampling time
+            print(f"Time for initial sampling for parameters (eta,t) = ({eta,t}): {end_time_sampling - start_time_sampling:.6f} seconds")
+
+        # Measure time for adaptive grid computation
+        start_time_adaptive = time.time()
+        if sampling:
+            x_values = np.interp(np.linspace(x_0, x_1, n_points), cumulative_intervals, x_values)
+        else:
+            x_values = np.linspace(x_0, x_1, n_points)
+
+        # Add crossover points
+        if eta not in x_values:
+            x_values = np.append(x_values,eta)
+        if - eta not in x_values and x_0 < 0:
+            x_values = np.append(x_values,-eta)
+        x_values = np.sort(x_values)
+        
+        results = Parallel(n_jobs=-1)(delayed(compute_result)(x,eta,t,mu) for x in x_values)
+
+        # Error bar computations
+        if error_bars:
+            results_plus = Parallel(n_jobs=-1)(delayed(compute_result)(x,eta,t,mu, error_type="plus") for x in x_values)
+            results_minus = Parallel(n_jobs=-1)(delayed(compute_result)(x,eta,t,mu, error_type="minus") for x in x_values)
+        else:
+            results_plus = results
+            results_minus = results
+        end_time_adaptive = time.time()
+
+        # Extract real and imaginary parts of results
+        # x_values, unique_indices = np.unique(x_values, return_index=True)
+        # data = np.real(results)[unique_indices]
+
+        # # Compute real and imaginary error bars
+        # errors_plus = abs(np.real(results_plus)[unique_indices] - data)
+        # errors_minus = abs(data - np.real(results_minus)[unique_indices])
+
+        # Output plot generation time
+        print(f"Time for plot computation for parameters (eta,t) = ({eta,t}): {end_time_adaptive - start_time_adaptive:.6f} seconds")
+
+        # if error_bars:
+        #         plt.errorbar(
+        #             x_values, data,
+        #             yerr=(errors_minus, errors_plus),
+        #             fmt='o', label=(f"$\\eta={eta:.2f}$"
+        #                             f"$t={t:.2f} \\text{{ GeV}}^2$"),
+        #             color=color, capsize=3
+        #         )
+        # else:
+        #     plt.scatter(
+        #             x_values, data,
+        #             label=(f"$\\eta={eta:.2f}$"
+        #                         f"$t={t:.2f} \\text{{ GeV}}^2$"),
+        #             color=color
+        #         )
+        if error_bars:
+            plt.plot(x_values, results,label=(f"$\\eta={eta:.2f}$, "
+                    f"$t={t:.2f} \\text{{ GeV}}^2$"), color=color)
+            plt.fill_between(x_values,results_minus,results_plus,color=color,alpha=.2)
+        else:
+            plt.plot(x_values, results,label=(f"$\\eta={eta:.2f}$, "
+                    f"$t={t:.2f} \\text{{ GeV}}^2$"), color=color)
+        # Add vertical lines to separate DGLAP from ERBL region
+        plt.axvline(x=eta, linestyle='--', color = color)   
+        plt.axvline(x=-eta, linestyle='--', color = color)
+
+    plt.xlim(x_0, x_1)
+    plt.ylim(y_0,y_1)
+    plt.xlabel('x')
+    if moment_type == "NonSingletIsovector" and moment_label == "A":
+        ylabel = "$H_{u-d}(x,\eta,t;\mu)$"
+    elif moment_type == "NonSingletIsoscalar" and moment_label == "A":
+        ylabel = "$H_{u+d}(x,\eta,t;\mu)$"
+    elif moment_type == "NonSingletIsovector" and moment_label == "Atilde":
+        ylabel = r"$\widetilde{H}_{u-d}(x,\eta,t;\mu)$"
+    elif moment_type == "NonSingletIsoscalar" and moment_label == "Atilde":
+        ylabel = r"$\widetilde{H}_{u+d}(x,\eta,t;\mu)$"
+    elif moment_type == "Singlet" and moment_label == "A":
+        if particle == "quark":
+            ylabel = "$H_{u+d+s}(x,\eta,t;\mu)$"
+        else: 
+            ylabel = "$H_{g}(x,\eta,t;\mu)$"
+    elif moment_type == "Singlet" and moment_label == "Atilde":
+        if particle == "quark":
+            ylabel = r"$\widetilde{H}_{u+d+s}(x,\eta,t;\mu)$"
+        else: 
+            ylabel = r"$\widetilde{H}_{g}(x,\eta,t;\mu)$"
+    plt.ylabel(ylabel, fontsize=14)
+    if plot_legend:
+        plt.legend(fontsize=10, markerscale=1.5)
+    plt.grid(True)
+    # Export
+    FILE_PATH = PLOT_PATH + moment_type + particle + "GPD_" + moment_label +".pdf"
+    plt.savefig(FILE_PATH,format="pdf",bbox_inches="tight")
+
+    plt.show()
