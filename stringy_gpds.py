@@ -2,6 +2,7 @@
 import numpy as np
 import mpmath as mp
 import matplotlib.pyplot as plt
+import matplotlib.ticker as mticker
 from scipy.integrate import quad, trapezoid
 from joblib import Parallel, delayed
 from scipy.special import gamma, digamma
@@ -13,7 +14,13 @@ import os
 from mstw_pdf import MSTW_PDF,MSTW_PDF_LO
 from aac_pdf import AAC_PDF, AAC_PDF_LO
 
-
+########################################
+#### Currently enforced assumptions ####
+########################################
+# singlet_moment for B GPD set to zero #
+# Normalizations of isoscalar_moment   #
+#
+#
 ########################################
 #### Dictionaries and data handling ####
 ########################################
@@ -27,6 +34,7 @@ PUBLICATION_MAPPING = {
     "2305.11117": ("cyan",2),
     "0705.4295": ("orange",2),
     "1908.10706": (saturated_pink,2),
+    "2310.08484": ("darkblue",2),
     "2410.03539": ("green",2)
 # Add more publication IDs and corresponding colors here
 }
@@ -88,7 +96,7 @@ def get_regge_slope(moment_type,moment_label,evolve_type):
                 alpha_prime = 0.658
                 return alpha_prime
             if moment_label == "B":
-                alpha_prime = 1.480
+                alpha_prime = 1.460
                 return alpha_prime                
         if moment_type == "NonSingletIsoscalar":
             if moment_label == "A":
@@ -98,10 +106,10 @@ def get_regge_slope(moment_type,moment_label,evolve_type):
                 alpha_prime = 0.957
                 return alpha_prime
             if moment_label == "B":
-                alpha_prime = 1.124
+                alpha_prime = 1.13
                 return alpha_prime
         if moment_type == "Singlet":
-            if moment_label in ["A"]:
+            if moment_label in ["A","B"]:
                 alpha_prime_s = 1.828
                 alpha_prime_T = 0.627
                 alpha_prime_S = 4.277
@@ -116,7 +124,7 @@ def get_regge_slope(moment_type,moment_label,evolve_type):
                 alpha_prime = 0.297522
                 return alpha_prime
         if moment_type == "Singlet":
-            if moment_label in ["Atilde"]:
+            if moment_label in ["Atilde","Btilde"]:
                 # Assuming that the exchange is solely
                 # carried by the eta prime meson trajectory
                 alpha_prime_s = 1.179
@@ -1739,6 +1747,8 @@ def integral_polarized_gluon_pdf_regge(j,eta,alpha_p,t, error_type="central"):
         gamma_pol = AAC_PDF_LO.iloc[index_delta_gamma_g,0][0]
         lambda_pol = AAC_PDF_LO.iloc[index_delta_lambda_g,0][0]
 
+        # We shift by j-1 such that the moments come out right
+        # Thus, we need to add a factor of x when resumming the GPD
         pdf = integral_polarized_pdf_regge(A_pdf,eta_1,eta_2,epsilon,gamma_pdf,
                                            delta_A_pdf,alpha,gamma_pol,lambda_pol,
                                            j,alpha_p,t)
@@ -1757,6 +1767,9 @@ def integral_polarized_gluon_pdf_regge(j,eta,alpha_p,t, error_type="central"):
 
 # Define Reggeized conformal moments
 def non_singlet_isovector_moment(j,eta,t, moment_label="A",evolve_type="vector", error_type="central"):
+    """
+    Currently no skewness dependence!
+    """
    # Check type
     check_error_type(error_type)
     check_moment_type_label("NonSingletIsovector",moment_label)
@@ -1768,13 +1781,13 @@ def non_singlet_isovector_moment(j,eta,t, moment_label="A",evolve_type="vector",
         if moment_label == "A":
             norm, gud = 1, 1
         if moment_label == "B":
-            norm, gud = 3.86554, 1
+            norm, gud = 3.83651, 1
         uv, uv_error = integral_uv_pdf_regge(j,eta,alpha_prime,t,error_type)
         dv, dv_error = integral_dv_pdf_regge(j,eta,alpha_prime,t,error_type)
     elif moment_label =="Atilde":
        #norm, gu, gd = 1.29597 , 0.926, 0.341
        #result = norm * (gu * integral_polarized_uv_pdf_regge(j,eta,alpha_prime,t,error_type) - gd * integral_polarized_dv_pdf_regge(j,eta,alpha_prime,t,error_type))
-       norm, gud = 0.78682, 1.110
+       norm, gud = 0.78682, 1.2723
        uv, uv_error = integral_polarized_uv_pdf_regge(j,eta,alpha_prime,t,error_type)
        dv, dv_error = integral_polarized_dv_pdf_regge(j,eta,alpha_prime,t,error_type)
 
@@ -1795,6 +1808,9 @@ def u_minus_d_pdf_regge(j,eta,t, error_type="central"):
                     -integral_Delta_pdf_regge(j,alpha_prime,t,error_type))
 
 def non_singlet_isoscalar_moment(j,eta,t, moment_label="A",evolve_type="vector", error_type="central"):
+    """
+    Currently no skewness dependence!
+    """
     # Check type
     check_error_type(error_type)
     check_moment_type_label("NonSingletIsoscalar",moment_label)
@@ -1806,13 +1822,13 @@ def non_singlet_isoscalar_moment(j,eta,t, moment_label="A",evolve_type="vector",
         if moment_label == "A":
            norm, gud = 1, 1
         if moment_label == "B":
-            norm, gud = -0.122278, 1
+            norm, gud = -0.122, 1
         uv, uv_error = integral_uv_pdf_regge(j,eta,alpha_prime,t,error_type)
         dv, dv_error = integral_dv_pdf_regge(j,eta,alpha_prime,t,error_type)
     elif moment_label =="Atilde":
        #norm, gu, gd = 0.783086 , 0.926, 0.341
        #result = norm * (gu * integral_polarized_uv_pdf_regge(j,eta,alpha_prime,t,error_type) + gd * integral_polarized_dv_pdf_regge(j,eta,alpha_prime,t,error_type))
-        norm, gud = 1.71407, 0.625
+        norm, gud = 1.71407, 0.4044
         uv, uv_error = integral_polarized_uv_pdf_regge(j,eta,alpha_prime,t,error_type)
         dv, dv_error = integral_polarized_dv_pdf_regge(j,eta,alpha_prime,t,error_type)
     error = error_sign(np.sqrt(uv_error**2+dv_error**2),error_type)
@@ -1947,6 +1963,11 @@ def quark_singlet_regge(j,eta,t,Nf=3,moment_label="A",evolve_type="vector",error
     check_evolve_type(evolve_type)
     check_moment_type_label("Singlet",moment_label)
     
+    if moment_label == "B":
+        prf = -1
+    else:
+        prf = +1
+
     # alpha_prime_ud = 0.891
     # alpha_prime_s = 1.828
     alpha_prime_ud = get_regge_slope("NonSingletIsoscalar",moment_label,evolve_type)
@@ -1957,7 +1978,7 @@ def quark_singlet_regge(j,eta,t,Nf=3,moment_label="A",evolve_type="vector",error
     sum_squared = error_1**2 + error_2**2
     error = np.frompyfunc(mp.sqrt, 1, 1)(sum_squared)
     #error = np.array(mp.sqrt(error_1**2+error_2**2))
-    result = term_1 + term_2
+    result = term_1 + prf * term_2
     return result, error
 
 def gluon_regge_A(j,eta,t, alpha_prime_T = 0.627,moment_label="A", error_type="central"):
@@ -1997,6 +2018,11 @@ def gluon_singlet_regge(j,eta,t,moment_label="A",evolve_type="vector", error_typ
     check_evolve_type(evolve_type)
     check_moment_type_label("Singlet",moment_label)
 
+    if moment_label == "B":
+        prf = -1
+    else:
+        prf = +1
+
     _, alpha_prime_T, alpha_prime_S = get_regge_slope("Singlet",moment_label,evolve_type)
     term_1, error_1 = gluon_regge_A(j,eta,t,alpha_prime_T,moment_label,error_type)
     if eta == 0:
@@ -2007,7 +2033,7 @@ def gluon_singlet_regge(j,eta,t,moment_label="A",evolve_type="vector", error_typ
         sum_squared = error_1**2 + error_2**2
         error = np.frompyfunc(mp.sqrt, 1, 1)(sum_squared)
         #error = np.array(mp.sqrt(error_1**2+error_2**2))
-        result = term_1 + term_2
+        result = term_1 + prf * term_2
     return result, error
 
 def singlet_moment(j,eta,t,Nf=3,moment_label="A",evolve_type="vector",solution="+",error_type="central"):
@@ -2750,52 +2776,6 @@ def get_j_base(particle="quark",moment_type="NonSingletIsovector", moment_label=
             j_base, parity = 1.6, "odd"
     
     return j_base, parity
-# def get_j_base(particle="quark",moment_label="A",parity="none"):
-#     # check_particle_type(particle)
-#     # check_parity(parity).
-#     if moment_label == "A":
-#         if particle == "quark":
-#             if parity == "even":
-#                 print(f"j_base_q of parity {parity} is tbd")
-#                 j_base = 1.1
-#             elif parity == "odd":
-#                 j_base = 2.7
-#             elif parity == "none":
-#                 j_base = .95
-#             return j_base 
-#         elif particle == "gluon":
-#             if parity == "even":
-#                 j_base = 3
-#             elif parity == "odd":
-#                 print(f"j_base_g of parity {parity} is tbd")
-#                 j_base = 2
-#             elif parity == "none":
-#                 print(f"j_base_g of parity {parity} is tbd")
-#                 j_base = 2
-#             else :
-#                 raise ValueError("Parity must be even, odd or none")
-#     if moment_label == "Atilde":
-#         if particle == "quark":
-#             if parity == "even":
-#                 print(f"j_base_q of parity {parity} is tbd")
-#                 j_base = 1.1
-#             elif parity == "odd":
-#                 j_base = 2.7
-#             elif parity == "none":
-#                 j_base = .95
-#             return j_base 
-#         elif particle == "gluon":
-#             if parity == "even":
-#                 j_base = 2.7
-#             elif parity == "odd":
-#                 print(f"j_base_g of parity {parity} is tbd")
-#                 j_base = 2
-#             elif parity == "none":
-#                 print(f"j_base_g of parity {parity} is tbd")
-#                 j_base = 2
-#             else :
-#                 raise ValueError("Parity must be even, odd or none")
-#         return j_base
 
 
 
@@ -3014,6 +2994,7 @@ def mellin_barnes_gpd(x, eta, t, mu, Nf=3, particle = "quark", moment_type="Sing
         error = real_error + 1j * imag_error
     else :
     # Sum the results from all subintervals for real and imaginary parts, and accumulate the errors
+
         integral = sum(result[0] for result in results)
         error = np.sqrt(sum(result[1]**2 for result in results))
         
@@ -3229,19 +3210,34 @@ def plot_moment(n,eta,y_label,mu_in=2,t_max=3,Nf=3,particle="quark",moment_type=
     # Compute results for the evolution functions
     def compute_results(j, eta, t_vals, mu, Nf=3, particle="quark", moment_type="NonSingletIsovector", moment_label="A"):
         """Compute central, plus, and minus results for a given evolution function."""
-        results = Parallel(n_jobs=-1)(
-            delayed(lambda t: float(evolve_conformal_moment(j, eta, t, mu, Nf, particle, moment_type, moment_label, "central")))(t)
-            for t in t_vals
-        )
-        results_plus = Parallel(n_jobs=-1)(
-            delayed(lambda t: float(evolve_conformal_moment(j, eta, t, mu, Nf, particle, moment_type, moment_label, "plus")))(t)
-            for t in t_vals
-        )
-        results_minus = Parallel(n_jobs=-1)(
-            delayed(lambda t: float(evolve_conformal_moment(j, eta, t, mu, Nf, particle, moment_type, moment_label, "minus")))(t)
-            for t in t_vals
-        )
-        return results, results_plus, results_minus
+        if moment_type != "D":
+            results = Parallel(n_jobs=-1)(
+                delayed(lambda t: float(evolve_conformal_moment(j, eta, t, mu, Nf, particle, moment_type, moment_label, "central")))(t)
+                for t in t_vals
+            )
+            results_plus = Parallel(n_jobs=-1)(
+                delayed(lambda t: float(evolve_conformal_moment(j, eta, t, mu, Nf, particle, moment_type, moment_label, "plus")))(t)
+                for t in t_vals
+            )
+            results_minus = Parallel(n_jobs=-1)(
+                delayed(lambda t: float(evolve_conformal_moment(j, eta, t, mu, Nf, particle, moment_type, moment_label, "minus")))(t)
+                for t in t_vals
+            )
+            return results, results_plus, results_minus
+        else:
+            results = Parallel(n_jobs=-1)(
+                delayed(lambda t: float(evolve_singlet_D(j, eta, t, mu, Nf, particle, moment_label, "central")))(t)
+                for t in t_vals
+            )
+            results_plus = Parallel(n_jobs=-1)(
+                delayed(lambda t: float(evolve_singlet_D(j, eta, t, mu, Nf, particle, moment_label, "plus")))(t)
+                for t in t_vals
+            )
+            results_minus = Parallel(n_jobs=-1)(
+                delayed(lambda t: float(evolve_singlet_D(j, eta, t, mu, Nf, particle, moment_label, "minus")))(t)
+                for t in t_vals
+            )
+            return results, results_plus, results_minus
 
     # Define the finer grid for t-values
     t_fine = np.linspace(-t_max, 0, n_t)
@@ -3282,48 +3278,95 @@ def plot_moment(n,eta,y_label,mu_in=2,t_max=3,Nf=3,particle="quark",moment_type=
     
     plt.show()
 
-def plot_moments_on_grid(eta, y_label, t_max=3, Nf=3, particle="quark", moment_type="NonSingletIsovector", moment_label="A", n_t=50, num_columns=3):
+def plot_moments_on_grid(eta, y_label, t_max=3, Nf=3, particle="quark", moment_type="NonSingletIsovector", moment_label="A", n_t=50, num_columns=3,D_term = False,set_y_lim=False,y_0 = -1, y_1 =1):
+    """
+    Plots conformal moments vs. available lattice data.
+
+    Parameters:
+    - eta (float): Skewness parameter
+    - y_label (str.): Label on y-axis
+    - t_max (float, optional): Maximum value of -t
+    - N_f (float, optional): Number of active flavors
+    - particle (str. optional): quark or gluon
+    - moment_type (str. optional): NonSingletIsovector, Singlet...
+    - moment_label (str. optional): A, B, Atilde,...
+    - n_t (int. optional): Number of points for plot generation
+    - num_columns (int. optional): Number of points for plot generation
+    - D_term (bool, optional): Whether to plot the D term separately, which is computetd from the difference between skewless and skewness dependent moment
+    - set_y_lim (bool, optional): Whether to manually set the limits on the y_axis
+    - y_0 (float, optional): lower limit on y_axis
+    - y_1 (float, optional): upper limit on y_axis
+    """
     check_particle_type(particle)
     check_moment_type_label(moment_type, moment_label)
 
+    if moment_type != "Singlet":
+        data_moment_type = moment_type
+    else:
+        if particle == "quark":
+            data_moment_type = moment_type + "Quark"
+        else:
+            data_moment_type = moment_type + "Gluon"
+    if not D_term:
+        data_moment_label = moment_label
+    else:
+        data_moment_label = "D"
+
     # Accessor functions for -t, values, and errors
-    def t_values(moment_type, moment_label, pub_id):
+    def t_values(data_moment_type, data_moment_label, pub_id):
         """Return the -t values for a given moment type, label, and publication ID."""
-        data, n_to_row_map = load_lattice_moment_data(moment_type, moment_label, pub_id)
+        data, n_to_row_map = load_lattice_moment_data(data_moment_type, data_moment_label, pub_id)
 
         if data is None and n_to_row_map is None:
-            print(f"No data found for {moment_type} {moment_label} {pub_id}. Skipping.")
+            print(f"No data found for {data_moment_type} {data_moment_label} {pub_id}. Skipping.")
             return None 
         
         if data is not None:
             return data[:, 0]
         else:
-            print(f"Data is None for {moment_type} {moment_label} {pub_id}. Skipping.")
+            print(f"Data is None for {data_moment_type} {data_moment_label} {pub_id}. Skipping.")
         return None  
 
     def compute_results(j, eta, t_vals, mu, Nf=3, particle="quark", moment_type="NonSingletIsovector", moment_label="A"):
         """Compute central, plus, and minus results for a given evolution function."""
-        results = Parallel(n_jobs=-1)(
-            delayed(lambda t: float(evolve_conformal_moment(j, eta, t, mu, Nf, particle, moment_type, moment_label, "central")))(t)
-            for t in t_vals
-        )
-        results_plus = Parallel(n_jobs=-1)(
-            delayed(lambda t: float(evolve_conformal_moment(j, eta, t, mu, Nf, particle, moment_type, moment_label, "plus")))(t)
-            for t in t_vals
-        )
-        results_minus = Parallel(n_jobs=-1)(
-            delayed(lambda t: float(evolve_conformal_moment(j, eta, t, mu, Nf, particle, moment_type, moment_label, "minus")))(t)
-            for t in t_vals
-        )
-        return results, results_plus, results_minus
-
-    t_fine = np.linspace(-t_max, 0, n_t)
+        if not D_term:
+            results = Parallel(n_jobs=-1)(
+                delayed(lambda t: float(evolve_conformal_moment(j, eta, t, mu, Nf, particle, moment_type, moment_label, "central")))(t)
+                for t in t_vals
+            )
+            results_plus = Parallel(n_jobs=-1)(
+                delayed(lambda t: float(evolve_conformal_moment(j, eta, t, mu, Nf, particle, moment_type, moment_label, "plus")))(t)
+                for t in t_vals
+            )
+            results_minus = Parallel(n_jobs=-1)(
+                delayed(lambda t: float(evolve_conformal_moment(j, eta, t, mu, Nf, particle, moment_type, moment_label, "minus")))(t)
+                for t in t_vals
+            )
+            return results, results_plus, results_minus
+        else:
+            results = Parallel(n_jobs=-1)(
+                delayed(lambda t: float(evolve_singlet_D(j, eta, t, mu, Nf, particle, moment_label, "central")))(t)
+                for t in t_vals
+            )
+            results_plus = Parallel(n_jobs=-1)(
+                delayed(lambda t: float(evolve_singlet_D(j, eta, t, mu, Nf, particle, moment_label, "plus")))(t)
+                for t in t_vals
+            )
+            results_minus = Parallel(n_jobs=-1)(
+                delayed(lambda t: float(evolve_singlet_D(j, eta, t, mu, Nf, particle, moment_label, "minus")))(t)
+                for t in t_vals
+            )
+            return results, results_plus, results_minus
+    if D_term:
+        t_fine = np.linspace(-t_max, -1e-3, n_t)
+    else:
+        t_fine = np.linspace(-t_max, 0, n_t)
 
     # Initialize publication data
     publication_data = {}
     mu = None
     for pub_id, (color,mu) in PUBLICATION_MAPPING.items():
-        data, n_to_row_map = load_lattice_moment_data(moment_type, moment_label, pub_id)
+        data, n_to_row_map = load_lattice_moment_data(data_moment_type, data_moment_label, pub_id)
         if data is None and n_to_row_map is None:
             continue
         num_n_values = (data.shape[1] - 1) // 2
@@ -3334,9 +3377,10 @@ def plot_moments_on_grid(eta, y_label, t_max=3, Nf=3, particle="quark", moment_t
 
     if publication_data:
         max_n_value = max(publication_data.values())
+        if moment_type == "Singlet":
+            max_n_value+=1
     else:
         max_n_value = 4
-
     # Calculate rows for grid layout
     num_rows = (max_n_value + num_columns - 1) // num_columns
 
@@ -3348,7 +3392,7 @@ def plot_moments_on_grid(eta, y_label, t_max=3, Nf=3, particle="quark", moment_t
         n_0 = 2
     else:
         n_0 = 1
-
+ 
     for n in range(n_0, max_n_value + 1):
         ax = axes[n - 1]  # Select the appropriate axis
         
@@ -3364,12 +3408,12 @@ def plot_moments_on_grid(eta, y_label, t_max=3, Nf=3, particle="quark", moment_t
         # Plot data from publications
         if publication_data:
             for pub_id, (color, mu) in PUBLICATION_MAPPING.items():
-                data, n_to_row_map = load_lattice_moment_data(moment_type, moment_label, pub_id)
+                data, n_to_row_map = load_lattice_moment_data(data_moment_type, data_moment_label, pub_id)
                 if data is None or n not in n_to_row_map:
                     continue
-                t_vals = t_values(moment_type, moment_label, pub_id)
-                Fn0_vals = Fn0_values(n, moment_type, moment_label, pub_id)
-                Fn0_errs = Fn0_errors(n, moment_type, moment_label, pub_id)
+                t_vals = t_values(data_moment_type, data_moment_label, pub_id)
+                Fn0_vals = Fn0_values(n, data_moment_type, data_moment_label, pub_id)
+                Fn0_errs = Fn0_errors(n, data_moment_type, data_moment_label, pub_id)
                 ax.errorbar(t_vals, Fn0_vals, yerr=Fn0_errs, fmt='o', color=color, label=f"{pub_id}")
             ax.legend()
 
@@ -3379,9 +3423,11 @@ def plot_moments_on_grid(eta, y_label, t_max=3, Nf=3, particle="quark", moment_t
  
         ax.grid(True, which="both")
         ax.set_xlim([0, t_max])
+        if set_y_lim:
+            ax.set_ylim([y_0,y_1])
 
         # Save each plot as a separate PDF (including publication data)
-        pdf_path = f"{PLOT_PATH}{moment_type}_{particle}_{moment_label}_n_{n}.pdf"
+        pdf_path = f"{PLOT_PATH}{moment_type}_{particle}_{data_moment_label}_n_{n}.pdf"
         
         # Create a new figure to save the current plot as a PDF
         fig_single, ax_single = plt.subplots(figsize=(7, 5))  # New figure for saving each plot
@@ -3393,19 +3439,20 @@ def plot_moments_on_grid(eta, y_label, t_max=3, Nf=3, particle="quark", moment_t
         # Plot data from publications
         if publication_data:
             for pub_id, (color, mu) in PUBLICATION_MAPPING.items():
-                data, n_to_row_map = load_lattice_moment_data(moment_type, moment_label, pub_id)
+                data, n_to_row_map = load_lattice_moment_data(data_moment_type, data_moment_label, pub_id)
                 if data is None or n not in n_to_row_map:
                     continue
-                t_vals = t_values(moment_type, moment_label, pub_id)
-                Fn0_vals = Fn0_values(n, moment_type, moment_label, pub_id)
-                Fn0_errs = Fn0_errors(n, moment_type, moment_label, pub_id)
+                t_vals = t_values(data_moment_type, data_moment_label, pub_id)
+                Fn0_vals = Fn0_values(n, data_moment_type, data_moment_label, pub_id)
+                Fn0_errs = Fn0_errors(n, data_moment_type, data_moment_label, pub_id)
                 ax_single.errorbar(t_vals, Fn0_vals, yerr=Fn0_errs, fmt='o', color=color, label=f"{pub_id}")
             ax_single.legend()
         ax_single.set_xlabel("$-t\,[\mathrm{GeV}^2]$", fontsize=14)
         ax_single.set_ylabel(f"{y_label}$(j={n}, \\eta=0, t, \\mu={mu}\, \\mathrm{{GeV}})$", fontsize=14)
         ax_single.grid(True, which="both")
         ax_single.set_xlim([0, t_max])
-
+        if set_y_lim:
+            ax_single.set_ylim([y_0,y_1])
         plt.tight_layout()
         plt.savefig(pdf_path, format="pdf", bbox_inches="tight")
         plt.close(fig_single)
@@ -3445,6 +3492,8 @@ def plot_moments_D_on_grid(t_max, mu, Nf=3, n_t=50,display="both"):
     if display not in ["quark", "gluon", "both"]:
         raise ValueError("Invalid value for display. Use 'quark', 'gluon', or 'both'.")
     
+
+
     # Compute results for the evolution functions
     def compute_results_D(j, eta, t_vals, mu, Nf=3, particle="quark", moment_type="NonSingletIsovector", moment_label="A"):
         """Compute central, plus, and minus results for a given evolution function."""
@@ -4284,6 +4333,7 @@ def plot_fourier_transform_singlet_helicity(eta, mu, Nf=3, particle = "gluon",
     - read_from_file (bool): Whether to load data from file system
     - write_to_file (bool): Whether to write data to file system
     """   
+    
     if write_to_file and read_from_file:
         raise ValueError("write_to_file and read_from_file can't simultaneously be True")
     
@@ -4398,8 +4448,8 @@ def plot_fourier_transform_singlet_helicity(eta, mu, Nf=3, particle = "gluon",
             ax_lower.set_ylim([ymin, ymax ])
             ax_lower.set_ylabel(rf'$S_z^{title}$', fontsize=14)
 
-    plt.subplots_adjust(wspace=0, hspace=0)
-    plt.savefig(FILE_PATH,format="pdf",bbox_inches="tight")
+    fig.subplots_adjust(wspace=0, hspace=0)
+    fig.savefig(FILE_PATH,format="pdf",bbox_inches="tight")
 
     if write_to_file:
         file_name = generate_filename(eta,0,mu,READ_WRITE_PATH,"central")
@@ -4441,6 +4491,7 @@ def plot_fourier_transform_singlet_spin_orbit_correlation(eta, mu, Nf=3, particl
     - read_from_file (bool): Whether to load data from file system
     - write_to_file (bool): Whether to write data to file system
     """   
+    
     if write_to_file and read_from_file:
         raise ValueError("write_to_file and read_from_file can't simultaneously be True")
     
@@ -4556,8 +4607,8 @@ def plot_fourier_transform_singlet_spin_orbit_correlation(eta, mu, Nf=3, particl
             ax_lower.set_ylim([ymin, ymax ])
             ax_lower.set_ylabel(rf'$C_z^{title}$', fontsize=14)
 
-    plt.subplots_adjust(wspace=0, hspace=0)
-    plt.savefig(FILE_PATH,format="pdf",bbox_inches="tight")
+    fig.subplots_adjust(wspace=0, hspace=0)
+    fig.savefig(FILE_PATH,format="pdf",bbox_inches="tight")
 
     # Adjust layout and show the plot
     plt.show()
@@ -5063,6 +5114,9 @@ def plot_gpd_data(Nf=3,particle="quark",gpd_type="NonSingletIsovector",gpd_label
     if write_to_file and read_from_file:
         raise ValueError("write_to_file and read_from_file can't simultaneously be True")
 
+    # Initialize plot
+    fig, ax = plt.subplots(figsize=(6, 4), constrained_layout=True)
+
     for (pub_id,gpd_type_data,gpd_label_data,eta,t,mu), (color,_) in GPD_PUBLICATION_MAPPING.items():
         # Check whether type and label agree with input
         if gpd_type_data != gpd_type or gpd_label_data != gpd_label:
@@ -5187,20 +5241,20 @@ def plot_gpd_data(Nf=3,particle="quark",gpd_type="NonSingletIsovector",gpd_label
             print(f"Time for plot computation for parameters (eta,t) = ({eta,t}): {end_time_adaptive - start_time_adaptive:.6f} seconds")
 
             if error_bars:
-                plt.plot(x_val, results,label=(f"$\\eta={eta:.2f}$, "
+                ax.plot(x_val, results,label=(f"$\\eta={eta:.2f}$, "
                         f"$t={t:.2f} \\text{{ GeV}}^2$, "), color=color)#f"$\\mu={mu:.2f} \\text{{ GeV}}$"), color=color)
-                plt.fill_between(x_val,results_minus,results_plus,color=color,alpha=.2)
+                ax.fill_between(x_val,results_minus,results_plus,color=color,alpha=.2)
             else:
-                plt.plot(x_val, results,label=(f"$\\eta={eta:.2f}$, "
+                ax.plot(x_val, results,label=(f"$\\eta={eta:.2f}$, "
                         f"$t={t:.2f} \\text{{ GeV}}^2$, "), color=color)#f"$\\mu={mu:.2f} \\text{{ GeV}}$"), color=color)
-            plt.errorbar(x_lin, gpd_errorbar_plot_values, yerr=gpd_errorbar_plot_errors, fmt='o', color=color,markersize = 4)
+            ax.errorbar(x_lin, gpd_errorbar_plot_values, yerr=gpd_errorbar_plot_errors, fmt='o', color=color,markersize = 4)
         else: 
         # Errorbar plot for interpolation
             plt.errorbar(x_lin, gpd_errorbar_plot_values, yerr=gpd_errorbar_plot_errors, fmt='o', color=color,label=(f"$\\eta={eta:.2f}$, "
                         f"$t={t:.2f} \\text{{ GeV}}^2$, "))#f"$\\mu={mu:.2f} \\text{{ GeV}}$"),markersize = 4)
 
-        plt.axvline(x=eta, linestyle='--', color = color)   
-        plt.axvline(x=-eta, linestyle='--', color = color)
+        ax.axvline(x=eta, linestyle='--', color = color)   
+        ax.axvline(x=-eta, linestyle='--', color = color)
 
         # Interpolation line
         #plt.plot(x_fine, gpd_interpolation["central"], '-', color=color,label=f'$\eta = {eta},\ t ={t:.2f}\\ GeV $')
@@ -5210,16 +5264,15 @@ def plot_gpd_data(Nf=3,particle="quark",gpd_type="NonSingletIsovector",gpd_label
         #plt.fill_between(x_fine, gpd_interpolation["minus"], gpd_interpolation["plus"], alpha=0.2, color=color) 
 
 
-    plt.ylim(y_0, y_1)
-    plt.xlabel("x")  # Add axis labels
-    plt.ylabel(y_label, fontsize =14)
+    ax.set_ylim(y_0, y_1)
+    ax.set_xlabel("x")  # Add axis labels
+    ax.set_ylabel(y_label, fontsize =14)
     if plot_legend:
-        plt.legend(fontsize=10, markerscale=1.5)
-    plt.grid(True)  # Add a grid for better readability
+        ax.legend(fontsize=10, markerscale=1.5)
+    ax.grid(True)  # Add a grid for better readability
 
     FILE_PATH = PLOT_PATH + gpd_type + particle + "GPD_" + gpd_label + "_comparison" + ".pdf"
-    plt.savefig(FILE_PATH,format="pdf",bbox_inches="tight")
-    plt.show()  
+    fig.savefig(FILE_PATH,format="pdf",bbox_inches="tight")
 
 def plot_singlet_quark_gpd(eta, t, mu, Nf=3, moment_label="A", real_imag="real", sampling=True, n_init=os.cpu_count(), n_points=20, x_0=1e-2, x_1=1, error_bars=True):
     """
@@ -5666,7 +5719,7 @@ def plot_gluon_gpd(eta, t, mu, Nf=3,moment_label="A", real_imag="real", sampling
     plt.grid(True)
     plt.show()
 
-def plot_gpds(Nf=3, particle="quark",gpd_type="NonSingletIsovector",gpd_label="A",sampling=True, n_init=os.cpu_count(), n_points=50, x_0=-1, x_1=1, y_0 = -1e-2, y_1 = 3, 
+def plot_gpds(Nf=3, particle="quark",gpd_type="NonSingletIsovector",gpd_label="H",sampling=True, n_init=os.cpu_count(), n_points=50, x_0=-1, x_1=1, y_0 = -1e-2, y_1 = 3, 
               error_bars=True, plot_legend = False,write_to_file=True,read_from_file=False):
     """
     Plot the real or imaginary part of the singlet quark GPD
@@ -5691,25 +5744,25 @@ def plot_gpds(Nf=3, particle="quark",gpd_type="NonSingletIsovector",gpd_label="A
     """
     ylabel_map = {
         "NonSingletIsovector": {
-            "A": "$H_{u-d}(x,\\eta,t;\\mu)$",
-            "Atilde": r"$\widetilde{H}_{u-d}(x,\eta,t;\mu)$",
-            "B": "$E_{u-d}(x,\\eta,t;\\mu)$"
+            "H": "$H_{u-d}(x,\\eta,t;\\mu)$",
+            "Htilde": r"$\widetilde{H}_{u-d}(x,\eta,t;\mu)$",
+            "E": "$E_{u-d}(x,\\eta,t;\\mu)$"
         },
         "NonSingletIsoscalar": {
-            "A": "$H_{u+d}(x,\\eta,t;\\mu)$",
-            "Atilde": r"$\widetilde{H}_{u+d}(x,\eta,t;\mu)$",
-            "B": "$E_{u+d}(x,\\eta,t;\\mu)$"
+            "H": "$H_{u+d}(x,\\eta,t;\\mu)$",
+            "Htilde": r"$\widetilde{H}_{u+d}(x,\eta,t;\mu)$",
+            "E": "$E_{u+d}(x,\\eta,t;\\mu)$"
         },
         "Singlet": {
-            "A": {
+            "H": {
                 "quark": "$H_{u+d+s}(x,\\eta,t;\\mu)$",
                 "gluon": "$H_{g}(x,\\eta,t;\\mu)$"
             },
-            "Atilde": {
+            "Htilde": {
                 "quark": r"$\widetilde{H}_{u+d+s}(x,\eta,t;\mu)$",
                 "gluon": r"$\widetilde{H}_{g}(x,\eta,t;\mu)$"
             },
-            "B": {
+            "E": {
                 "quark": "$E_{u+d+s}(x,\\eta,t;\\mu)$",
                 "gluon": "$E_{g}(x,\\eta,t;\\mu)$"
             }
@@ -5741,10 +5794,10 @@ def plot_gpds(Nf=3, particle="quark",gpd_type="NonSingletIsovector",gpd_label="A
     mu_array = [2,2,2]
     colors = ["purple","orange","green"]
 
-    # eta_array = [1e-3]
-    # t_array = [-0.39]
-    # mu_array = [2]
-    # colors = [saturated_pink]
+    eta_array = [1e-4]
+    t_array = [-1e-4]
+    mu_array = [2]
+    colors = [saturated_pink]
 
     if moment_type == "Singlet":
         x_0 = 2e-3
@@ -5754,6 +5807,9 @@ def plot_gpds(Nf=3, particle="quark",gpd_type="NonSingletIsovector",gpd_label="A
 
     if read_from_file:
         sampling = False
+
+    # Initialize plot
+    fig, ax = plt.subplots(figsize=(6, 4), constrained_layout=True)
 
     for eta, t, mu, color in zip(eta_array,t_array,mu_array,colors):
         if sampling:
@@ -5812,64 +5868,40 @@ def plot_gpds(Nf=3, particle="quark",gpd_type="NonSingletIsovector",gpd_label="A
             results_minus = results
         end_time_adaptive = time.time()
 
-        # Extract real and imaginary parts of results
-        # x_values, unique_indices = np.unique(x_values, return_index=True)
-        # data = np.real(results)[unique_indices]
-
-        # # Compute real and imaginary error bars
-        # errors_plus = abs(np.real(results_plus)[unique_indices] - data)
-        # errors_minus = abs(data - np.real(results_minus)[unique_indices])
-
         # Output plot generation time
         print(f"Time for plot computation for parameters (eta,t,mu) = ({eta,t,mu}): {end_time_adaptive - start_time_adaptive:.6f} seconds")
 
-        # if error_bars:
-        #         plt.errorbar(
-        #             x_values, data,
-        #             yerr=(errors_minus, errors_plus),
-        #             fmt='o', label=(f"$\\eta={eta:.2f}$"
-        #                             f"$t={t:.2f} \\text{{ GeV}}^2$"),
-        #             color=color, capsize=3
-        #         )
-        # else:
-        #     plt.scatter(
-        #             x_values, data,
-        #             label=(f"$\\eta={eta:.2f}$"
-        #                         f"$t={t:.2f} \\text{{ GeV}}^2$"),
-        #             color=color
-        #         )
         if error_bars:
-            plt.plot(x_values, results,label=(f"$\\eta={eta:.2f}$, "
+            ax.plot(x_values, results,label=(f"$\\eta={eta:.2f}$, "
                     f"$t={t:.2f} \\text{{ GeV}}^2$"), color=color)
-            plt.fill_between(x_values,results_minus,results_plus,color=color,alpha=.2)
+            ax.fill_between(x_values,results_minus,results_plus,color=color,alpha=.2)
         else:
-            plt.plot(x_values, results,label=(f"$\\eta={eta:.2f}$, "
+            ax.plot(x_values, results,label=(f"$\\eta={eta:.2f}$, "
                     f"$t={t:.2f} \\text{{ GeV}}^2$"), color=color)
         # Add vertical lines to separate DGLAP from ERBL region
-        plt.axvline(x=eta, linestyle='--', color = color)   
-        plt.axvline(x=-eta, linestyle='--', color = color)
+        ax.axvline(x=eta, linestyle='--', color = color)   
+        ax.axvline(x=-eta, linestyle='--', color = color)
 
         if write_to_file:
             save_gpd_data(x_values,eta,t,mu,results,particle,gpd_type,gpd_label)
             save_gpd_data(x_values,eta,t,mu,results_plus,particle,gpd_type,gpd_label,"plus")
             save_gpd_data(x_values,eta,t,mu,results_minus,particle,gpd_type,gpd_label,"minus")
 
-    plt.xlim(x_0, x_1)
-    plt.ylim(y_0,y_1)
-    plt.xlabel('x')
+    ax.set_xlim(x_0, x_1)
+    ax.set_ylim(y_0,y_1)
+    ax.set_xlabel('x')
 
     if moment_type == "Singlet":
-        ylabel = ylabel_map[moment_type][moment_label][particle]
+        ylabel = ylabel_map[moment_type][gpd_label][particle]
     else:
-        ylabel = ylabel_map[moment_type][moment_label]    
+        ylabel = ylabel_map[moment_type][gpd_label]    
 
-    plt.ylabel(ylabel, fontsize=14)
+    ax.set_ylabel(ylabel, fontsize=14)
     if plot_legend:
-        plt.legend(fontsize=10, markerscale=1.5)
-    plt.grid(True)
+        ax.legend(fontsize=10, markerscale=1.5)
+    ax.grid(True)
     # Export
     FILE_PATH = PLOT_PATH + gpd_type + particle + "GPD_" + gpd_label +".pdf"
-    plt.savefig(FILE_PATH,format="pdf",bbox_inches="tight")
+    fig.savefig(FILE_PATH,format="pdf",bbox_inches="tight")
     print(f"File saved to {FILE_PATH}")
 
-    plt.show()
