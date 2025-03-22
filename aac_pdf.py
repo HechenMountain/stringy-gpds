@@ -23,7 +23,7 @@ pd.set_option('display.max_columns', None)  # Show all columns
 pd.set_option('display.width', 1000)        # Set width to avoid wrapping
 pd.set_option('display.max_colwidth', None) # Show full content of each column
 
-BASE_PATH = "/mnt/c/Users/flori/Documents/PostDoc/Data/GPD/"
+BASE_PATH = "/mnt/c/Users/flori/Documents/PostDoc/Data/PDFs/"
 # Define the file path to the .csv file and extract its content
 AAC_PATH = f"{BASE_PATH}AAC_Table_2.csv"
 
