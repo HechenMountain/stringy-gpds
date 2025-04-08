@@ -456,8 +456,8 @@ def evolve_alpha_s(mu, Nf = 3,evolution_order="LO"):
     c_a = Nc
     mu_R = 1 # 1 GeV
     # Extract value of alpha_S at the renormalization point of mu_R**2 = 1 GeV**2
-    alpha_s_in = get_alpha_s()
-
+    alpha_s_in = get_alpha_s(evolution_order)
+    # print("alpha_in:",alpha_s_in)
     if mu_R == mu:
         return alpha_s_in
 
@@ -1980,8 +1980,11 @@ def non_singlet_isovector_moment(j,eta,t, moment_label="A",evolve_type="vector",
             if moment_label == "B":
                 norm, gud = 3.83651, 1
         elif evolution_order == "NLO":
-           print("norm and gud is todo")
-           return
+            if moment_label == "A":
+                norm, gud = 1, 1 
+            if moment_label == "B":
+                print("norm and gud is todo")
+                return
         else:
            raise ValueError(f"Currently unsupporte evolution order {evolution_order}")
         uv, uv_error = integral_uv_pdf_regge(j,eta,alpha_prime,t,evolution_order,error_type)
@@ -2286,21 +2289,14 @@ initialize_moment_to_function()
 ##### Evolution Equations ######
 ################################
 
-def harmonic_number(l,j):
-    if l == 1:
-        euler_gamma = 0.5772156649
-        result = digamma(j+1) + euler_gamma
-    else:
-        result = mp.zeta(l) - mp.zeta(l,j+1)
-    return result
+def harmonic_sum(l,j):
+    return sum(1/k**l for k in range(1, j+1))
 
-def harmonic_number_prime(l,j):
-    if l == 1:
-        raise ValueError(f"invalid value l = {l} for primed harmonic sum.")
-    term1 = mp.zeta(l)
-    term2 = mp.zeta(l,1+mp.floor(.5 * j))
-    result = term1 - term2
-    return result
+def harmonic_sum_prime(l,j):
+    return 2**(l-1) * sum((1+(-1)**k)/k**l for k in range(1, j+1))
+
+def harmonic_sum_tilde(j):
+    return sum((-1)**k/k**2 * harmonic_sum(1,k) for k in range(1, j+1))
 
 def sommerfeld_watson_trapezoid(func,k_0=1,k_1=False,epsilon=.2,k_range=10,n_k=150,alternating_sum=False):
     # Use translational invariance to shift integration to be symmetric around 0
@@ -2331,38 +2327,60 @@ def sommerfeld_watson_trapezoid(func,k_0=1,k_1=False,epsilon=.2,k_range=10,n_k=1
     return integral
 
 def fractional_finite_sum(func,k_0=1,k_1=1,epsilon=.2,k_range=10,n_k=150,alternating_sum=False):
-    swt_term_1 = sommerfeld_watson_trapezoid(func,k_0 = k_0,k_1=False, epsilon=epsilon,k_range=k_range,n_k=n_k,alternating_sum=alternating_sum)
-    swt_term_2 = sommerfeld_watson_trapezoid(func,k_0 = k_0,k_1=k_1, epsilon=epsilon,k_range=k_range,n_k=n_k,alternating_sum=alternating_sum)
-    # print(swt_term_1,swt_term_2)
-    ff_sum = swt_term_1 - swt_term_2
-    return ff_sum
+    # start_time = time.time()
+    k_vals = np.linspace(-k_range, k_range, n_k) 
+    k_vals-= k_0.imag
+    k_vals_trig = mp.re(k_0) - epsilon + 1j * k_vals
+    k_vals_shift = k_1 + 1 - epsilon + 1j * k_vals
+    if alternating_sum:
+        trig_term = np.array([mp.csc(mp.pi * k) for k in k_vals_trig])
+    else:
+        trig_term = np.array([mp.cot(mp.pi * k ) for k in k_vals_trig])
+    f_vals = np.array([func(k) for k in k_vals_trig])
+    f_vals_shift = np.array([func(k) for k in k_vals_shift])
+    if alternating_sum:
+        f_vals_shift *= (-1)**(k_0.real+k_1.real+1)
+    f_vals -= f_vals_shift
+    integrand = -0.5 * trig_term * f_vals
 
-def harmonic_number_tilde(j):
-    def summand_euler_gamma(k):
-        result = 1/k**2
-        return result
-    def summand_digamma(k):
-        result = mp.digamma(k + 1)/k**2
-        return result
+    integrand_real = np.array([float(mp.re(x)) for x in integrand])
+    integrand_imag = np.array([float(mp.im(x)) for x in integrand])
+
+    integral_real = trapezoid(integrand_real, k_vals)
+    integral_imag = trapezoid(integrand_imag, k_vals)
+    # end_time = time.time()
+    # print("t0",end_time - start_time)
+    integral = integral_real + 1j * integral_imag
+    return integral
+
+def harmonic_number(l,j):
+    if isinstance(j, (int, np.integer)):
+        return harmonic_sum(l,j)
+    if l == 1:
+        euler_gamma = 0.5772156649
+        result = mp.digamma(j+1) + euler_gamma
+    else:
+        result = mp.zeta(l) - mp.zeta(l,j+1)
+    return result
+
+def harmonic_number_prime(l,j):
+    if isinstance(j, (int, np.integer)):
+        return harmonic_sum_prime(l,j)
+    if l == 1:
+        raise ValueError(f"invalid value l = {l} for primed harmonic sum.")
+    term1 = mp.zeta(l)
+    term2 = mp.zeta(l,1+mp.floor(.5 * j))
+    result = term1 - term2
+    return result
+
+def harmonic_number_tilde(j,k_range=10,n_k=500,epsilon=.2):
+    def stilde(k):
+        return (mp.digamma(k + 1) - mp.digamma(1))/k**2
     if isinstance(j, (int, np.integer)):
         result = harmonic_sum_tilde(j)
     else:
-        start_time = time.time()
-        euler_gamma_terms = - digamma(1) * fractional_finite_sum(summand_euler_gamma,k_0=1,k_1=j,k_range=5,n_k=100)
-        digamma_terms = fractional_finite_sum(summand_digamma,k_0=1,k_1=j,k_range=10,n_k=130)
-        end_time = time.time()
-        print("t1",end_time - start_time)
-        result = euler_gamma_terms + digamma_terms
+        result = fractional_finite_sum(stilde,k_0=1,k_1=j,alternating_sum=True,k_range=k_range,n_k=n_k,epsilon=epsilon)
     return result
-
-def harmonic_sum(l,j):
-    return sum(1/k**l for k in range(1, j+1))
-
-def harmonic_sum_prime(l,j):
-    return 2**(l-1) * sum((1+(-1)**k)/k**l for k in range(1, j+1))
-
-def harmonic_sum_tilde(j):
-    return sum((-1)**k/k**2 * harmonic_sum(1,k) for k in range(1, j+1))
 
 def gamma_qq(j,Nf=3,moment_type="non_singlet_isovector",evolve_type="vector",evolution_order="LO"):
     """
@@ -2385,7 +2403,8 @@ def gamma_qq(j,Nf=3,moment_type="non_singlet_isovector",evolve_type="vector",evo
         return result
     
     def gamma_qq_nlo(j):
-        # Belitsky K.5
+        # Belitsky K.5 has sign error
+        # Check (2.5) in Nucl.Phys.B 153 (1979) 161-186
         c_a = Nc
         s_0 = harmonic_number(0,j+1)
         s_1 = harmonic_number(1,j+1)
@@ -2393,19 +2412,30 @@ def gamma_qq(j,Nf=3,moment_type="non_singlet_isovector",evolve_type="vector",evo
         s_2_prime = harmonic_number_prime(2,j+1)
         s_tilde = harmonic_number_tilde(j+1)
         s_3_prime = harmonic_number_prime(3,j+1)
+        # print(s_0,s_1,s_2,s_2_prime,s_tilde,s_3_prime)
+        # Belistky differs by a factor of 4 (convention?) and a sign in fron of (-1)**(j+1)
         term1 = (c_f**2 - .5 * c_f * c_a)*(
                     4 * (2 * j + 3)/((j + 1 )**2 * (j + 2)**2)*s_0
-                    - 2 * (3 * j**3 +10 * j**2 + 11*j +3)/((j + 1 )**3 * (j + 2)**2)
+                    - 2 * (3 * j**3 +10 * j**2 + 11*j +3)/((j + 1 )**3 * (j + 2)**3)
                     + 4 * (2 * s_1 - 1/((j + 1)*(j + 2))) * (s_2 - s_2_prime)
                     + 16 * s_tilde + 6 * s_2 - .75 - 2 * s_3_prime
                     + 4 * (-1)**(j+1) * (2 * j**2 + 6 * j + 5)/((j + 1 )**3 * (j + 2)**3)
+                )
+        term1 = (c_f**2 - .5 * c_f * c_a)*(
+                    4 * (2 * j + 3)/((j + 1 )**2 * (j + 2)**2)*s_0
+                    - 2 * (3 * j**3 +10 * j**2 + 11*j +3)/((j + 1 )**3 * (j + 2)**3)
+                    + 4 * (2 * s_1 - 1/((j + 1)*(j + 2))) * (s_2 - s_2_prime)
+                    + 16 * s_tilde + 6 * s_2 - .75 - 2 * s_3_prime
+                    - 4 * (-1)**(j+1) * (2 * j**2 + 6 * j + 5)/((j + 1 )**3 * (j + 2)**3)
                 )
         term2 = c_f * c_a *( s_1 * (134/9 + 2 * (2*j +3 )/((j+1)**2*(j+2)**2) )
                             - 4 * s_1 * s_2 + s_2 *(-13/3 +2/((j+1)*(j+2)))
                             -43/24 - 1/9 * (151*j**4 + 867 * j**3 +1792*j**2 + 1590*j + 523)/\
                             ((j+1)**3*(j+2)**3)
                             )
-        term3 = c_f * t_f * Nf * (-40/90*s_1 +8/3*s_2 +1/3 +4/9 * (11*j**2 +27*j+13)/((j+1)**2*(j+2)**2))
+        term3 = c_f * t_f * Nf * (-40/9*s_1 +8/3*s_2 +1/3 +4/9 * (11*j**2 +27*j+13)/((j+1)**2*(j+2)**2))
+        # Belistky differs by a factor of 4 and a sign in fron of (-1)**(j+1)
+        # print(term1,term2,term3)
         nlo_term = term1 + term2 + term3
         result = nlo_term
         return result
@@ -2472,14 +2502,21 @@ def gamma_qg(j, Nf=3, evolve_type = "vector",evolution_order="LO"):
         s_2 = harmonic_number(2,j+1)
         s_2_prime = harmonic_number_prime(2,j+1)
         if evolve_type == "vector":
+            # term1 = -2 * c_a * t_f * Nf * (
+            #     (-2 * s_1**2 + 2 * s_2 - 2 * s_2_prime) * ((j**2 + 3 * j + 4) / ((j + 1) * (j + 2) * (j + 3))) +
+            #     (960 + 2835 * j + 4057 * j**2 + 3983 * j**3 + 3046 * j**4 + 1777 * j**5 +
+            #     731 * j**6 + 195 * j**7 + 30 * j**8 + 2 * j**9) / (j * (j + 1)**3 * (j + 2)**3 * (j + 3)**3) +
+            #     (-1)**(j + 1) * (141 + 165 * j + 92 * j**2 + 27 * j**3 + 3 * j**4) /
+            #     ((j + 1) * (j + 2)**3 * (j + 3)**3) +
+            #     8 * (2 * j + 5) / ((j + 2)**2 * (j + 3)**2) * s_1
+            # )
+            # (B.20) in Nucl.Phys.B 192 (1981) 417-462, but seems to agree at least for j = 1
             term1 = -2 * c_a * t_f * Nf * (
                 (-2 * s_1**2 + 2 * s_2 - 2 * s_2_prime) * ((j**2 + 3 * j + 4) / ((j + 1) * (j + 2) * (j + 3))) +
-                (960 + 2835 * j + 4057 * j**2 + 3983 * j**3 + 3046 * j**4 + 1777 * j**5 +
-                731 * j**6 + 195 * j**7 + 30 * j**8 + 2 * j**9) / (j * (j + 1)**3 * (j + 2)**3 * (j + 3)**3) +
-                (-1)**(j + 1) * (141 + 165 * j + 92 * j**2 + 27 * j**3 + 3 * j**4) /
-                ((j + 1) * (j + 2)**3 * (j + 3)**3) +
-                8 * (2 * j + 5) / ((j + 2)**2 * (j + 3)**2) * s_1
-            )
+                (2 * (480 + 1488*j + 2252*j**2 + 2273*j**3 + 1711*j**4 + 963*j**5 + 382*j**6 + 99*j**7 +
+                15*j**8 + j**9)) / (j * (1 + j)**3 * (2 + j)**3 * (3 + j)**3) +
+                + 8 * (2 * j + 5) / ((j + 2)**2 * (j + 3)**2) * s_1
+            ) 
             term2 = -2 * c_f * t_f * Nf * (
                 (2 * s_1**2 - 2 * s_2 + 5) * ((j**2 + 3 * j + 4) / ((j + 1) * (j + 2) * (j + 3))) -
                 4 * s_1 / ((j + 1)**2) +
@@ -2538,17 +2575,33 @@ def gamma_gq(j, Nf=3,evolve_type = "vector",evolution_order="LO"):
         s_2 = harmonic_number(2,j+1)
         s_2_prime = harmonic_number_prime(2,j+1)
         if evolve_type == "vector":
-            term1 = -c_f**2 * (
+            # term1 = - c_f**2 * (
+            #     (-2 * s_1**2 + 10 * s_1 - 2 * s_2) * ((j**2 + 3 * j + 4) / (j * (j + 1) * (j + 2))) -
+            #     4 * s_1 / ((j + 2)**2) -
+            #     (12 * j**6 + 102 * j**5 + 373 * j**4 + 740 * j**3 + 821 * j**2 + 464 * j + 96) /
+            #     (j * (j + 1)**3 * (j + 2)**3)
+            # )
+            # term2 = -2 * c_a * c_f * (
+            #     (s_1**2 + s_2 - s_2_prime) * ((j**2 + 3 * j + 4) / (j * (j + 1) * (j + 2))) +
+            #     (1296 + 10044 * j + 30945 * j**2 + 47954 * j**3 + 42491 * j**4 + 22902 * j**5 + 7515 * j**6 +
+            #     1384 * j**7 + 109 * j**8) / (9 * j**2 * (j + 1)**3 * (j + 2)**2 * (j + 3)**2) +
+            #     (-1)**(j + 1) * (8 + 9 * j + 4 * j**2 + j**3) / ((j + 1)**3 * (j + 2)**3) -
+            #     (17 * j**4 + 68 * j**3 + 143 * j**2 + 128 * j + 24) / (3 * j**2 * (j + 1)**2 * (j + 2)) * s_1
+            # )
+            # term3 = -(8 / 3) * c_f * t_f * Nf * (
+            #     (s_1 - 8 / 3) * ((j**2 + 3 * j + 4) / (j * (j + 1) * (j + 2))) + 1 / ((j + 2)**2)
+            # )
+            # (B.21) in Nucl.Phys.B 192 (1981) 417-462
+            term1 = - Nf * c_f**2 * (
                 (-2 * s_1**2 + 10 * s_1 - 2 * s_2) * ((j**2 + 3 * j + 4) / (j * (j + 1) * (j + 2))) -
                 4 * s_1 / ((j + 2)**2) -
                 (12 * j**6 + 102 * j**5 + 373 * j**4 + 740 * j**3 + 821 * j**2 + 464 * j + 96) /
                 (j * (j + 1)**3 * (j + 2)**3)
             )
-            term2 = -2 * c_a * c_f * (
+            term2 = -2 * Nf * c_a * c_f * (
                 (s_1**2 + s_2 - s_2_prime) * ((j**2 + 3 * j + 4) / (j * (j + 1) * (j + 2))) +
-                (1296 + 10044 * j + 30945 * j**2 + 47954 * j**3 + 42491 * j**4 + 22902 * j**5 + 7515 * j**6 +
-                1384 * j**7 + 109 * j**8) / (9 * j**2 * (j + 1)**3 * (j + 2)**2 * (j + 3)**2) +
-                (-1)**(j + 1) * (8 + 9 * j + 4 * j**2 + j**3) / ((j + 1)**3 * (j + 2)**3) -
+                (2592 + 21384*j + 72582*j**2 + 128014*j**3 + 133818*j**4 + 88673*j**5 + 38022*j**6 +
+                10292*j**7 + 1602*j**8 + 109*j**9) / (9 * j**2 * (j + 1)**3 * (j + 2)**3 * (j + 3)**2) -
                 (17 * j**4 + 68 * j**3 + 143 * j**2 + 128 * j + 24) / (3 * j**2 * (j + 1)**2 * (j + 2)) * s_1
             )
             term3 = -(8 / 3) * c_f * t_f * Nf * (
@@ -2612,6 +2665,26 @@ def gamma_gg(j, Nf = 3, evolve_type = "vector",evolution_order="LO"):
         s_3_prime = harmonic_number_prime(3,j+1)
         s_tilde = harmonic_number_tilde(j+1)
         if evolve_type == "vector":
+            # term1 = c_a * t_f * Nf * (
+            #     (-40 / 9) * s_1 + (8 / 3) + (8 / 9) * (19 * j**4 + 114 * j**3 + 275 * j**2 + 312 * j + 138) /
+            #     (j * (j + 1)**2 * (j + 2)**2 * (j + 3))
+            # )
+            # term2 = c_f * t_f * Nf * (
+            #     2 + 4 * (2 * j**6 + 16 * j**5 + 51 * j**4 + 74 * j**3 + 41 * j**2 - 8 * j - 16) /
+            #     (j * (j + 1)**3 * (j + 2)**3 * (j + 3))
+            # )
+            # term3 = c_a**2 * (
+            #     (134 / 9) * s_1 + 16 * s_1 * (2 * j**5 + 15 * j**4 + 48 * j**3 + 81 * j**2 + 66 * j + 18) /
+            #     (j**2 * (j + 1)**2 * (j + 2)**2 * (j + 3)**2) -
+            #     (16 / 3) + 8 * s_2_prime * (j**2 + 3 * j + 3) / (j * (j + 1) * (j + 2) * (j + 3)) -
+            #     4 * s_1 * s_2_prime +
+            #     8 * s_tilde - s_3_prime -
+            #     (1 / 9) * (457 * j**9 + 6855 * j**8 + 44428 * j**7 + 163542 * j**6) /
+            #     (j**2 * (j + 1)**3 * (j + 2)**3 * (j + 3)**3) -
+            #     (1 / 9) * (376129 * j**5 + 557883 * j**4 + 529962 * j**3 + 308808 * j**2 + 101088 * j + 15552) /
+            #     (j**2 * (j + 1)**3 * (j + 2)**3 * (j + 3)**3)
+            # )
+            # (B.22) in Nucl.Phys.B 192 (1981) 417-462
             term1 = c_a * t_f * Nf * (
                 (-40 / 9) * s_1 + (8 / 3) + (8 / 9) * (19 * j**4 + 114 * j**3 + 275 * j**2 + 312 * j + 138) /
                 (j * (j + 1)**2 * (j + 2)**2 * (j + 3))
@@ -2620,15 +2693,14 @@ def gamma_gg(j, Nf = 3, evolve_type = "vector",evolution_order="LO"):
                 2 + 4 * (2 * j**6 + 16 * j**5 + 51 * j**4 + 74 * j**3 + 41 * j**2 - 8 * j - 16) /
                 (j * (j + 1)**3 * (j + 2)**3 * (j + 3))
             )
-            term3 = c_a**2 * (
+            term3 = c_a**2 * Nf * (
                 (134 / 9) * s_1 + 16 * s_1 * (2 * j**5 + 15 * j**4 + 48 * j**3 + 81 * j**2 + 66 * j + 18) /
                 (j**2 * (j + 1)**2 * (j + 2)**2 * (j + 3)**2) -
                 (16 / 3) + 8 * s_2_prime * (j**2 + 3 * j + 3) / (j * (j + 1) * (j + 2) * (j + 3)) -
                 4 * s_1 * s_2_prime +
                 8 * s_tilde - s_3_prime -
-                (1 / 9) * (457 * j**9 + 6855 * j**8 + 44428 * j**7 + 163542 * j**6) /
-                (j**2 * (j + 1)**3 * (j + 2)**3 * (j + 3)**3) -
-                (1 / 9) * (376129 * j**5 + 557883 * j**4 + 529962 * j**3 + 308808 * j**2 + 101088 * j + 15552) /
+                (1 / 9) * (457 * j**9 + 6855 * j**8 + 44428 * j**7 + 163542 * j**6 +
+                376129 * j**5 + 557883 * j**4 + 529962 * j**3 + 308808 * j**2 + 101048 * j + 15512) /
                 (j**2 * (j + 1)**3 * (j + 2)**3 * (j + 3)**3)
             )
 
@@ -2905,30 +2977,32 @@ def evolve_conformal_moment(j,eta,t,mu,Nf = 3,particle="quark",moment_type="non_
 
     # Set parameters
     Nc = 3
+    c_a = Nc
+    c_f = (Nc**2-1)/(2*Nc)
     beta_0 = 2/3* Nf - 11/3 * Nc
-
+    beta_1 = 10/3 * c_a * Nf + 2 * c_f * Nf -34/3 * c_a**2
     # Extract fixed quantities
-    alpha_s_in = get_alpha_s()
+    alpha_s_in = get_alpha_s(evolution_order)
     alpha_s_evolved = evolve_alpha_s(mu,Nf,evolution_order)
 
     moment_in, evolve_type = MOMENT_TO_FUNCTION.get((moment_type, moment_label))
 
     ga_qq = gamma_qq(j-1,Nf,moment_type,evolve_type,evolution_order="LO")
-    # Roots  of LO anomalous dimensions
-    ga_p = gamma_pm(j-1,Nf,evolve_type,"+")
-    ga_m = gamma_pm(j-1,Nf,evolve_type,"-")
-
+       
     if moment_type == "singlet":
+        # Roots  of LO anomalous dimensions
+        ga_p = gamma_pm(j-1,Nf,evolve_type,"+")
+        ga_m = gamma_pm(j-1,Nf,evolve_type,"-")
         moment_in_p = moment_in(j,eta,t, Nf, moment_label, evolve_type,"+",evolution_order,error_type)
         moment_in_m = moment_in(j,eta,t, Nf, moment_label, evolve_type,"-",evolution_order,error_type)
         ga_gq = gamma_gq(j-1,Nf, evolve_type,"LO")
         ga_qg = gamma_qg(j-1,Nf, evolve_type,"LO")
-    if evolution_order != "LO":
-        ga_gg = gamma_gg(j-1,Nf,evolve_type,"LO")
-        r_qq = R_qq(j-1,Nf,moment_type,evolve_type)
-        r_qg = R_qg(j-1,Nf,moment_type,evolve_type)
-        r_gq = R_gq(j-1,Nf,moment_type,evolve_type)
-        r_gg = R_gg(j-1,Nf,moment_type,evolve_type) 
+        if evolution_order != "LO":
+            ga_gg = gamma_gg(j-1,Nf,evolve_type,"LO")
+            r_qq = R_qq(j-1,Nf,moment_type,evolve_type)
+            r_qg = R_qg(j-1,Nf,moment_type,evolve_type)
+            r_gq = R_gq(j-1,Nf,moment_type,evolve_type)
+            r_gg = R_gg(j-1,Nf,moment_type,evolve_type) 
 
     # Precompute alpha_s fraction:
     alpha_frac  = (alpha_s_in/alpha_s_evolved)    
@@ -2942,6 +3016,25 @@ def evolve_conformal_moment(j,eta,t,mu,Nf = 3,particle="quark",moment_type="non_
             return ga_m, ga_p, moment_in_m
         else:
             raise ValueError(f"Wrong solution type: {solution}")
+
+    def E_non_singlet_lo():
+        return alpha_frac**(ga_qq/beta_0)
+
+    def E_non_singlet_nlo(j):
+        ga_qq = gamma_qq(j,Nf,moment_type,evolve_type,"LO")
+        ga_qq_nlo = gamma_qq(j,Nf,moment_type,evolve_type,"NLO")
+        result = alpha_frac**(ga_qq/beta_0) * (1 + (.5 * beta_1/beta_0**2 *  ga_qq - ga_qq_nlo/beta_0) * \
+                                      (alpha_s_evolved - alpha_s_in)/(2*np.pi)
+                                      )
+        return result
+    def B_non_singlet_nlo(k):
+        gamma_term = (ga_qq - gamma_qq(k,Nf,moment_type,evolve_type,"LO") + beta_0)
+        result = alpha_s_evolved/(2*np.pi) * gamma_qq_nd(j-1,k,Nf,evolve_type,evolution_order)/gamma_term * (
+            1 - alpha_frac**(gamma_term/beta_0)
+        )
+        if j - 1 == k:
+            result+= 1
+        return result
 
     def A_lo_quark(solution):
         # The switch also takes care of the relative minus sign
@@ -3088,17 +3181,17 @@ def evolve_conformal_moment(j,eta,t,mu,Nf = 3,particle="quark",moment_type="non_
     #     print("A_q_lo_-",A_lo_quark("-"))
     #     print("A_g_lo_+",A_lo_gluon("+"))
     #     print("A_g_lo_-",A_lo_gluon("-"))
-    if evolution_order == "NLO" and mu != 1:
-        print("------")
-        print("A_q_+",A_nlo_quark("+"))
-        print("A_q_-",A_nlo_quark("-"))
-        print("A_g_+",A_nlo_gluon("+"))
-        print("A_g_-",A_nlo_gluon("-"))
-        print("B_q",B_nlo_quark("+"))
-        print("C_q",B_nlo_quark("-"))
-        print("B_g",B_nlo_gluon("+"))
-        print("C_g",B_nlo_gluon("-"))
-        print("------")
+    # if evolution_order == "NLO" and mu != 1:
+    #     print("------")
+    #     print("A_q_+",A_nlo_quark("+"))
+    #     print("A_q_-",A_nlo_quark("-"))
+    #     print("A_g_+",A_nlo_gluon("+"))
+    #     print("A_g_-",A_nlo_gluon("-"))
+    #     print("B_q",B_nlo_quark("+"))
+    #     print("C_q",B_nlo_quark("-"))
+    #     print("B_g",B_nlo_gluon("+"))
+    #     print("C_g",B_nlo_gluon("-"))
+    #     print("------")
 
     if moment_type == "singlet":
         if particle == "quark":
@@ -3108,10 +3201,11 @@ def evolve_conformal_moment(j,eta,t,mu,Nf = 3,particle="quark",moment_type="non_
             else:
                 A0 = 1
             result = A_lo_quark("+") + A_lo_quark("-")
+            print("lo_quark",result)
             if evolution_order == "NLO":
                 diagonal_terms = A_nlo_quark("+") + A_nlo_quark("-") + B_nlo_quark("+") + B_nlo_quark("-")
-                non_diagonal_terms = 0
                 non_diagonal_terms = T_nlo_quark()
+                print("nlo_quark",diagonal_terms)
                 # print("T_quark",non_diagonal_terms)
                 result += diagonal_terms + non_diagonal_terms
         if particle == "gluon":
@@ -3121,15 +3215,28 @@ def evolve_conformal_moment(j,eta,t,mu,Nf = 3,particle="quark",moment_type="non_
             else:
                 A0 = 1
             result = A_lo_gluon("+") + A_lo_gluon("-")
+            print("lo_gluon",result)
             if evolution_order == "NLO":
                 diagonal_terms = A_nlo_gluon("+") + A_nlo_gluon("-") + B_nlo_gluon("+") + B_nlo_gluon("-")
                 non_diagonal_terms = T_nlo_gluon()
                 # print("T_gluon",non_diagonal_terms)
+                print("nlo_gluon",diagonal_terms)
                 result += diagonal_terms + non_diagonal_terms
         result *= A0
     elif moment_type in ["non_singlet_isovector","non_singlet_isoscalar"]:
-        result = moment_in(j,eta,t,moment_label,evolve_type,evolution_order,error_type) * alpha_frac**(ga_qq/beta_0)   
-
+        # result = moment_in(j,eta,t,moment_label,evolve_type,evolution_order,error_type) * alpha_frac**(ga_qq/beta_0)   
+        if evolution_order == "LO":
+            result = moment_in(j,eta,t,moment_label,evolve_type,evolution_order,error_type) * E_non_singlet_lo()
+        elif evolution_order == "NLO":
+            moment = moment_in(j,eta,t,moment_label,evolve_type,evolution_order,error_type)
+            diagonal_terms = moment * E_non_singlet_nlo(j-1)
+            non_diagonal_terms = 0
+            for k in range(1,j):
+                moment_k  = moment_in(k,eta,t,moment_label,evolve_type,evolution_order,error_type)
+                non_diagonal_terms += eta**(j - k) * B_non_singlet_nlo(k-1) * E_non_singlet_nlo(k-1) * moment_k
+            result = diagonal_terms + non_diagonal_terms
+        else:
+            raise ValueError(f"Currently unsupported evolution_order {evolution_order}")
     return result
 
 def evolve_singlet_D(j,eta,t,mu,Nf=3,particle="quark",moment_label="A",evolution_order="LO",error_type="central"):
