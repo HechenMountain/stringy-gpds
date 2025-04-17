@@ -1,9 +1,9 @@
 # # Dependencies
 import numpy as np
 import mpmath as mp
-import sympy
 import matplotlib.pyplot as plt
 import matplotlib.ticker as mticker
+from scipy.optimize import curve_fit
 from scipy.integrate import quad, trapezoid, odeint
 from joblib import Parallel, delayed
 from scipy.special import gamma, digamma
@@ -3265,7 +3265,7 @@ def evolve_conformal_moment(j,eta,t,mu,Nf = 3,particle="quark",moment_type="non_
             raise ValueError(f"Currently unsupported evolution_order {evolution_order}")
     return result
 
-def first_singlet_moment(eta, mu, particle="quark", gpd_label="H", error_type="central",t0_only=True):
+def first_singlet_moment(eta, mu, particle="quark", gpd_label="H", error_type="central",t0_only=None):
     """
     Returns t_values and corresponding first moment of singlet GPD.
 
@@ -3275,16 +3275,18 @@ def first_singlet_moment(eta, mu, particle="quark", gpd_label="H", error_type="c
     - particle (str. optional): quark or gluon
     - gpd_label (str. optional): A, B, Atilde...
     - error_type (str. optional): central, plus, minus
-    - t0_only (bool optional): Only extract value at t=0
+    - t0_only (bool optional): Only extract value at t=t0
     """
+    check_particle_type(particle)
+
     prefix = f"singlet_{particle}_GPD_{gpd_label}"
     FILE_PATH = os.path.join(GPD_PATH, "") 
     if not os.path.isdir(FILE_PATH):
         print(f"Directory {FILE_PATH} does not exist. Generate data for parameters (eta,mu)={eta,mu} using plot_gpds")
         return [], []
-
-    if t0_only:
-        t0 = 0.0
+    
+    if t0_only is not None:
+        t0 = t0_only
         filename = generate_filename(eta, t0, mu, prefix=prefix, error_type=error_type)
         full_path = os.path.join(FILE_PATH, filename)
         if os.path.exists(full_path):
@@ -3294,14 +3296,17 @@ def first_singlet_moment(eta, mu, particle="quark", gpd_label="H", error_type="c
                 error_type=error_type
             )
             if x_values is not None:
-                # Gluon GPD is x g(x)
-                integrand = y_values/x_values
+                if particle == "gluon":
+                    # Gluon GPD is x g(x)
+                    integrand = y_values/x_values
+                else:
+                    integrand = y_values
                 moment = trapezoid(integrand, x_values)
                 return [t0], [moment]
             else:
                 print(f"Data for t=0 exists but couldn't be loaded: {filename}")
         else:
-            print(f"No t=0 file found: {filename}")
+            print(f"No t={t0_only} file found: {filename}")
         return [], []
 
     t_vals = []
@@ -3322,9 +3327,12 @@ def first_singlet_moment(eta, mu, particle="quark", gpd_label="H", error_type="c
                 gpd_type="singlet", gpd_label=gpd_label,
                 error_type=error_type
             )
-            # Gluon GPD is x g(x)
             if x_values is not None:
-                integrand = y_values/x_values
+                if particle == "gluon":
+                    # Gluon GPD is x g(x)
+                    integrand = y_values/x_values
+                else:
+                    integrand = y_values
                 moment = trapezoid(integrand, x_values)
                 t_vals.append(t)
                 moments.append(moment)
@@ -3332,6 +3340,94 @@ def first_singlet_moment(eta, mu, particle="quark", gpd_label="H", error_type="c
     # Sort by t
     t_vals, moments = zip(*sorted(zip(t_vals, moments))) if t_vals else ([], [])
     return list(t_vals), list(moments)
+    
+
+def dipole_fit_first_singlet_moment(eta,mu,particle="gluon",gpd_label="Htilde",plot_fit=False,write_to_file=True,error_type="central"):
+    """
+    Generates a dipole fit to the first moment of the corresponding singlet GPD.
+
+    Parameters:
+    - eta (float): Skewness parameter
+    - mu (float): Resolution scale
+    - particle (str. optional): quark, gluon
+    - gpd_label (str. optional): Atilde,...
+    - plot_fit (bool optional): Whether to show a plot
+    - write_to_file (bool optional): Write the fit results to a csv table
+    - error_type (str. optional): central, plus, minus
+    """
+    def dipole_form(t, AD, m_D2):
+        return AD / (1 - t / m_D2)**2
+    t_vals, f_vals = first_singlet_moment(eta=eta,mu=mu,particle=particle,gpd_label=gpd_label)
+    if t_vals:
+        # Initial parameter guess: AD ~ max(f_vals), m_D2 ~ 1.0 
+        initial_guess = [np.max(f_vals), 1.0]
+
+        popt, pcov = curve_fit(dipole_form, -t_vals, f_vals, p0=initial_guess)
+        AD_fit, m_D2_fit = popt
+
+    if plot_fit:
+        t_fit = np.linspace(0, 3, 300)
+        f_fit = dipole_form(t_fit, *popt)
+        # Plot data and fit
+        plt.figure(figsize=(8, 5))
+        plt.plot(t_vals, f_vals, 'o', label='Data')
+        plt.plot(t_fit, f_fit, '-')
+        plt.xlabel('t')
+        plt.ylabel('f(t)')
+        plt.ylim([0,1.1 * AD_fit])
+        plt.legend()
+        plt.grid(True)
+        plt.tight_layout()
+        plt.show()
+    if write_to_file:
+        if (gpd_label) in GPD_LABEL_MAP:
+            moment_label = GPD_LABEL_MAP[gpd_label]
+        else:
+            print(f"Key {gpd_label} not found in GPD_LABEL_MAP - abort")
+            return
+        filename = generate_filename(eta,0,mu,MOMENTUM_SPACE_MOMENTS_PATH + f"singlet_{particle}_dipole_moment_{moment_label}",error_type=error_type)
+        with open(filename, 'w') as f:
+            f.write(f"AD,{AD_fit:.5f}\n")
+            f.write(f"mD2,{m_D2_fit:.5f}\n")
+    return AD_fit, m_D2_fit
+
+def first_singlet_moment_dipole(eta,t,mu,Nf=3,particle="gluon",moment_label="Atilde",evolution_order="LO",error_type="central"):
+    """
+    Dipole parameters obtained from dipole_fit_first_singlet_moment and saved to singlet_particle_dipole_moment_eta_000_mu_error_type.csv
+
+    Parameters:
+    - eta (float): Skewness parameter
+    - t (float): Mandelstam t
+    - mu (float): Resolution scale
+    - particle (str. optional): quark, gluon
+    - moment_label (str. optional): Atilde,...
+    - error_type (str. optional)
+    """
+    def dipole_form(t, AD, m_D2): 
+        return AD / (1 - t / m_D2)**2
+    
+    def parse_csv_params(csv_path):
+        params = {}
+        with open(csv_path, 'r') as f:
+            for line in f:
+                label, value = line.strip().split(',')
+                params[label] = float(value)
+        return params
+    def get_dipole_from_csv(t, csv_path):
+        params = parse_csv_params(csv_path)
+        if 'AD' not in params or 'mD2' not in params:
+            print("Required parameters 'AD' or 'mD2' not found in CSV - abort")
+            return None
+        return dipole_form(t, params['AD'], params['mD2'])
+    
+    if evolution_order != "LO":
+        print("Warning: Currently no distinction on file system between LO and NLO")
+    if Nf != 3:
+        print("Warning: Currently no distinction on file system for Nf != 3")
+
+    FILE_PATH = generate_filename(eta,0,mu,MOMENTUM_SPACE_MOMENTS_PATH + f"singlet_{particle}_dipole_moment_{moment_label}" )
+    result = get_dipole_from_csv(t,FILE_PATH)
+    return result
 
 def evolve_singlet_D(j,eta,t,mu,Nf=3,particle="quark",moment_label="A",evolution_order="LO",error_type="central"):
     check_particle_type(particle)
@@ -3406,7 +3502,10 @@ def fourier_transform_moment(j,eta,mu,b_vec,Nf=3,particle="quark",moment_type="n
     def integrand(Delta_x,Delta_y,b_x,b_y):
         t = -(Delta_x**2+Delta_y**2)
         exponent = -1j * (b_x * Delta_x + b_y * Delta_y)
-        moment = evolve_conformal_moment(j,eta,t,mu,Nf,particle,moment_type,moment_label,evolution_order,error_type)
+        if j >= 2 or moment_type != "singlet":
+            moment = evolve_conformal_moment(j,eta,t,mu,Nf,particle,moment_type,moment_label,evolution_order,error_type)
+        else:
+            moment = first_singlet_moment_dipole(eta,t,mu,Nf,particle,moment_label,evolution_order,error_type)
         result = moment*np.exp(exponent)
         return result
     
@@ -3512,6 +3611,9 @@ def fourier_transform_transverse_moment(j,eta,mu,b_vec,Nf=3,particle="quark",mom
         result = moment*np.exp(exponent)
         return result
     
+    if moment_type == "singlet" and j < 2:
+        print("Warning: Fourier transform for transverse singlet moments for j = 1 unsupported")
+
     # Compute the integrand for each pair of (Delta_x, Delta_y) values
     integrand_values = integrand(Delta_x_grid, Delta_y_grid, b_x, b_y)
     # Perform the numerical integration using the trapezoidal rule for efficiency
@@ -3541,16 +3643,9 @@ def fourier_transform_quark_gluon_helicity(eta,mu,b_vec,Nf=3,particle="quark",mo
     if moment_type not in ["singlet","non_singlet_isovector","non_singlet_isoscalar","u","d"]:
         raise ValueError(f"Wrong moment_type {moment_type}")
     check_error_type(error_type)
-    
-    if moment_type != "singlet":
-        n = 1
-    else:
-        print("Singlet Helicity is first, not second moment; Need to introduce bypass via GPD table - abort")
-        return
-        n = 2
 
     if moment_type in ["singlet","non_singlet_isovector","non_singlet_isoscalar"]:
-        result = fourier_transform_moment(n,eta,mu,b_vec,Nf,particle,moment_type,moment_label="Atilde",evolution_order=evolution_order,Delta_max=Delta_max,num_points=num_points,error_type=error_type)/2
+        result = fourier_transform_moment(1,eta,mu,b_vec,Nf,particle,moment_type,moment_label="Atilde",evolution_order=evolution_order,Delta_max=Delta_max,num_points=num_points,error_type=error_type)/2
     elif moment_type in ["u","d"]:
         if moment_type == "u":
             prf = 1
@@ -3673,24 +3768,17 @@ def fourier_transform_orbital_angular_momentum(eta,mu,b_vec,Nf=3,particle="quark
         raise ValueError(f"Wrong moment_type {moment_type}")
     check_error_type(error_type)
 
-    if moment_type != "singlet":
-        n = 1
-    else: 
-        print("Singlet Helicity is first, not second moment; Need to introduce bypass via GPD table - abort")
-        return
-        n = 2
-
     if moment_type in ["singlet","non_singlet_isovector","non_singlet_isoscalar"]:
-            term_1 = fourier_transform_moment(n+1,eta,mu,b_vec,Nf,particle=particle,moment_type=moment_type,moment_label="A",evolution_order=evolution_order,Delta_max=Delta_max,num_points=num_points,error_type="central")
-            term_2 = fourier_transform_moment(n+1,eta,mu,b_vec,Nf,particle=particle,moment_type=moment_type,moment_label="B",evolution_order=evolution_order,Delta_max=Delta_max,num_points=num_points,error_type="central")
-            term_3 = fourier_transform_moment(n,eta,mu,b_vec,Nf,particle=particle,moment_type=moment_type,moment_label="Atilde",evolution_order=evolution_order,Delta_max=Delta_max,num_points=num_points,error_type="central")
+            term_1 = fourier_transform_moment(2,eta,mu,b_vec,Nf,particle=particle,moment_type=moment_type,moment_label="A",evolution_order=evolution_order,Delta_max=Delta_max,num_points=num_points,error_type="central")
+            term_2 = fourier_transform_moment(2,eta,mu,b_vec,Nf,particle=particle,moment_type=moment_type,moment_label="B",evolution_order=evolution_order,Delta_max=Delta_max,num_points=num_points,error_type="central")
+            term_3 = fourier_transform_moment(1,eta,mu,b_vec,Nf,particle=particle,moment_type=moment_type,moment_label="Atilde",evolution_order=evolution_order,Delta_max=Delta_max,num_points=num_points,error_type="central")
             moment = (term_1+term_2-term_3)/2
             if error_type != "central":      
-                term_1_error = .5 * (fourier_transform_moment(n+1,eta,mu,b_vec,Nf,particle=particle,moment_type=moment_type,moment_label="A",evolution_order=evolution_order,Delta_max=Delta_max,num_points=num_points,error_type=error_type)
+                term_1_error = .5 * (fourier_transform_moment(2,eta,mu,b_vec,Nf,particle=particle,moment_type=moment_type,moment_label="A",evolution_order=evolution_order,Delta_max=Delta_max,num_points=num_points,error_type=error_type)
                                 - term_1)
-                term_2_error = .5 * (fourier_transform_moment(n+1,eta,mu,b_vec,Nf,particle=particle,moment_type=moment_type,moment_label="B",evolution_order=evolution_order,Delta_max=Delta_max,num_points=num_points,error_type=error_type)
+                term_2_error = .5 * (fourier_transform_moment(2,eta,mu,b_vec,Nf,particle=particle,moment_type=moment_type,moment_label="B",evolution_order=evolution_order,Delta_max=Delta_max,num_points=num_points,error_type=error_type)
                                 - term_2)
-                term_3_error = .5 * (fourier_transform_moment(n,eta,mu,b_vec,Nf,particle=particle,moment_type=moment_type,moment_label="Atilde",evolution_order=evolution_order,Delta_max=Delta_max,num_points=num_points,error_type=error_type)
+                term_3_error = .5 * (fourier_transform_moment(1,eta,mu,b_vec,Nf,particle=particle,moment_type=moment_type,moment_label="Atilde",evolution_order=evolution_order,Delta_max=Delta_max,num_points=num_points,error_type=error_type)
                                 - term_3)
                 if error_type == "plus":
                     moment += np.sqrt(term_1_error**2+term_2_error**2+term_3_error**2)
@@ -3847,6 +3935,8 @@ def get_j_base(particle="quark",moment_type="non_singlet_isovector", moment_labe
     
     return j_base, parity
 
+
+
 def mellin_barnes_gpd(x, eta, t, mu, Nf=3, particle = "quark", moment_type="singlet",moment_label="A",evolution_order="LO", error_type="central",real_imag ="real",j_max = 15, n_jobs=-1):
     """
     Numerically evaluate the Mellin-Barnes integral parallel to the imaginary axis to obtain the corresponding GPD
@@ -3880,21 +3970,21 @@ def mellin_barnes_gpd(x, eta, t, mu, Nf=3, particle = "quark", moment_type="sing
             # Scale fixed by it's value at the input scale:
             # print(uv_PDF(1e-3)+dv_PDF(1e-3)+Sv_PDF(1e-3))
             if moment_label in "A":
-                norm = 1.78160932e+03/ 1.61636674e+03
+                norm = 1 #1.78160932e+03/ 1.61636674e+03
             else:
                 norm = 1
         elif particle == "gluon":
             # Scale fixed by it's value at the input scale:
             # print(.1 gluon_PDF(.1))
             if moment_label == "A":
-                norm = 0.86852857/9.93131764e-01
+                norm = 1# 0.86852857/9.93131764e-01
             else:
                 norm = 1
     elif moment_type == "non_singlet_isovector":
         # Scale fixed by it's value at the input scale:
         # print(uv_minus_dv_PDF(1e-4))
         if moment_label == "A":
-            norm = 152.92491544/153.88744991730528
+            norm = 1 #152.92491544/153.88744991730528
         else:
             norm = 1
     elif moment_type == "non_singlet_isoscalar":
@@ -4093,10 +4183,11 @@ def mellin_barnes_gpd(x, eta, t, mu, Nf=3, particle = "quark", moment_type="sing
 #### Additional Observables ####
 ################################
 
-def spin_orbit_corelation(t,mu, particle="quark",moment_type="non_singlet_isovector",evolution_order="LO"):
+def spin_orbit_corelation(eta,t,mu, particle="quark",moment_type="non_singlet_isovector",evolution_order="LO"):
     """ Returns the spin orbit correlation of moment_type including errors
 
     Parameters:
+    - eta (float): Skewness parameter   
     - t (float): Mandelstam t
     - mu (float): The momentum scale of the process
     - moment_type (str. optional): The flavor dependence. Either non_singlet_isovector or non_singlet_isoscalar    
@@ -4106,59 +4197,22 @@ def spin_orbit_corelation(t,mu, particle="quark",moment_type="non_singlet_isovec
                            "non_singlet_isoscalar",
                            "non_singlet_isovector"]:
         raise ValueError(f"Wrong moment type {moment_type}")
-    
-    if moment_type != "singlet":
-        n = 1
-    else:
-        n = 2
 
-    term_1 = evolve_conformal_moment(n+1,0,t,mu,particle=particle,moment_type=moment_type,moment_label="Atilde",evolution_order=evolution_order,error_type="central")
-    term_2 = evolve_conformal_moment(n,0,t,mu,particle=particle,moment_type=moment_type,moment_label="A",evolution_order=evolution_order,error_type="central")
+    term_1 = evolve_conformal_moment(2,0,t,mu,particle=particle,moment_type=moment_type,moment_label="Atilde",evolution_order=evolution_order,error_type="central")
+    term_1_plus = evolve_conformal_moment(2,0,t,mu,particle=particle,moment_type=moment_type,moment_label="Atilde",evolution_order=evolution_order,error_type="plus")
+    term_1_minus = evolve_conformal_moment(2,0,t,mu,particle=particle,moment_type=moment_type,moment_label="Atilde",evolution_order=evolution_order,error_type="minus")
+
+    if moment_type != "singlet":
+        term_2 = evolve_conformal_moment(1,0,t,mu,particle=particle,moment_type=moment_type,moment_label="A",evolution_order=evolution_order,error_type="central")
+        term_2_plus = evolve_conformal_moment(1,0,t,mu,particle=particle,moment_type=moment_type,moment_label="A",evolution_order=evolution_order,error_type="plus")
+        term_2_minus = evolve_conformal_moment(1,0,t,mu,particle=particle,moment_type=moment_type,moment_label="A",evolution_order=evolution_order,error_type="minus")
+    else:
+        term_2 = first_singlet_moment(eta,mu,particle=particle,gpd_label="H",error_type="central",t0_only=t)
+        term_2_plus = first_singlet_moment(eta,mu,particle=particle,gpd_label="H",error_type="plus",t0_only=t)
+        term_2_minus = first_singlet_moment(eta,mu,particle=particle,gpd_label="H",error_type="minus",t0_only=t)
+
     result = (term_1 - term_2)/2
-
-    term_1_plus = evolve_conformal_moment(n+1,0,t,mu,particle=particle,moment_type=moment_type,moment_label="Atilde",evolution_order=evolution_order,error_type="plus")
-    term_2_plus = evolve_conformal_moment(n,0,t,mu,particle=particle,moment_type=moment_type,moment_label="A",evolution_order=evolution_order,error_type="plus")
     error_plus = np.sqrt((term_1_plus-term_1)**2+(term_2_plus-term_2)**2)/2
-
-    term_1_minus = evolve_conformal_moment(n+1,0,t,mu,particle=particle,moment_type=moment_type,moment_label="Atilde",evolution_order=evolution_order,error_type="minus")
-    term_2_minus = evolve_conformal_moment(n,0,t,mu,particle=particle,moment_type=moment_type,moment_label="A",evolution_order=evolution_order,error_type="minus")
-    error_minus = np.sqrt((term_1_minus-term_1)**2+(term_2_minus-term_2)**2)/2
-
-    # if np.abs(error_plus-error_minus)<1e-2:
-    #     print(f"{moment_type} spin-orbit correlation: {result:.3f}(+- {error_plus:.3f}) at {mu} GeV")
-    # else:
-    #     print(f"{moment_type} spin-orbit correlation: {result:.3f}(+{error_plus:.3f})(-{error_minus:.3f}) at {mu} GeV")
-    return result, error_plus, error_minus
-
-def quark_gluon_spin(t,mu, particle="quark",moment_type="non_singlet_isovector",evolution_order="LO"):
-    """ Returns the spin contribution of moment_type including errors
-
-    Parameters:
-    - t (float): Mandelstam t
-    - mu (float): The momentum scale of the process
-    - moment_type (str. optional): The flavor dependence. Either non_singlet_isovector or non_singlet_isoscalar    
-    """
-
-    if moment_type not in ["singlet",
-                           "non_singlet_isoscalar",
-                           "non_singlet_isovector"]:
-        raise ValueError(f"Wrong moment type {moment_type}")
-    
-    if moment_type != "singlet":
-        n = 1
-    else:
-        n = 2
-
-    term_1 = evolve_conformal_moment(n+1,0,t,mu,particle=particle,moment_type=moment_type,moment_label="A",evolution_order=evolution_order,error_type="central")
-    term_2 = evolve_conformal_moment(n+1,0,t,mu,particle=particle,moment_type=moment_type,moment_label="B",evolution_order=evolution_order,error_type="central")
-    result = (term_1 + term_2)/2
-
-    term_1_plus = evolve_conformal_moment(n+1,0,t,mu,particle=particle,moment_type=moment_type,moment_label="A",evolution_order=evolution_order,error_type="plus")
-    term_2_plus = evolve_conformal_moment(n+1,0,t,mu,particle=particle,moment_type=moment_type,moment_label="B",evolution_order=evolution_order,error_type="plus")
-    error_plus = np.sqrt((term_1_plus-term_1)**2+(term_2_plus-term_2)**2)/2
-
-    term_1_minus = evolve_conformal_moment(n+1,0,t,mu,particle=particle,moment_type=moment_type,moment_label="A",evolution_order=evolution_order,error_type="minus")
-    term_2_minus = evolve_conformal_moment(n+1,0,t,mu,particle=particle,moment_type=moment_type,moment_label="B",evolution_order=evolution_order,error_type="minus")
     error_minus = np.sqrt((term_1_minus-term_1)**2+(term_2_minus-term_2)**2)/2
 
     return result, error_plus, error_minus
@@ -4167,6 +4221,7 @@ def total_spin(t,mu,particle="quark",moment_type="non_singlet_isovector",evoluti
     """ Returns the total spin of moment_type including errors
 
     Parameters:
+    - eta (float): Skewness parameter
     - t (float): Mandelstam t
     - mu (float): The momentum scale of the process
     - moment_type (str. optional): The flavor dependence. Either non_singlet_isovector or non_singlet_isoscalar    
@@ -4175,68 +4230,65 @@ def total_spin(t,mu,particle="quark",moment_type="non_singlet_isovector",evoluti
                            "non_singlet_isoscalar",
                            "non_singlet_isovector"]:
         raise ValueError(f"Wrong moment type {moment_type}")
-    
-    if moment_type != "singlet":
-        n = 1
-    else:
-        n = 2
 
-    term_1 = evolve_conformal_moment(n+1,0,t,mu,particle=particle,moment_type=moment_type,moment_label="A",evolution_order=evolution_order,error_type="central")
-    term_2 = evolve_conformal_moment(n+1,0,t,mu,particle=particle,moment_type=moment_type,moment_label="B",evolution_order=evolution_order,error_type="central")
+    term_1 = evolve_conformal_moment(2,0,t,mu,particle=particle,moment_type=moment_type,moment_label="A",evolution_order=evolution_order,error_type="central")
+    term_2 = evolve_conformal_moment(2,0,t,mu,particle=particle,moment_type=moment_type,moment_label="B",evolution_order=evolution_order,error_type="central")
     result = (term_1 + term_2)/2
 
-    term_1_plus = evolve_conformal_moment(n+1,0,t,mu,particle=particle,moment_type=moment_type,moment_label="A",evolution_order=evolution_order,error_type="plus")
-    term_2_plus = evolve_conformal_moment(n+1,0,t,mu,particle=particle,moment_type=moment_type,moment_label="B",evolution_order=evolution_order,error_type="plus")
+    term_1_plus = evolve_conformal_moment(2,0,t,mu,particle=particle,moment_type=moment_type,moment_label="A",evolution_order=evolution_order,error_type="plus")
+    term_2_plus = evolve_conformal_moment(2,0,t,mu,particle=particle,moment_type=moment_type,moment_label="B",evolution_order=evolution_order,error_type="plus")
     error_plus = np.sqrt((term_1_plus-term_1)**2+(term_2_plus-term_2)**2)/2
 
-    term_1_minus = evolve_conformal_moment(n+1,0,t,mu,particle=particle,moment_type=moment_type,moment_label="A",evolution_order=evolution_order,error_type="minus")
-    term_2_minus = evolve_conformal_moment(n+1,0,t,mu,particle=particle,moment_type=moment_type,moment_label="B",evolution_order=evolution_order,error_type="minus")
+    term_1_minus = evolve_conformal_moment(2,0,t,mu,particle=particle,moment_type=moment_type,moment_label="A",evolution_order=evolution_order,error_type="minus")
+    term_2_minus = evolve_conformal_moment(2,0,t,mu,particle=particle,moment_type=moment_type,moment_label="B",evolution_order=evolution_order,error_type="minus")
     error_minus = np.sqrt((term_1_minus-term_1)**2+(term_2_minus-term_2)**2)/2
-    
+
     return result, error_plus, error_minus
 
-def orbital_angular_momentum(t,mu, particle="quark",moment_type="non_singlet_isovector",evolution_order="LO"):
+def orbital_angular_momentum(eta,t,mu, particle="quark",moment_type="non_singlet_isovector",evolution_order="LO"):
     """ Returns the orbital angular momentum of moment_type including errors
 
     Parameters:
+    - eta (float): Skewness parameter
     - t (float): Mandelstam t
     - mu (float): The momentum scale of the process
     - moment_type (str. optional): The flavor dependence. Either non_singlet_isovector or non_singlet_isoscalar    
     """
-
+    check_particle_type(particle)
     if moment_type not in ["singlet",
                            "non_singlet_isoscalar",
                            "non_singlet_isovector"]:
         raise ValueError(f"Wrong moment type {moment_type}")
-    
+
+    term_1 = evolve_conformal_moment(2,eta,t,mu,particle=particle,moment_type=moment_type,moment_label="A",evolution_order=evolution_order,error_type="central")
+    term_2 = evolve_conformal_moment(2,eta,t,mu,particle=particle,moment_type=moment_type,moment_label="B",evolution_order=evolution_order,error_type="central")
+
+    term_1_plus = evolve_conformal_moment(2,eta,t,mu,particle=particle,moment_type=moment_type,moment_label="A",evolution_order=evolution_order,error_type="plus")
+    term_2_plus = evolve_conformal_moment(2,eta,t,mu,particle=particle,moment_type=moment_type,moment_label="B",evolution_order=evolution_order,error_type="plus")
+
+    term_1_minus = evolve_conformal_moment(2,eta,t,mu,particle=particle,moment_type=moment_type,moment_label="A",evolution_order=evolution_order,error_type="minus")
+    term_2_minus = evolve_conformal_moment(2,eta,t,mu,particle=particle,moment_type=moment_type,moment_label="B",evolution_order=evolution_order,error_type="minus")
+
     if moment_type != "singlet":
-        n = 1
+        term_3 = evolve_conformal_moment(1,eta,t,mu,particle=particle,moment_type=moment_type,moment_label="Atilde",evolution_order=evolution_order,error_type="central")
+        term_3_plus = evolve_conformal_moment(1,eta,t,mu,particle=particle,moment_type=moment_type,moment_label="Atilde",evolution_order=evolution_order,error_type="plus")
+        term_3_minus = evolve_conformal_moment(1,eta,t,mu,particle=particle,moment_type=moment_type,moment_label="Atilde",evolution_order=evolution_order,error_type="minus")
     else:
-        print("Singlet Helicity is first, not second moment; Need to introduce bypass via GPD table - abort")
-        return
-        n = 2
+        term_3 = first_singlet_moment(eta,mu,particle=particle,gpd_label="Htilde",error_type="central",t0_only=t)
+        term_3_plus = first_singlet_moment(eta,mu,particle=particle,gpd_label="Htilde",error_type="plus",t0_only=t)
+        term_3_minus = first_singlet_moment(eta,mu,particle=particle,gpd_label="Htilde",error_type="minus",t0_only=t)
 
-    term_1 = evolve_conformal_moment(n+1,0,t,mu,particle=particle,moment_type=moment_type,moment_label="A",evolution_order=evolution_order,error_type="central")
-    term_2 = evolve_conformal_moment(n+1,0,t,mu,particle=particle,moment_type=moment_type,moment_label="B",evolution_order=evolution_order,error_type="central")
-    term_3 = evolve_conformal_moment(n,0,t,mu,particle=particle,moment_type=moment_type,moment_label="Atilde",evolution_order=evolution_order,error_type="central")
     result = (term_1 + term_2)/2 - term_3/2
-
-    term_1_plus = evolve_conformal_moment(n+1,0,t,mu,particle=particle,moment_type=moment_type,moment_label="A",evolution_order=evolution_order,error_type="plus")
-    term_2_plus = evolve_conformal_moment(n+1,0,t,mu,particle=particle,moment_type=moment_type,moment_label="B",evolution_order=evolution_order,error_type="plus")
-    term_3_plus = evolve_conformal_moment(n,0,t,mu,particle=particle,moment_type=moment_type,moment_label="Atilde",evolution_order=evolution_order,error_type="plus")
     error_plus = np.sqrt((term_1_plus-term_1)**2+(term_2_plus-term_2)**2+(term_3-term_3_plus)**2)/2
-
-    term_1_minus = evolve_conformal_moment(n+1,0,t,mu,particle=particle,moment_type=moment_type,moment_label="A",evolution_order=evolution_order,error_type="minus")
-    term_2_minus = evolve_conformal_moment(n+1,0,t,mu,particle=particle,moment_type=moment_type,moment_label="B",evolution_order=evolution_order,error_type="minus")
-    term_3_minus = evolve_conformal_moment(n,0,t,mu,particle=particle,moment_type=moment_type,moment_label="Atilde",evolution_order=evolution_order,error_type="minus")
     error_minus = np.sqrt((term_1_minus-term_1)**2+(term_2_minus-term_2)**2+(term_3-term_3_minus)**2)/2
 
     return result, error_plus, error_minus
 
-def quark_gluon_helicity(t,mu, particle="quark",moment_type="non_singlet_isovector",evolution_order="LO"):
+def quark_gluon_helicity(eta,t,mu, particle="quark",moment_type="non_singlet_isovector",evolution_order="LO"):
     """ Prints the quark helicity of moment_type including errors
 
     Parameters:
+    - eta (float): Skewness parameter
     - t (float): Mandelstam t
     - mu (float): The momentum scale of the process
     - moment_type (str. optional): The flavor dependence. Either non_singlet_isovector or non_singlet_isoscalar    
@@ -4246,27 +4298,30 @@ def quark_gluon_helicity(t,mu, particle="quark",moment_type="non_singlet_isovect
         raise ValueError(f"Wrong moment type {moment_type}")
     if particle == "gluon" and moment_type != "singlet":
         raise ValueError(f"Wrong moment_type {moment_type} for {particle}")
-    if moment_type != "singlet":
-        n = 1
+
+    if particle == "quark":
+        result = evolve_conformal_moment(1,eta,t,mu,particle=particle,moment_type=moment_type,moment_label="Atilde",evolution_order=evolution_order,error_type="central")/2
+
+        term_1 = evolve_conformal_moment(1,eta,t,mu,particle=particle,moment_type=moment_type,moment_label="Atilde",evolution_order=evolution_order,error_type="plus")/2
+        error_plus = abs(result - term_1)
+
+        term_1 = evolve_conformal_moment(1,eta,t,mu,particle=particle,moment_type=moment_type,moment_label="Atilde",evolution_order=evolution_order,error_type="minus")/2
+        error_minus = abs(result - term_1)
     else:
-        print("Singlet Helicity is first, not second moment; Need to introduce bypass via GPD table - abort")
-        return
-        n = 2
-    result = evolve_conformal_moment(n,0,t,mu,particle=particle,moment_type=moment_type,moment_label="Atilde",evolution_order=evolution_order,error_type="central")/2
+        result = first_singlet_moment(eta=eta,mu=mu,particle="gluon",gpd_label="Htilde",error_type="central",t0_only=t)/2
 
-    term_1 = evolve_conformal_moment(n,0,t,mu,particle=particle,moment_type=moment_type,moment_label="Atilde",evolution_order=evolution_order,error_type="plus")/2
-    error_plus = abs(result - term_1)
+        term_1 = first_singlet_moment(eta=eta,mu=mu,particle="gluon",gpd_label="Htilde",error_type="plus",t0_only=t)/2
+        error_plus = abs(result - term_1)
 
-    term_1 = evolve_conformal_moment(n,0,t,mu,particle=particle,moment_type=moment_type,moment_label="Atilde",evolution_order=evolution_order,error_type="minus")/2
-    error_minus = abs(result - term_1)
-
+        term_1 = first_singlet_moment(eta=eta,mu=mu,particle="gluon",gpd_label="Htilde",error_type="plus",t0_only=t)/2
+        error_minus = abs(result - term_1)
     return result, error_plus, error_minus
 
-def quark_helicity(t,mu, moment_type="non_singlet_isovector",evolution_order="LO"):
-    result, error_plus, error_minus = quark_gluon_helicity(t,mu,particle="quark",moment_type=moment_type,evolution_order=evolution_order)
+def quark_helicity(eta,t,mu, moment_type="non_singlet_isovector",evolution_order="LO"):
+    result, error_plus, error_minus = quark_gluon_helicity(eta,t,mu,particle="quark",moment_type=moment_type,evolution_order=evolution_order)
     return result, error_plus, error_minus
 
-def gluon_helicity(t,mu,evolution_order="LO"):
+def gluon_helicity(eta,t,mu,evolution_order="LO"):
     result, error_plus, error_minus = quark_gluon_helicity(t,mu,particle="gluon",moment_type="singlet",evolution_order=evolution_order)
     return result, error_plus, error_minus
 

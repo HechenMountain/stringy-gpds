@@ -421,10 +421,11 @@ def uv_minus_dv_pdf(x, evolution_order="LO",error_type="central"):
 def uv_plus_dv_plus_S_pdf(x, evolution_order="LO",error_type="central"):
     uv = uv_pdf(x,evolution_order,error_type)
     dv = dv_pdf(x,evolution_order,error_type)
+    Spdf = S_pdf(x,evolution_order,error_type)
     if error_type == "central":
-        result = uv+dv
+        result = uv+dv+Spdf
     else:
-        result = np.sqrt(uv**2+dv**2)
+        result = np.sqrt(uv**2+dv**2+Spdf**2)
     return result
 
 ######################
