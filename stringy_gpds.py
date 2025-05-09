@@ -1,19 +1,24 @@
-# # Dependencies
+# Dependencies
 import numpy as np
-import mpmath as mp
+# import mpmath as mp
+from config import mp
 import matplotlib.pyplot as plt
-import matplotlib.ticker as mticker
-from scipy.optimize import curve_fit
-from scipy.integrate import quad, trapezoid, odeint
-from joblib import Parallel, delayed
-from scipy.special import gamma, digamma
-from scipy.interpolate import interp1d, RectBivariateSpline
 import time
-import re
 import os
+import csv
 
-from mstw_pdf import MSTW_PDF
+from scipy.integrate import odeint, trapezoid
+from scipy.interpolate import interp1d, RectBivariateSpline
+from scipy.optimize import curve_fit
+
+from joblib import Parallel, delayed, Memory
+from tqdm import tqdm
+
+from mstw_pdf import MSTW_PDF, get_alpha_s
 from aac_pdf import AAC_PDF
+
+import config as cfg
+import helpers as hp
 
 ########################################
 #### Currently enforced assumptions ####
@@ -24,437 +29,6 @@ from aac_pdf import AAC_PDF
 # Delta_u_bar = Delta_s_bar = Delta_s  #
 ########################################
 
-
-
-
-########################################
-#### Dictionaries and data handling ####
-####       Change as required       ####
-########################################
-
-# Parent directory for data
-BASE_PATH = "/mnt/c/Users/flori/Documents/PostDoc/Data/stringy-gpds/"
-# Subdirectories for cleaner file handling
-IMPACT_PARAMETER_MOMENTS_PATH = BASE_PATH + "ImpactParameterMoments/"
-MOMENTUM_SPACE_MOMENTS_PATH = BASE_PATH + "MomentumSpaceMoments/"
-GPD_PATH = BASE_PATH + "GPDs/"
-# Folder for generated plots
-PLOT_PATH =  "/mnt/c/Users/flori/Documents/PostDoc/Plots/stringy-gpds/"
-
-# Add some colors
-saturated_pink = (1.0, 0.1, 0.6)  
-
-
-PUBLICATION_MAPPING = {
-    "2305.11117": ("cyan",2),
-    "0705.4295": ("orange",2),
-    "1908.10706": (saturated_pink,2),
-    "2310.08484": ("darkblue",2),
-    "2410.03539": ("green",2)
-# Add more publication IDs and corresponding colors here
-}
-
-GPD_PUBLICATION_MAPPING = {
-    # publication ID, GPD type, GPD label, eta, t ,mu
-    ("2008.10573","non_singlet_isovector","Htilde",0.00, -0.69, 2.00): ("mediumturquoise","000_069_200"),
-    ("2008.10573","non_singlet_isovector","Htilde",0.33, -0.69, 2.00): ("green","033_069_200"),
-    ("2112.07519","non_singlet_isovector","Htilde",0.00, -0.39, 3.00): ("purple","000_039_300"),
-    ("2008.10573","non_singlet_isovector","E",0.00, -0.69, 2.00): ("mediumturquoise","000_069_200"),
-    ("2008.10573","non_singlet_isovector","E",0.33, -0.69, 2.00): ("green","033_069_200"),
-    ("2312.10829","non_singlet_isovector","E",0.10, -0.23, 2.00): ("orange","010_023_200"),
-    # No data:
-    # ("","non_singlet_isoscalar","E",0.00, -0.00, 2.00): ("purple","000_000_200"),
-    # ("","non_singlet_isoscalar","E",0.33, -0.69, 2.00): ("green","033_069_200"),
-    # ("","non_singlet_isoscalar","E",0.10, -0.23, 2.00): ("orange","010_023_200"),
-    # ("","non_singlet_isoscalar","E",0.33, -0.69, 2.00): (saturated_pink,"000_039_200"),
-# Add more publication IDs and corresponding colors here
-}
-
-GPD_LABEL_MAP ={"H": "A",
-                "E": "B",
-                "Htilde": "Atilde"
-                    }
-
-def initialize_moment_to_function():
-    # Define dictionary that maps conformal moments names and types to expressions
-    global MOMENT_TO_FUNCTION
-    MOMENT_TO_FUNCTION = {
-    # Contains a Pair of moment_type and moment_label to match input PDF and evolution type
-    ("non_singlet_isovector", "A"): (non_singlet_isovector_moment,"vector"),
-    ("non_singlet_isovector", "B"): (non_singlet_isovector_moment,"vector"),
-    ("non_singlet_isovector", "Atilde"): (non_singlet_isovector_moment,"axial"),
-    ("non_singlet_isoscalar", "A"): (non_singlet_isoscalar_moment,"vector"),
-    ("non_singlet_isoscalar", "B"): (non_singlet_isoscalar_moment,"vector"),
-    ("non_singlet_isoscalar", "Atilde"): (non_singlet_isoscalar_moment,"axial"),
-    ("singlet","A"): (singlet_moment, "vector"),
-    ("singlet","B"): (singlet_moment, "vector"),
-    ("singlet","Atilde"): (singlet_moment, "axial"),
-    }
-
-def get_regge_slope(moment_type,moment_label,evolve_type):
-    """Set Regge slopes, modify manually
-    
-    Parameters:
-    - moment_type (str.): non_singlet_isovector, non_singlet_isoscalar, singlet
-    - moment_label (str.): A, Atilde...
-    - evolve_type (str.): Type of evolution equation
-    """
-    check_moment_type_label(moment_type,moment_label)
-    check_evolve_type(evolve_type)
-
-    if evolve_type == "vector":
-        if moment_type == "non_singlet_isovector":
-            if moment_label == "A":
-                # Value from the paper
-                # alpha_prime = 1.069
-                # Best fit
-                alpha_prime = 0.658
-                return alpha_prime
-            if moment_label == "B":
-                alpha_prime = 1.460
-                return alpha_prime                
-        if moment_type == "non_singlet_isoscalar":
-            if moment_label == "A":
-                # Value from the paper
-                # alpha_prime = 0.891
-                # Best fit
-                alpha_prime = 0.957
-                return alpha_prime
-            if moment_label == "B":
-                alpha_prime = 1.13
-                return alpha_prime
-        if moment_type == "singlet":
-            if moment_label in ["A","B"]:
-                alpha_prime_s = 1.828
-                alpha_prime_T = 0.627
-                alpha_prime_S = 4.277
-                return alpha_prime_s, alpha_prime_T, alpha_prime_S
-    elif evolve_type == "axial":
-        if moment_type == "non_singlet_isovector":
-            if moment_label == "Atilde":
-                alpha_prime = 0.454387
-                return alpha_prime
-        if moment_type == "non_singlet_isoscalar":
-            if moment_label == "Atilde":
-                alpha_prime = 0.297522
-                return alpha_prime
-        if moment_type == "singlet":
-            if moment_label in ["Atilde","Btilde"]:
-                # Assuming that the exchange is solely
-                # carried by the eta prime meson trajectory
-                alpha_prime_s = 1.179
-                alpha_prime_PV = 0.490
-                alpha_prime_PS = 0.744
-                return alpha_prime_s, alpha_prime_PV, alpha_prime_PS
-    else:
-        raise ValueError(f"Evolve type {evolve_type} for moment {moment_type} with label {moment_label} unavailable.")
-            
-
-def load_lattice_moment_data(particle,moment_type, moment_label, pub_id):
-    """
-    Load data from a .csv file, extracting 'n' values from the header and associating them with rows. 
-    Modify FILE_NAME and FILE_PATH as needed
-
-    Args:
-    - particle (str): quark or gluon
-    - moment_type (str): The type of moment (e.g., "Isovector").
-    - moment_label (str): The label of the moment (e.g., "A").
-    - pub_id (str): The publication ID.
-
-    Returns:
-        tuple: A tuple containing the data and a dictionary mapping 'n' values to row indices.
-    """
-    moment_path = MOMENTUM_SPACE_MOMENTS_PATH
-    FILE_NAME = f"{moment_type}_{particle}_moments_{moment_label}_{pub_id}.csv"
-    FILE_PATH = f"{moment_path}{FILE_NAME}"
-
-    # Check if the file exists
-    if not os.path.exists(FILE_PATH):
-        # print(f"No data available for {moment_type}{moment_label} in {pub_id}")
-        return None, None
-
-    with open(FILE_PATH, 'r') as f:
-        # Read and split the header by commas
-        header = f.readline().strip().split(',')
-
-        # Load the rest of the file as data
-        data = np.loadtxt(f, delimiter=',')
-
-    # Extract 'n' values from the header
-    n_values = []
-    for col_name in header:
-        match = re.search(rf'{moment_label}(\d+)0_', col_name)
-        if match:
-            n_values.append(int(match.group(1)))
-
-    # Create a dictionary mapping 'n' values to row indices
-    n_to_row_map = {n: i for i, n in enumerate(n_values)}
-
-    return data, n_to_row_map
-
-def Fn0_values(n,particle, moment_type, moment_label, pub_id):
-    """
-    Return central values for An0 for a given n, moment type, label, and publication ID.
-    """
-    data, n_to_row_map = load_lattice_moment_data(particle,moment_type, moment_label, pub_id)
-
-    if data is None and n_to_row_map is None:
-        #print(f"No data found for {moment_type} {moment_label} {pub_id}. Skipping.")
-        return None
-    
-    # Check if the requested n is available in the data
-    if n not in n_to_row_map:
-        return None  # Requested n does not exist
-    
-    # Get the corresponding column index for An0_val
-    col_idx = n_to_row_map[n]
-    
-    # Return the column data
-    return data[:, col_idx]
-
-def Fn0_errors(n,particle, moment_type, moment_label, pub_id):
-    """
-    Return errors for An0 for a given n, moment type, label, and publication ID.
-    """
-    data, n_to_row_map = load_lattice_moment_data(particle,moment_type, moment_label, pub_id)
-
-    if data is None and n_to_row_map is None:
-        #print(f"No data found for {moment_type} {moment_label} {pub_id}. Skipping.")
-        return None 
-    
-    # Check if the requested n is available in the data
-    if n not in n_to_row_map:
-        return None  # Requested n does not exist
-    
-    # Get the corresponding column index for An0_err
-    col_idx = n_to_row_map[n]+1
-    
-    # Return the column data
-    return data[:, col_idx]
-
-def load_Cz_data(particle,moment_type,pub_id_A,pub_id_Atilde):
-    def t_values(moment_type, moment_label, pub_id):
-        """Return the -t values for a given moment type, label, and publication ID."""
-        data, n_to_row_map = load_lattice_moment_data(particle,moment_type, moment_label, pub_id)
-        
-        if data is not None:
-            # Safely access data[:, 0] since data is not None
-            return data[:, 0]
-        return None  
-
-    A10_val = Fn0_values(1,particle,moment_type,"A",pub_id_A)
-    A10_err = Fn0_errors(1,particle,moment_type,"A",pub_id_A)
-    A_t_vals = t_values(moment_type,"A",pub_id_A)
-    Atilde20_val = Fn0_values(2,particle,moment_type,"Atilde",pub_id_Atilde)
-    Atilde20_err = Fn0_errors(2,particle,moment_type,"Atilde",pub_id_Atilde)
-    A_tilde_t_vals = t_values(moment_type,"Atilde",pub_id_Atilde)
-
-    if (A10_val is None or (isinstance(A10_val, np.ndarray) and A10_val.size == 0)) or \
-    (Atilde20_val is None or (isinstance(Atilde20_val, np.ndarray) and Atilde20_val.size == 0)):
-        #print("No data found")
-        return  None, None, None
-
-    if np.any(A_tilde_t_vals != A_t_vals):
-        print("Warning: different t values encountered.")
-        print(A_t_vals)
-        print(A_tilde_t_vals)
-    Cz = (Atilde20_val - A10_val)/2
-    Cz_err = np.sqrt(A10_err**2+Atilde20_err**2)/2
-
-    return A_t_vals, Cz, Cz_err
-
-def generate_filename(eta, t, mu, prefix="FILE_NAME",error_type="central"):
-    """
-    Generate a filename based on eta, t, and mu formatted as three-digit values.
-    """
-    error_mapping = {
-        "central": "",  # The column with the central value
-        "plus": "_plus",     # The column with the + error value
-        "minus": "_minus"     # The column with the - error value
-    }
-    eta_str = f"{abs(eta):.2f}".replace(".", "").zfill(3)
-    t_str = f"{abs(t):.2f}".replace(".", "").zfill(3)
-    mu_str = f"{abs(mu):.2f}".replace(".", "").zfill(3)
-    err_str = error_mapping.get(error_type)
-    filename = f"{prefix}_{eta_str}_{t_str}_{mu_str}{err_str}.csv"
-    return filename
-
-def parse_filename(filename, prefix="FILE_NAME"):
-    """
-    Extract eta, t, mu, and error_type from a filename if it matches the expected format.
-    Returns a tuple (eta, t, mu, error_type) or None if not a match.
-    """
-    pattern = re.compile(rf"{prefix}_(\d{{3}})_(\d{{3}})_(\d{{3}})(_plus|_minus)?\.csv")
-    match = pattern.match(filename)
-    if match:
-        eta = float(match.group(1)) / 100
-        t = float(match.group(2)) / 100
-        mu = float(match.group(3)) / 100
-        error_suffix = match.group(4)
-        error_type = "central"
-        if error_suffix == "_plus":
-            error_type = "plus"
-        elif error_suffix == "_minus":
-            error_type = "minus"
-        return eta, t, mu, error_type
-    return None
-
-def save_gpd_data(x_values, eta, t, mu,y_values,particle="quark",gpd_type="non_singlet_isovector",gpd_label="H",error_type="central"):
-    """
-    Save the function f(x, eta, t, mu) evaluated at x_values to a CSV file.
-    """
-    if len(x_values) != len(y_values):
-        raise ValueError(f"x_values ({len(x_values)}) and y_values({len(y_values)}) are of unequal length")
-
-    gpd_name = gpd_type + "_" + particle + "_GPD_" + gpd_label
-    gpd_path = BASE_PATH + "/GPDs/"
-
-    filename = os.path.join(gpd_path, generate_filename(eta, t, mu,gpd_name,error_type))
-    data = np.column_stack((x_values, y_values))
-    np.savetxt(filename, data, delimiter=",")
-    print(f"Saved data to {filename}")
-
-def load_gpd_data(eta, t, mu,particle="quark",gpd_type="non_singlet_isovector",gpd_label="H",error_type ="central"):
-    """
-    Load data from CSV if it exists, otherwise return None.
-    """
-
-    gpd_name = gpd_type + "_" + particle + "_GPD_" + gpd_label
-    gpd_path = BASE_PATH + "/GPDs/"
-    filename = os.path.join(gpd_path, generate_filename(eta, t, mu,gpd_name,error_type))
-    if os.path.exists(filename):
-        data = np.loadtxt(filename, delimiter=",")
-        x_values, y_values = data[:, 0], data[:, 1]
-        return x_values, y_values
-    else:
-        return None, None
-
-
-def load_lattice_gpd_data(eta_in,t_in,mu_in,particle,gpd_type,gpd_label, pub_id,error_type="central"):
-    """
-    Load data from a .csv file, extracting 
-    Modify FILE_NAME and FILE_PATH as needed
-
-    Args:
-        eta_in (float): skewness parameter
-        t_in (float): Mandelstam t
-        mu_in (float): Resolution scale
-        gpd_type (str): The type of moment (e.g., "Isovector").
-        moment_label (str): The label of the moment (e.g., "A").
-        pub_id (str): The publication ID.
-        erorry_type(str): "central", "plus" or "minus"
-    Returns:
-        tuple: A tuple containing the data and a dictionary mapping 'n' values to row indices.
-    """
-    if (pub_id,gpd_type,gpd_label,eta_in,t_in,mu_in) in GPD_PUBLICATION_MAPPING:
-        (color,parameter_set) = GPD_PUBLICATION_MAPPING[(pub_id,gpd_type,gpd_label,eta_in,t_in,mu_in)]
-    else:
-        #print("No data found on filesystem")
-        return None, None, None
-    check_error_type(error_type)
-    error_mapping = {
-        "central": "",  # The column with the central value
-        "plus": "_plus",     # The column with the + error value
-        "minus": "_minus"     # The column with the - error value
-    }
-    error = error_mapping.get(error_type)
-    gpd_name = gpd_type + "_" + particle + "_GPD_" + gpd_label
-    gpd_path = BASE_PATH + "/GPDs/"
-    FILE_NAME = f"{gpd_name}_{pub_id}_{parameter_set}{error}.csv"
-    FILE_PATH = f"{gpd_path}{FILE_NAME}"
-
-    # Check if the file exists
-    if not os.path.exists(FILE_PATH):
-        # print(f"No data available for {moment_type}{moment_label} in {pub_id}")
-        return None, None
-    data = []
-
-    with open(FILE_PATH, 'r') as f:
-        # Read and split the header by commas
-        comment = f.readline()
-        header = f.readline().strip().split(',')
-
-        # Load the rest of the file as data
-        data = np.loadtxt(f, delimiter=',')
-        x_values = data[:,0]
-        gpd_values = data[:,1]
-    return x_values, gpd_values
-
-def save_ft_to_csv(b_x_fm, b_y_fm, data, filename):
-    header = "b_x_fm,b_y_fm,FT[b_x_fm,b_y_fm]"
-    
-    # Ensure correct shape: Convert 2D grid into column format
-    b_x_flat = np.repeat(b_x_fm, len(b_y_fm))  # Repeat each b_x value for all b_y
-    b_y_flat = np.tile(b_y_fm, len(b_x_fm))    # Tile b_y values for each b_x
-    data_flat = data.ravel()                   # Flatten the data
-    
-    # Stack columns and save
-    data_with_b_x_b_y = np.column_stack((b_x_flat, b_y_flat, data_flat))
-    np.savetxt(filename, data_with_b_x_b_y, delimiter=",", header=header, comments='')
-    print(f"Saved data to {filename}")
-def read_ft_from_csv(filename):
-    # Load the data (skip the header row)
-    loaded_data = np.loadtxt(filename, delimiter=",", skiprows=1)
-
-    # Extract columns
-    b_x_flat, b_y_flat, data_flat = loaded_data[:, 0], loaded_data[:, 1], loaded_data[:, 2]
-
-    # Reconstruct unique x and y values
-    b_x_fm = np.unique(b_x_flat)
-    b_y_fm = np.unique(b_y_flat)
-
-    # Reshape data back into 2D grid
-    data = data_flat.reshape(len(b_y_fm), len(b_x_fm))  # Must match original shape
-
-    return b_x_fm, b_y_fm, data
-
-
-##########################
-#### Helper functions ####
-##########################
-
-def check_evolution_order(evolution_order):
-    if evolution_order not in ["LO","NLO","NNLO"]:
-        raise ValueError(f"Wrong evolution_order {evolution_order} for evolution equation")
-
-def get_alpha_s(evolution_order="LO"):
-    """
-    Returns alpha_s at the input scale of 1 GeV from the MSTW PDF best fit.
-    Note that the MSTW best fit obtains alpha_S(mu=1 GeV**2)=0.68183, different from the world average
-    Parameters:
-    - evolution_order (str. optional): LO, NLO or NNLO
-    """
-    check_evolution_order(evolution_order)
-    index_alpha_s= MSTW_PDF[MSTW_PDF["Parameter"] == "alpha_S(Q0^2)"].index[0]
-    alpha_s_in = MSTW_PDF[[evolution_order]].iloc[index_alpha_s,0][0]
-    return alpha_s_in
-
-def check_error_type(error_type):
-    if error_type not in ["central","plus","minus"]:
-        raise ValueError("error_type must be central, plus or minus")
-
-def check_particle_type(particle):
-    if particle not in ["quark", "gluon"]:
-        raise ValueError("particle must be quark or gluon")
-    
-def check_moment_type_label(moment_type, moment_label):
-    if (moment_type, moment_label) not in MOMENT_TO_FUNCTION:
-        raise ValueError(f"Unsupported moment_type and or label\n (moment_type, moment_label): {moment_type, moment_label} not in {MOMENT_TO_FUNCTION}")
-
-def check_evolve_type(evolve_type):
-    if evolve_type not in ["vector","axial"]:
-        raise ValueError("evolve_type must be vector or axial.")
-    
-def check_parity(parity):
-    if parity not in ["even", "odd","none"]:
-        raise ValueError("Parity must be even, odd or none")
-
-def error_sign(error,error_type):
-    check_error_type(error_type)
-    if error_type == "minus":
-        return -error
-    else:
-        return error
 
 #####################################
 ### Input for Evolution Equations ###
@@ -528,10 +102,9 @@ def integral_pdf_regge(A_pdf,eta_1,eta_2,epsilon,gamma_pdf,j,alpha_p,t):
         - alpha_p (float): Regge slope.
         - t (float): Mandelstam t (< 0 in physical region)
         """
-        frac_1 = epsilon*gamma(eta_1+j-alpha_p*t -.5)/(gamma(eta_1+eta_2+j-alpha_p*t+.5))
-        # frac_2 = (eta_1+eta_2-gamma_pdf+eta_1*gamma_pdf+j*(1+gamma_pdf)-(1+gamma_pdf)*alpha_p*t)*gamma(eta_1+j-alpha_p*t-1)/gamma(1+eta_1+eta_2+j-alpha_p*t)
-        frac_2 = (eta_1+eta_2-gamma_pdf+eta_1*gamma_pdf+j*(1+gamma_pdf)+(1+gamma_pdf)*alpha_p*t)*gamma(eta_1+j-alpha_p*t-1)/gamma(1+eta_1+eta_2+j-alpha_p*t)
-        result = A_pdf*gamma(1+eta_2)*(frac_1+frac_2)
+        frac_1 = epsilon*mp.gamma(eta_1+j-alpha_p*t -.5)/(mp.gamma(eta_1+eta_2+j-alpha_p*t+.5))
+        frac_2 = (eta_1+eta_2-gamma_pdf+eta_1*gamma_pdf+j*(1+gamma_pdf)-(1+gamma_pdf)*alpha_p*t)*mp.gamma(eta_1+j-alpha_p*t-1)/mp.gamma(1+eta_1+eta_2+j-alpha_p*t)
+        result = A_pdf*mp.gamma(1+eta_2)*(frac_1+frac_2)
         return result
 
 def integral_polarized_pdf_regge(
@@ -561,34 +134,34 @@ def integral_polarized_pdf_regge(
         - t (float): Mandelstam t (< 0 in physical region)
         - evolution_order (str. optional): LO, NLO, NNLO
         """
-        check_evolution_order(evolution_order)
+        hp.check_evolution_order(evolution_order)
         term1 = (
-                A_pdf * Delta_A_pdf * gamma(eta_2 + 1) * (
+                A_pdf * Delta_A_pdf * mp.gamma(eta_2 + 1) * (
                 (
-                        (gamma_pol * epsilon * gamma(eta_1 + j - alpha_p * t + alpha + lambda_pol - 0.5))
-                        / gamma(eta_1 + eta_2 + j - alpha_p * t + alpha + lambda_pol + 0.5)
+                        (gamma_pol * epsilon * mp.gamma(eta_1 + j - alpha_p * t + alpha + lambda_pol - 0.5))
+                        / mp.gamma(eta_1 + eta_2 + j - alpha_p * t + alpha + lambda_pol + 0.5)
                 )
                 + (
-                        (epsilon * gamma(eta_1 + j - alpha_p * t + alpha - 0.5))
-                        / gamma(eta_1 + eta_2 + j - alpha_p * t + alpha + 0.5)
+                        (epsilon * mp.gamma(eta_1 + j - alpha_p * t + alpha - 0.5))
+                        / mp.gamma(eta_1 + eta_2 + j - alpha_p * t + alpha + 0.5)
                 )
                 + (
-                        (gamma_pol * gamma(eta_1 + j - alpha_p * t + alpha + lambda_pol - 1))
+                        (gamma_pol * mp.gamma(eta_1 + j - alpha_p * t + alpha + lambda_pol - 1))
                         * (
                         alpha + lambda_pol + eta_1 * (gamma_pdf + 1)
                         + eta_2 + gamma_pdf * (alpha + lambda_pol + j - alpha_p * t - 1)
                         + j - alpha_p * t
                         )
-                        / gamma(eta_1 + eta_2 + j - alpha_p * t + alpha + lambda_pol + 1)
+                        / mp.gamma(eta_1 + eta_2 + j - alpha_p * t + alpha + lambda_pol + 1)
                 )
                 + (
-                        (gamma(eta_1 + j - alpha_p * t + alpha - 1))
+                        (mp.gamma(eta_1 + j - alpha_p * t + alpha - 1))
                         * (
                         alpha + eta_1 * (gamma_pdf + 1)
                         + eta_2 + gamma_pdf * (alpha + j - alpha_p * t - 1)
                         + j - alpha_p * t
                         )
-                        / gamma(eta_1 + eta_2 + j - alpha_p * t + alpha + 1)
+                        / mp.gamma(eta_1 + eta_2 + j - alpha_p * t + alpha + 1)
                 )
                 )
         )
@@ -596,18 +169,18 @@ def integral_polarized_pdf_regge(
         if evolution_order == "LO":
             result = term1
         elif evolution_order == "NLO":
-            term2 = - A_pdf * Delta_A_pdf * gamma_pol * gamma(eta_2 + 1)*(
-                        (epsilon * gamma(eta_1 + j - alpha_p * t + alpha - 0.5))
-                        / gamma(eta_1 + eta_2 + j - alpha_p * t + alpha + 0.5)
-                        + (gamma(eta_1 + j - alpha_p * t + alpha - 1)
+            term2 = - A_pdf * Delta_A_pdf * gamma_pol * mp.gamma(eta_2 + 1)*(
+                        (epsilon * mp.gamma(eta_1 + j - alpha_p * t + alpha - 0.5))
+                        / mp.gamma(eta_1 + eta_2 + j - alpha_p * t + alpha + 0.5)
+                        + (mp.gamma(eta_1 + j - alpha_p * t + alpha - 1)
                         * (
                         alpha + eta_1 * (gamma_pdf + 1)
                         + eta_2 + gamma_pdf * (alpha + j - alpha_p * t - 1)
                         + j - alpha_p * t)
                         )
-                        / gamma(eta_1 + eta_2 + j - alpha_p * t + alpha + 1)
+                        / mp.gamma(eta_1 + eta_2 + j - alpha_p * t + alpha + 1)
             )
-            result =term1+term2
+            result = term1 + term2
         else:
             raise ValueError("Currently unsupported evolution type")
         
@@ -639,69 +212,69 @@ def integral_pdf_regge_error(A_pdf,delta_A_pdf,eta_1,delta_eta_1,eta_2,delta_eta
         0 if the central value of the input PDF is picked.
         +- error_pdf if error_type ="plus" or "minus".
         """
-        check_error_type(error_type)
+        hp.check_error_type(error_type)
         if error_type == "central":
                 return 0
         def dpdf_dA_pdf(A_pdf, epsilon, eta_1, eta_2, j, t, alpha_p, gamma_pdf):
-                frac_1 = epsilon*gamma(eta_1+j-alpha_p*t -.5)/(gamma(eta_1+eta_2+j-alpha_p*t+.5))
-                frac_2 = (eta_1+eta_2-gamma_pdf+eta_1*gamma_pdf+j*(1+gamma_pdf)-(1+gamma_pdf)*alpha_p*t)*gamma(eta_1+j-alpha_p*t-1)/gamma(1+eta_1+eta_2+j-alpha_p*t)
-                result = gamma(1+eta_2)*(frac_1+frac_2)
+                frac_1 = epsilon*mp.gamma(eta_1+j-alpha_p*t -.5)/(mp.gamma(eta_1+eta_2+j-alpha_p*t+.5))
+                frac_2 = (eta_1+eta_2-gamma_pdf+eta_1*gamma_pdf+j*(1+gamma_pdf)-(1+gamma_pdf)*alpha_p*t)*mp.gamma(eta_1+j-alpha_p*t-1)/mp.gamma(1+eta_1+eta_2+j-alpha_p*t)
+                result = mp.gamma(1+eta_2)*(frac_1+frac_2)
                 return result
 
         def dpdf_deta_1(A_pdf, epsilon, eta_1, eta_2, j, t, alpha_p, gamma_pdf):
-                term_1 = (epsilon * gamma(eta_1 + j - t * alpha_p - 0.5) * 
-                digamma(eta_1 + j - t * alpha_p - 0.5) / 
-                gamma(eta_1 + eta_2 + j - t * alpha_p + 0.5))
+                term_1 = (epsilon * mp.gamma(eta_1 + j - t * alpha_p - 0.5) * 
+                mp.digamma(eta_1 + j - t * alpha_p - 0.5) / 
+                mp.gamma(eta_1 + eta_2 + j - t * alpha_p + 0.5))
 
-                term_2 = (epsilon * gamma(eta_1 + j - t * alpha_p - 0.5) * 
-                        digamma(eta_1 + eta_2 + j - t * alpha_p + 0.5) / 
-                        gamma(eta_1 + eta_2 + j - t * alpha_p + 0.5))
+                term_2 = (epsilon * mp.gamma(eta_1 + j - t * alpha_p - 0.5) * 
+                        mp.digamma(eta_1 + eta_2 + j - t * alpha_p + 0.5) / 
+                        mp.gamma(eta_1 + eta_2 + j - t * alpha_p + 0.5))
 
-                term_3 = ((gamma_pdf + 1) * gamma(eta_1 + j - t * alpha_p - 1) / 
-                        gamma(eta_1 + eta_2 + j - t * alpha_p + 1))
+                term_3 = ((gamma_pdf + 1) * mp.gamma(eta_1 + j - t * alpha_p - 1) / 
+                        mp.gamma(eta_1 + eta_2 + j - t * alpha_p + 1))
 
                 factor = (eta_1 * (gamma_pdf + 1) + eta_2 + 
                         gamma_pdf * (j - alpha_p * t - 1) + j - alpha_p * t)
 
-                term_4 = (gamma(eta_1 + j - t * alpha_p - 1) * digamma(eta_1 + j - t * alpha_p - 1) * factor /
-                        gamma(eta_1 + eta_2 + j - t * alpha_p + 1))
+                term_4 = (mp.gamma(eta_1 + j - t * alpha_p - 1) * mp.digamma(eta_1 + j - t * alpha_p - 1) * factor /
+                        mp.gamma(eta_1 + eta_2 + j - t * alpha_p + 1))
 
-                term_5 = (gamma(eta_1 + j - t * alpha_p - 1) * factor * 
-                        digamma(eta_1 + eta_2 + j - t * alpha_p + 1) /
-                        gamma(eta_1 + eta_2 + j - t * alpha_p + 1))
+                term_5 = (mp.gamma(eta_1 + j - t * alpha_p - 1) * factor * 
+                        mp.digamma(eta_1 + eta_2 + j - t * alpha_p + 1) /
+                        mp.gamma(eta_1 + eta_2 + j - t * alpha_p + 1))
 
-                return A_pdf * gamma(eta_2 + 1) * (term_1 - term_2 + term_3 + term_4 - term_5)
+                return A_pdf * mp.gamma(eta_2 + 1) * (term_1 - term_2 + term_3 + term_4 - term_5)
         def dpdf_deta_2(A_pdf, epsilon, eta_1, eta_2, j, t, alpha_p, gamma_pdf):
-                term_1 = (epsilon * gamma(eta_1 + j - t * alpha_p - 0.5) / 
-                        gamma(eta_1 + eta_2 + j - t * alpha_p + 0.5))
+                term_1 = (epsilon * mp.gamma(eta_1 + j - t * alpha_p - 0.5) / 
+                        mp.gamma(eta_1 + eta_2 + j - t * alpha_p + 0.5))
 
                 factor = (eta_1 * (gamma_pdf + 1) + eta_2 + 
                         gamma_pdf * (j - alpha_p * t - 1) + j - alpha_p * t)
 
-                term_2 = (gamma(eta_1 + j - t * alpha_p - 1) * factor / 
-                        gamma(eta_1 + eta_2 + j - t * alpha_p + 1))
+                term_2 = (mp.gamma(eta_1 + j - t * alpha_p - 1) * factor / 
+                        mp.gamma(eta_1 + eta_2 + j - t * alpha_p + 1))
 
-                term_3 = (-epsilon * gamma(eta_1 + j - t * alpha_p - 0.5) * 
-                        digamma(eta_1 + eta_2 + j - t * alpha_p + 0.5) / 
-                        gamma(eta_1 + eta_2 + j - t * alpha_p + 0.5))
+                term_3 = (-epsilon * mp.gamma(eta_1 + j - t * alpha_p - 0.5) * 
+                        mp.digamma(eta_1 + eta_2 + j - t * alpha_p + 0.5) / 
+                        mp.gamma(eta_1 + eta_2 + j - t * alpha_p + 0.5))
 
-                term_4 = (-gamma(eta_1 + j - t * alpha_p - 1) * factor * 
-                        digamma(eta_1 + eta_2 + j - t * alpha_p + 1) /
-                        gamma(eta_1 + eta_2 + j - t * alpha_p + 1))
+                term_4 = (-mp.gamma(eta_1 + j - t * alpha_p - 1) * factor * 
+                        mp.digamma(eta_1 + eta_2 + j - t * alpha_p + 1) /
+                        mp.gamma(eta_1 + eta_2 + j - t * alpha_p + 1))
 
-                term_5 = (gamma(eta_1 + j - t * alpha_p - 1) /
-                        gamma(eta_1 + eta_2 + j - t * alpha_p + 1))
+                term_5 = (mp.gamma(eta_1 + j - t * alpha_p - 1) /
+                        mp.gamma(eta_1 + eta_2 + j - t * alpha_p + 1))
 
-                return (A_pdf * gamma(eta_2 + 1) * digamma(eta_2 + 1) * (term_1 + term_2) +
-                        A_pdf * gamma(eta_2 + 1) * (term_3 + term_4 + term_5))
+                return (A_pdf * mp.gamma(eta_2 + 1) * mp.digamma(eta_2 + 1) * (term_1 + term_2) +
+                        A_pdf * mp.gamma(eta_2 + 1) * (term_3 + term_4 + term_5))
 
         def dpdf_depsilon(A_pdf, epsilon, eta_1, eta_2, j, t, alpha_p, gamma_pdf):
-                term1 = A_pdf * gamma(eta_2 + 1) * gamma(eta_1 + j - alpha_p * t - 0.5)
-                term2 = gamma(eta_1 + eta_2 + j - alpha_p * t + 0.5)
+                term1 = A_pdf * mp.gamma(eta_2 + 1) * mp.gamma(eta_1 + j - alpha_p * t - 0.5)
+                term2 = mp.gamma(eta_1 + eta_2 + j - alpha_p * t + 0.5)
                 return term1/term2
         def dpdf_dgamma(A_pdf, epsilon, eta_1, eta_2, j, t, alpha_p, gamma_pdf):
-                term1 = A_pdf * gamma(eta_2 + 1) * (eta_1 + j - alpha_p * t - 1) * gamma(eta_1 + j - t * alpha_p - 1)
-                term2 = gamma(eta_1 + eta_2 + j - t * alpha_p + 1)
+                term1 = A_pdf * mp.gamma(eta_2 + 1) * (eta_1 + j - alpha_p * t - 1) * mp.gamma(eta_1 + j - t * alpha_p - 1)
+                term2 = mp.gamma(eta_1 + eta_2 + j - t * alpha_p + 1)
                 return term1/term2
         Delta_A_pdf = dpdf_dA_pdf(A_pdf, epsilon, eta_1, eta_2, j, t, alpha_p, gamma_pdf) * delta_A_pdf
         Delta_eta_1 = dpdf_deta_1(A_pdf, epsilon, eta_1, eta_2, j, t, alpha_p, gamma_pdf) * delta_eta_1
@@ -710,14 +283,14 @@ def integral_pdf_regge_error(A_pdf,delta_A_pdf,eta_1,delta_eta_1,eta_2,delta_eta
         Delta_gamma_pdf = dpdf_dgamma(A_pdf, epsilon, eta_1, eta_2, j, t, alpha_p, gamma_pdf) * delta_gamma_pdf
         # Debug
         #print(Delta_A_pdf,Delta_eta_1,Delta_eta_2,Delta_epsilon,Delta_gamma_pdf)
-        result = np.sqrt(Delta_A_pdf**2+Delta_eta_1**2+Delta_eta_2**2+Delta_epsilon**2+Delta_gamma_pdf**2)
+        result = mp.sqrt(Delta_A_pdf**2+Delta_eta_1**2+Delta_eta_2**2+Delta_epsilon**2+Delta_gamma_pdf**2)
         return result
 
 
 def integral_polarized_pdf_regge_error(A_pdf,eta_1,eta_2,epsilon,gamma_pdf,
                                        Delta_A_pdf,err_Delta_A_pdf,alpha,err_alpha,gamma_pol,err_gamma_pol, lambda_pol,err_lambda_pol,
                                        j,alpha_p,t,evolution_order="LO", error_type="central"):
-        check_evolution_order(evolution_order)
+        hp.check_evolution_order(evolution_order)
         if error_type == "central":
                 return 0
         def dpol_pdf_dDelta_A_pdf(
@@ -725,30 +298,30 @@ def integral_polarized_pdf_regge_error(A_pdf,eta_1,eta_2,epsilon,gamma_pdf,
                         Delta_A_pdf,alpha,gamma_pol, lambda_pol,
                         j,alpha_p,t
         ):
-                term1 = A_pdf * gamma(eta_2 + 1)
+                term1 = A_pdf * mp.gamma(eta_2 + 1)
                 
-                term2 = (gamma_pol * epsilon * gamma(eta_1 + j - alpha_p * t + alpha + lambda_pol - 0.5)) / \
-                        gamma(eta_1 + eta_2 + j - alpha_p * t + alpha + lambda_pol + 0.5)
+                term2 = (gamma_pol * epsilon * mp.gamma(eta_1 + j - alpha_p * t + alpha + lambda_pol - 0.5)) / \
+                        mp.gamma(eta_1 + eta_2 + j - alpha_p * t + alpha + lambda_pol + 0.5)
                 
-                term3 = (epsilon * gamma(eta_1 + j - alpha_p * t + alpha - 0.5)) / \
-                        gamma(eta_1 + eta_2 + j - alpha_p * t + alpha + 0.5)
+                term3 = (epsilon * mp.gamma(eta_1 + j - alpha_p * t + alpha - 0.5)) / \
+                        mp.gamma(eta_1 + eta_2 + j - alpha_p * t + alpha + 0.5)
                 
-                term4 = (gamma(eta_1 + j - alpha_p * t + alpha + lambda_pol - 1) * 
+                term4 = (mp.gamma(eta_1 + j - alpha_p * t + alpha + lambda_pol - 1) * 
                         (gamma_pol + (gamma_pol * gamma_pdf * 
                         (alpha + lambda_pol + eta_1 + j - alpha_p * t - 1)) / 
                         (alpha + lambda_pol + eta_1 + eta_2 + j - alpha_p * t))) / \
-                        gamma(eta_1 + eta_2 + j - alpha_p * t + alpha + lambda_pol)
+                        mp.gamma(eta_1 + eta_2 + j - alpha_p * t + alpha + lambda_pol)
                 
-                term5 = (gamma(eta_1 + j - alpha_p * t + alpha - 1) * 
+                term5 = (mp.gamma(eta_1 + j - alpha_p * t + alpha - 1) * 
                         ((gamma_pdf * (alpha + eta_1 + j - alpha_p * t - 1)) / 
                         (alpha + eta_1 + eta_2 + j - alpha_p * t) + 1)) / \
-                        gamma(eta_1 + eta_2 + j - alpha_p * t + alpha)
+                        mp.gamma(eta_1 + eta_2 + j - alpha_p * t + alpha)
                 if evolution_order == "LO":
                     term6 = 0
                 elif evolution_order == "NLO":
                     term6 = - gamma_pol * (
                         term3 +
-                        gamma(eta_1 + j - alpha_p * t + alpha - 1)/gamma(1+ eta_1 + eta_2 + j - alpha_p * t + alpha) * \
+                        mp.gamma(eta_1 + j - alpha_p * t + alpha - 1)/mp.gamma(1+ eta_1 + eta_2 + j - alpha_p * t + alpha) * \
                         ((eta_2+eta_1*(1+gamma_pdf)+j -alpha_p * t + alpha + gamma_pdf * (-1+j-alpha_p *t + alpha)))
                     )
                 
@@ -758,60 +331,60 @@ def integral_polarized_pdf_regge_error(A_pdf,eta_1,eta_2,epsilon,gamma_pdf,
                         Delta_A_pdf,alpha,gamma_pol, lambda_pol,
                         j,alpha_p,t
         ):
-                term1 = A_pdf * Delta_A_pdf * gamma(eta_2 + 1)
+                term1 = A_pdf * Delta_A_pdf * mp.gamma(eta_2 + 1)
     
-                term2 = (gamma_pol * epsilon * gamma(eta_1 + j - alpha_p * t + alpha + lambda_pol - 0.5) 
-                        * digamma(eta_1 + j - alpha_p * t + alpha + lambda_pol - 0.5)) \
-                        / gamma(eta_1 + eta_2 + j - alpha_p * t + alpha + lambda_pol + 0.5)
+                term2 = (gamma_pol * epsilon * mp.gamma(eta_1 + j - alpha_p * t + alpha + lambda_pol - 0.5) 
+                        * mp.digamma(eta_1 + j - alpha_p * t + alpha + lambda_pol - 0.5)) \
+                        / mp.gamma(eta_1 + eta_2 + j - alpha_p * t + alpha + lambda_pol + 0.5)
                 
-                term3 = - (gamma_pol * epsilon * gamma(eta_1 + j - alpha_p * t + alpha + lambda_pol - 0.5) 
-                                * digamma(eta_1 + eta_2 + j - alpha_p * t + alpha + lambda_pol + 0.5)) \
-                        / gamma(eta_1 + eta_2 + j - alpha_p * t + alpha + lambda_pol + 0.5)
+                term3 = - (gamma_pol * epsilon * mp.gamma(eta_1 + j - alpha_p * t + alpha + lambda_pol - 0.5) 
+                                * mp.digamma(eta_1 + eta_2 + j - alpha_p * t + alpha + lambda_pol + 0.5)) \
+                        / mp.gamma(eta_1 + eta_2 + j - alpha_p * t + alpha + lambda_pol + 0.5)
                 
-                term4 = (epsilon * gamma(eta_1 + j - alpha_p * t + alpha - 0.5) 
-                        * digamma(eta_1 + j - alpha_p * t + alpha - 0.5)) \
-                        / gamma(eta_1 + eta_2 + j - alpha_p * t + alpha + 0.5)
+                term4 = (epsilon * mp.gamma(eta_1 + j - alpha_p * t + alpha - 0.5) 
+                        * mp.digamma(eta_1 + j - alpha_p * t + alpha - 0.5)) \
+                        / mp.gamma(eta_1 + eta_2 + j - alpha_p * t + alpha + 0.5)
                 
-                term5 = - (epsilon * gamma(eta_1 + j - alpha_p * t + alpha - 0.5) 
-                        * digamma(eta_1 + eta_2 + j - alpha_p * t + alpha + 0.5)) \
-                        / gamma(eta_1 + eta_2 + j - alpha_p * t + alpha + 0.5)
+                term5 = - (epsilon * mp.gamma(eta_1 + j - alpha_p * t + alpha - 0.5) 
+                        * mp.digamma(eta_1 + eta_2 + j - alpha_p * t + alpha + 0.5)) \
+                        / mp.gamma(eta_1 + eta_2 + j - alpha_p * t + alpha + 0.5)
                 
-                term6 = (gamma_pol * (eta_2 + 1) * gamma_pdf * gamma(eta_1 + j - alpha_p * t + alpha + lambda_pol - 1)) \
+                term6 = (gamma_pol * (eta_2 + 1) * gamma_pdf * mp.gamma(eta_1 + j - alpha_p * t + alpha + lambda_pol - 1)) \
                         / ((alpha + lambda_pol + eta_1 + eta_2 + j - alpha_p * t)**2 
-                        * gamma(eta_1 + eta_2 + j - alpha_p * t + alpha + lambda_pol))
+                        * mp.gamma(eta_1 + eta_2 + j - alpha_p * t + alpha + lambda_pol))
                 
-                term7 = (gamma(eta_1 + j - alpha_p * t + alpha + lambda_pol - 1) 
-                        * digamma(eta_1 + j - alpha_p * t + alpha + lambda_pol - 1)
+                term7 = (mp.gamma(eta_1 + j - alpha_p * t + alpha + lambda_pol - 1) 
+                        * mp.digamma(eta_1 + j - alpha_p * t + alpha + lambda_pol - 1)
                         * (gamma_pol + (gamma_pol * gamma_pdf * (alpha + lambda_pol + eta_1 + j - alpha_p * t - 1))
                                 / (alpha + lambda_pol + eta_1 + eta_2 + j - alpha_p * t))) \
-                        / gamma(eta_1 + eta_2 + j - alpha_p * t + alpha + lambda_pol)
+                        / mp.gamma(eta_1 + eta_2 + j - alpha_p * t + alpha + lambda_pol)
                 
-                term8 = - (gamma(eta_1 + j - alpha_p * t + alpha + lambda_pol - 1) 
-                                * digamma(eta_1 + eta_2 + j - alpha_p * t + alpha + lambda_pol)
+                term8 = - (mp.gamma(eta_1 + j - alpha_p * t + alpha + lambda_pol - 1) 
+                                * mp.digamma(eta_1 + eta_2 + j - alpha_p * t + alpha + lambda_pol)
                                 * (gamma_pol + (gamma_pol * gamma_pdf * (alpha + lambda_pol + eta_1 + j - alpha_p * t - 1))
                                 / (alpha + lambda_pol + eta_1 + eta_2 + j - alpha_p * t))) \
-                        / gamma(eta_1 + eta_2 + j - alpha_p * t + alpha + lambda_pol)
+                        / mp.gamma(eta_1 + eta_2 + j - alpha_p * t + alpha + lambda_pol)
                 
-                term9 = ((eta_2 + 1) * gamma_pdf * gamma(eta_1 + j - alpha_p * t + alpha - 1)) \
-                        / ((alpha + eta_1 + eta_2 + j - alpha_p * t)**2 * gamma(eta_1 + eta_2 + j - alpha_p * t + alpha))
+                term9 = ((eta_2 + 1) * gamma_pdf * mp.gamma(eta_1 + j - alpha_p * t + alpha - 1)) \
+                        / ((alpha + eta_1 + eta_2 + j - alpha_p * t)**2 * mp.gamma(eta_1 + eta_2 + j - alpha_p * t + alpha))
                 
-                term10 = (gamma(eta_1 + j - alpha_p * t + alpha - 1) * digamma(eta_1 + j - alpha_p * t + alpha - 1)
+                term10 = (mp.gamma(eta_1 + j - alpha_p * t + alpha - 1) * mp.digamma(eta_1 + j - alpha_p * t + alpha - 1)
                         * (1 + (gamma_pdf * (alpha + eta_1 + j - alpha_p * t - 1))
                                 / (alpha + eta_1 + eta_2 + j - alpha_p * t))) \
-                        / gamma(eta_1 + eta_2 + j - alpha_p * t + alpha)
+                        / mp.gamma(eta_1 + eta_2 + j - alpha_p * t + alpha)
                 
-                term11 = - (gamma(eta_1 + j - alpha_p * t + alpha - 1) * digamma(eta_1 + eta_2 + j - alpha_p * t + alpha)
+                term11 = - (mp.gamma(eta_1 + j - alpha_p * t + alpha - 1) * mp.digamma(eta_1 + eta_2 + j - alpha_p * t + alpha)
                                 * (1 + (gamma_pdf * (alpha + eta_1 + j - alpha_p * t - 1))
                                 / (alpha + eta_1 + eta_2 + j - alpha_p * t))) \
-                        / gamma(eta_1 + eta_2 + j - alpha_p * t + alpha)
+                        / mp.gamma(eta_1 + eta_2 + j - alpha_p * t + alpha)
                 if evolution_order == "LO":
                     term12 = 0
                 elif evolution_order == "NLO":
-                    term12 = gamma_pol * (- (term4 + term5) + gamma(eta_1 + j - alpha_p * t + alpha - 1) *(
+                    term12 = gamma_pol * (- (term4 + term5) + mp.gamma(eta_1 + j - alpha_p * t + alpha - 1) *(
                          -(eta_2 + 1) * gamma_pdf /(eta_1 + eta_2 + j - alpha_p * t + alpha) - 
                          (eta_2 + eta_1 * (1 + gamma_pdf) + j - alpha_p * t + alpha + gamma_pdf * (j - alpha_p * t + alpha -1)) * \
-                         (digamma(eta_1 + j - alpha_p * t + alpha - 1)- digamma(eta_1 + eta_2 + j - alpha_p * t + alpha))
-                    )/gamma(1 + eta_1 +eta_2 + j - alpha_p * t + alpha))
+                         (mp.digamma(eta_1 + j - alpha_p * t + alpha - 1)- mp.digamma(eta_1 + eta_2 + j - alpha_p * t + alpha))
+                    )/mp.gamma(1 + eta_1 +eta_2 + j - alpha_p * t + alpha))
 
                 return term1 * (term2 + term3 + term4 + term5 + term6 + term7 + term8 + term9 + term10 + term11 + term12)
         
@@ -821,24 +394,24 @@ def integral_polarized_pdf_regge_error(A_pdf,eta_1,eta_2,epsilon,gamma_pdf,
                         Delta_A_pdf,alpha,gamma_pol, lambda_pol,
                         j,alpha_p,t
         ):
-                term1 = A_pdf * Delta_A_pdf * gamma(eta_2 + 1)
+                term1 = A_pdf * Delta_A_pdf * mp.gamma(eta_2 + 1)
     
-                term2 = (epsilon * gamma(eta_1 + j - alpha_p * t + alpha + lambda_pol - 0.5)) \
-                        / gamma(eta_1 + eta_2 + j - alpha_p * t + alpha + lambda_pol + 0.5)
+                term2 = (epsilon * mp.gamma(eta_1 + j - alpha_p * t + alpha + lambda_pol - 0.5)) \
+                        / mp.gamma(eta_1 + eta_2 + j - alpha_p * t + alpha + lambda_pol + 0.5)
                 
-                term3 = (gamma(eta_1 + j - alpha_p * t + alpha + lambda_pol - 1) * 
+                term3 = (mp.gamma(eta_1 + j - alpha_p * t + alpha + lambda_pol - 1) * 
                         (- alpha_p * t  + alpha + lambda_pol + eta_1 * (gamma_pdf + 1) + eta_2 +
                         gamma_pdf * (- alpha_p * t  + alpha + lambda_pol + j - 1) + j)) \
-                        / gamma(eta_1 + eta_2 + j - alpha_p * t + alpha + lambda_pol + 1)
+                        / mp.gamma(eta_1 + eta_2 + j - alpha_p * t + alpha + lambda_pol + 1)
                 
                 if evolution_order == "LO":
                     term4 = 0
                 elif evolution_order == "NLO":
-                    term4 = - ((epsilon * gamma(eta_1 + j - alpha_p * t + alpha - 0.5)) \
-                        / gamma(eta_1 + eta_2 + j - alpha_p * t + alpha + 0.5)
+                    term4 = - ((epsilon * mp.gamma(eta_1 + j - alpha_p * t + alpha - 0.5)) \
+                        / mp.gamma(eta_1 + eta_2 + j - alpha_p * t + alpha + 0.5)
                         + (eta_2 + eta_1*(1+gamma_pdf) +  j - alpha_p * t + alpha
-                        + gamma_pdf * ( j - alpha_p * t + alpha - 1)) * gamma(eta_1 +  j - alpha_p * t + alpha - 1)/\
-                        gamma(eta_1 + eta_2 + j - alpha_p * t + alpha + 1)
+                        + gamma_pdf * ( j - alpha_p * t + alpha - 1)) * mp.gamma(eta_1 +  j - alpha_p * t + alpha - 1)/\
+                        mp.gamma(eta_1 + eta_2 + j - alpha_p * t + alpha + 1)
                     )
                 return term1 * (term2 + term3 + term4)
         
@@ -848,33 +421,33 @@ def integral_polarized_pdf_regge_error(A_pdf,eta_1,eta_2,epsilon,gamma_pdf,
                         j,alpha_p,t
         ):
                 # Same for LO and NLO
-                term1 = A_pdf * Delta_A_pdf * gamma(eta_2 + 1)
+                term1 = A_pdf * Delta_A_pdf * mp.gamma(eta_2 + 1)
                 
-                term2 = (gamma_pol * epsilon * gamma(eta_1 + j - alpha_p * t + alpha + lambda_pol - 0.5) * 
-                        digamma(eta_1 + j - alpha_p * t + alpha + lambda_pol - 0.5)) / \
-                        gamma(eta_1 + eta_2 + j - alpha_p * t + alpha + lambda_pol + 0.5)
+                term2 = (gamma_pol * epsilon * mp.gamma(eta_1 + j - alpha_p * t + alpha + lambda_pol - 0.5) * 
+                        mp.digamma(eta_1 + j - alpha_p * t + alpha + lambda_pol - 0.5)) / \
+                        mp.gamma(eta_1 + eta_2 + j - alpha_p * t + alpha + lambda_pol + 0.5)
                 
-                term3 = -(gamma_pol * epsilon * gamma(eta_1 + j - alpha_p * t + alpha + lambda_pol - 0.5) * 
-                        digamma(eta_1 + eta_2 + j - alpha_p * t + alpha + lambda_pol + 0.5)) / \
-                        gamma(eta_1 + eta_2 + j - alpha_p * t + alpha + lambda_pol + 0.5)
+                term3 = -(gamma_pol * epsilon * mp.gamma(eta_1 + j - alpha_p * t + alpha + lambda_pol - 0.5) * 
+                        mp.digamma(eta_1 + eta_2 + j - alpha_p * t + alpha + lambda_pol + 0.5)) / \
+                        mp.gamma(eta_1 + eta_2 + j - alpha_p * t + alpha + lambda_pol + 0.5)
                 
-                term4 = (gamma_pol * (eta_2 + 1) * gamma_pdf * gamma(eta_1 + j - alpha_p * t + alpha + lambda_pol - 1)) / \
+                term4 = (gamma_pol * (eta_2 + 1) * gamma_pdf * mp.gamma(eta_1 + j - alpha_p * t + alpha + lambda_pol - 1)) / \
                         ((alpha + lambda_pol + eta_1 + eta_2 + j - alpha_p * t)**2 * 
-                        gamma(eta_1 + eta_2 + j - alpha_p * t + alpha + lambda_pol))
+                        mp.gamma(eta_1 + eta_2 + j - alpha_p * t + alpha + lambda_pol))
                 
-                term5 = (gamma(eta_1 + j - alpha_p * t + alpha + lambda_pol - 1) * 
-                        digamma(eta_1 + j - alpha_p * t + alpha + lambda_pol - 1) * 
+                term5 = (mp.gamma(eta_1 + j - alpha_p * t + alpha + lambda_pol - 1) * 
+                        mp.digamma(eta_1 + j - alpha_p * t + alpha + lambda_pol - 1) * 
                         (gamma_pol + (gamma_pol * gamma_pdf * 
                         (alpha + lambda_pol + eta_1 + j - alpha_p * t - 1)) / 
                         (alpha + lambda_pol + eta_1 + eta_2 + j - alpha_p * t))) / \
-                        gamma(eta_1 + eta_2 + j - alpha_p * t + alpha + lambda_pol)
+                        mp.gamma(eta_1 + eta_2 + j - alpha_p * t + alpha + lambda_pol)
                 
-                term6 = -(gamma(eta_1 + j - alpha_p * t + alpha + lambda_pol - 1) * 
-                        digamma(eta_1 + eta_2 + j - alpha_p * t + alpha + lambda_pol) * 
+                term6 = -(mp.gamma(eta_1 + j - alpha_p * t + alpha + lambda_pol - 1) * 
+                        mp.digamma(eta_1 + eta_2 + j - alpha_p * t + alpha + lambda_pol) * 
                         (gamma_pol + (gamma_pol * gamma_pdf * 
                         (alpha + lambda_pol + eta_1 + j - alpha_p * t - 1)) / 
                         (alpha + lambda_pol + eta_1 + eta_2 + j - alpha_p * t))) / \
-                        gamma(eta_1 + eta_2 + j - alpha_p * t + alpha + lambda_pol)
+                        mp.gamma(eta_1 + eta_2 + j - alpha_p * t + alpha + lambda_pol)
                                 
                 return term1 * (term2 + term3 + term4 + term5 + term6)
         
@@ -898,7 +471,7 @@ def integral_polarized_pdf_regge_error(A_pdf,eta_1,eta_2,epsilon,gamma_pdf,
                         Delta_A_pdf,alpha,gamma_pol, lambda_pol,
                         j,alpha_p,t
                         ) * err_lambda_pol
-
+        # print(Delta_Delta_A_pdf,Delta_alpha,Delta_gamma_pol,Delta_lambda_pol)
         # Debug
         # print(A_pdf,eta_1,eta_2,epsilon,gamma_pdf,
         #                 Delta_A_pdf,alpha,gamma_pol, lambda_pol)
@@ -923,7 +496,7 @@ def integral_polarized_pdf_regge_error(A_pdf,eta_1,eta_2,epsilon,gamma_pdf,
         #                 j,alpha_p,t
         # ))
 
-        result = np.sqrt(Delta_Delta_A_pdf**2+Delta_alpha**2+Delta_gamma_pol**2+Delta_lambda_pol**2)
+        result = mp.sqrt(Delta_Delta_A_pdf**2+Delta_alpha**2+Delta_gamma_pol**2+Delta_lambda_pol**2)
         return result
 
 def integral_uv_pdf_regge(j,eta,alpha_p,t, evolution_order = "LO", error_type="central"):
@@ -942,7 +515,7 @@ def integral_uv_pdf_regge(j,eta,alpha_p,t, evolution_order = "LO", error_type="c
     The value of the Reggeized integral together with the error of uv(x) based on the selected parameters and error type.
     """
     # Check type
-    check_error_type(error_type)
+    hp.check_error_type(error_type)
 
      # Define a dictionary that maps the error_type to column indices
     error_mapping = {
@@ -1000,7 +573,7 @@ def integral_dv_pdf_regge(j,eta,alpha_p,t, evolution_order = "LO", error_type="c
     The value of the Reggeized integral together with the error of dv(x) based on the selected parameters and error type.
     """
     # Check type
-    check_error_type(error_type)
+    hp.check_error_type(error_type)
 
      # Define a dictionary that maps the error_type to column indices
     error_mapping = {
@@ -1034,7 +607,7 @@ def integral_dv_pdf_regge(j,eta,alpha_p,t, evolution_order = "LO", error_type="c
         # Extracting errors
         delta_A_pdf  = MSTW_PDF[[evolution_order]].iloc[index_A_d,0][error_col_index]
         delta_eta_1 = MSTW_PDF[[evolution_order]].iloc[index_eta_3,0][error_col_index]
-        delta_eta_2 = np.sign(MSTW_PDF[[evolution_order]].iloc[index_eta_42, 0][error_col_index]) * np.sqrt(MSTW_PDF[[evolution_order]].iloc[index_eta_42, 0][error_col_index]**2+MSTW_PDF[[evolution_order]].iloc[index_eta_2, 0][error_col_index]**2)
+        delta_eta_2 = np.sign(MSTW_PDF[[evolution_order]].iloc[index_eta_42, 0][error_col_index]) * mp.sqrt(MSTW_PDF[[evolution_order]].iloc[index_eta_42, 0][error_col_index]**2+MSTW_PDF[[evolution_order]].iloc[index_eta_2, 0][error_col_index]**2)
         delta_epsilon = MSTW_PDF[[evolution_order]].iloc[index_epsilon_d,0][error_col_index]
         delta_gamma_pdf = MSTW_PDF[[evolution_order]].iloc[index_gamma_d,0][error_col_index]
 
@@ -1061,7 +634,7 @@ def integral_sv_pdf_regge(j,eta,alpha_p,t, evolution_order = "LO", error_type="c
     """
     # eta_1 = delta_minus, eta_2 = eta_minus, epsilon = 0, gamma = 0
     def integral_sv_pdf_regge(A_m,delta_m,eta_m,x_0,j,alpha_p,t):
-        frac = gamma(1+eta_m)*gamma(j+delta_m-1-alpha_p*t)/(x_0*gamma(1+delta_m+eta_m+j-alpha_p*t))
+        frac = mp.gamma(1+eta_m)*mp.gamma(j+delta_m-1-alpha_p*t)/(x_0*mp.gamma(1+delta_m+eta_m+j-alpha_p*t))
         result = -A_m*(j-1-delta_m*(x_0-1)-x_0*(eta_m+j-alpha_p*t)-alpha_p*t)*frac
         return result
     def integral_sv_pdf_regge_error(A_m,delta_A_m,delta_m,delta_delta_m,eta_m,delta_eta_m,x_0,delta_x_0,j,alpha_p,t, error_type="central"):
@@ -1069,59 +642,59 @@ def integral_sv_pdf_regge(j,eta,alpha_p,t, evolution_order = "LO", error_type="c
             return 0
         def dpdf_dA_m(A_m, delta_m, eta_m,x_0, j, alpha_p,t):
             result = (
-                    gamma(eta_m + 1) * gamma(delta_m + j - alpha_p * t - 1) *
+                    mp.gamma(eta_m + 1) * mp.gamma(delta_m + j - alpha_p * t - 1) *
                     ((delta_m + j - alpha_p * t - 1) / (delta_m + eta_m + j - alpha_p * t) - x_0)
-                ) / (x_0 * gamma(delta_m + eta_m + j - alpha_p * t))
+                ) / (x_0 * mp.gamma(delta_m + eta_m + j - alpha_p * t))
         
             return result
         def dpdf_ddelta_m(A_m,delta_m,eta_m,x_0,j,alpha_p,t):
             term_1 = (
-                A_m * gamma(eta_m + 1) * 
+                A_m * mp.gamma(eta_m + 1) * 
                 ((1 / (delta_m + eta_m + j - alpha_p * t)) -
                 ((delta_m + j - alpha_p * t - 1) / (delta_m + eta_m + j - alpha_p * t) ** 2)) *
-                gamma(delta_m + j - alpha_p * t - 1)
-            ) / (x_0 * gamma(delta_m + eta_m + j - alpha_p * t))
+                mp.gamma(delta_m + j - alpha_p * t - 1)
+            ) / (x_0 * mp.gamma(delta_m + eta_m + j - alpha_p * t))
             
             term_2 = (
-                A_m * gamma(eta_m + 1) * gamma(delta_m + j - alpha_p * t - 1) *
-                digamma(delta_m + j - alpha_p * t - 1) *
+                A_m * mp.gamma(eta_m + 1) * mp.gamma(delta_m + j - alpha_p * t - 1) *
+                mp.digamma(delta_m + j - alpha_p * t - 1) *
                 ((delta_m + j - alpha_p * t - 1) / (delta_m + eta_m + j - alpha_p * t) - x_0)
-            ) / (x_0 * gamma(delta_m + eta_m + j - alpha_p * t))
+            ) / (x_0 * mp.gamma(delta_m + eta_m + j - alpha_p * t))
             
             term_3 = (
-                A_m * gamma(eta_m + 1) * gamma(delta_m + j - alpha_p * t - 1) *
-                digamma(delta_m + eta_m + j - alpha_p * t) *
+                A_m * mp.gamma(eta_m + 1) * mp.gamma(delta_m + j - alpha_p * t - 1) *
+                mp.digamma(delta_m + eta_m + j - alpha_p * t) *
                 ((delta_m + j - alpha_p * t - 1) / (delta_m + eta_m + j - alpha_p * t) - x_0)
-            ) / (x_0 * gamma(delta_m + eta_m + j - alpha_p * t))
+            ) / (x_0 * mp.gamma(delta_m + eta_m + j - alpha_p * t))
             
             return term_1 + term_2 - term_3
         def dpdf_deta_m(A_m,delta_m,eta_m,x_0,j,alpha_p,t):
             term_1 = -(
-                A_m * gamma(eta_m + 1) * (delta_m + j - alpha_p * t - 1) * gamma(delta_m + j - alpha_p * t - 1)
-            ) / (x_0 * (delta_m + eta_m + j - alpha_p * t) ** 2 * gamma(delta_m + eta_m + j - alpha_p * t))
+                A_m * mp.gamma(eta_m + 1) * (delta_m + j - alpha_p * t - 1) * mp.gamma(delta_m + j - alpha_p * t - 1)
+            ) / (x_0 * (delta_m + eta_m + j - alpha_p * t) ** 2 * mp.gamma(delta_m + eta_m + j - alpha_p * t))
             
             term_2 = (
-                A_m * gamma(eta_m + 1) * digamma(eta_m + 1) * gamma(delta_m + j - alpha_p * t - 1) *
+                A_m * mp.gamma(eta_m + 1) * mp.digamma(eta_m + 1) * mp.gamma(delta_m + j - alpha_p * t - 1) *
                 ((delta_m + j - alpha_p * t - 1) / (delta_m + eta_m + j - alpha_p * t) - x_0)
-            ) / (x_0 * gamma(delta_m + eta_m + j - alpha_p * t))
+            ) / (x_0 * mp.gamma(delta_m + eta_m + j - alpha_p * t))
             
             term_3 = (
-                A_m * gamma(eta_m + 1) * gamma(delta_m + j - alpha_p * t - 1) *
-                digamma(delta_m + eta_m + j - alpha_p * t) *
+                A_m * mp.gamma(eta_m + 1) * mp.gamma(delta_m + j - alpha_p * t - 1) *
+                mp.digamma(delta_m + eta_m + j - alpha_p * t) *
                 ((delta_m + j - alpha_p * t - 1) / (delta_m + eta_m + j - alpha_p * t) - x_0)
-            ) / (x_0 * gamma(delta_m + eta_m + j - alpha_p * t))
+            ) / (x_0 * mp.gamma(delta_m + eta_m + j - alpha_p * t))
             
             return term_1 + term_2 - term_3
         
         def dpdf_dx_0(A_m,delta_m,eta_m,x_0,j,alpha_p,t):
             term_1 = -(
-                A_m * gamma(eta_m + 1) * gamma(delta_m + j - alpha_p * t - 1) *
+                A_m * mp.gamma(eta_m + 1) * mp.gamma(delta_m + j - alpha_p * t - 1) *
                 ((delta_m + j - alpha_p * t - 1) / (delta_m + eta_m + j - alpha_p * t) - x_0)
-            ) / (x_0 ** 2 * gamma(delta_m + eta_m + j - alpha_p * t))
+            ) / (x_0 ** 2 * mp.gamma(delta_m + eta_m + j - alpha_p * t))
             
             term_2 = -(
-                A_m * gamma(eta_m + 1) * gamma(delta_m + j - alpha_p * t - 1)
-            ) / (x_0 * gamma(delta_m + eta_m + j - alpha_p * t))
+                A_m * mp.gamma(eta_m + 1) * mp.gamma(delta_m + j - alpha_p * t - 1)
+            ) / (x_0 * mp.gamma(delta_m + eta_m + j - alpha_p * t))
             
             return term_1 + term_2
         
@@ -1134,11 +707,11 @@ def integral_sv_pdf_regge(j,eta,alpha_p,t, evolution_order = "LO", error_type="c
         # print(dpdf_dA_m(A_m,delta_m,eta_m,x_0,j,alpha_p,t),dpdf_ddelta_m(A_m,delta_m,eta_m,x_0,j,alpha_p,t),dpdf_deta_m(A_m,delta_m,eta_m,x_0,j,alpha_p,t),dpdf_dx_0(A_m,delta_m,eta_m,x_0,j,alpha_p,t))
         # print(Delta_A_m,Delta_delta_m,Delta_eta_m,Delta_x_0)
 
-        result = np.sqrt(Delta_A_m**2+Delta_delta_m**2+Delta_eta_m**2+Delta_x_0**2)
+        result = mp.sqrt(Delta_A_m**2+Delta_delta_m**2+Delta_eta_m**2+Delta_x_0**2)
         return result
         
     # Check type
-    check_error_type(error_type)
+    hp.check_error_type(error_type)
 
     error_mapping = {
         "central": 0,
@@ -1192,7 +765,7 @@ def integral_S_pdf_regge(j,eta,alpha_p,t, evolution_order = "LO", error_type="ce
     The value of the Reggeized integral together with the error of Sv(x) based on the selected parameters and error type.
     """
     # Check type
-    check_error_type(error_type)
+    hp.check_error_type(error_type)
     
     error_mapping = {
         "central": 0,
@@ -1246,7 +819,7 @@ def integral_s_plus_pdf_regge(j,eta,alpha_p,t, evolution_order = "LO", error_typ
     The value of the Reggeized integral together with the error of s_+(x) based on the selected parameters and error type.
     """
     # Check type
-    check_error_type(error_type)
+    hp.check_error_type(error_type)
     
     error_mapping = {
         "central": 0,
@@ -1302,7 +875,7 @@ def integral_Delta_pdf_regge(j,eta,alpha_p,t, evolution_order = "LO", error_type
     """
     def integral_Delta_pdf_regge(A_Delta,eta_Delta,eta_S,gamma_Delta,delta_Delta,j,alpha_p,t):
         frac_1 = (2+eta_Delta+eta_S+j-alpha_p*t)*(3+eta_Delta+eta_S+j-alpha_p*t)
-        frac_2 = gamma(3+eta_S)*gamma(j+eta_Delta-1-alpha_p*t)/(gamma(2+eta_Delta+eta_S+j-alpha_p*t))
+        frac_2 = mp.gamma(3+eta_S)*mp.gamma(j+eta_Delta-1-alpha_p*t)/(mp.gamma(2+eta_Delta+eta_S+j-alpha_p*t))
         result = A_Delta*(1+((delta_Delta*(eta_Delta+j-alpha_p*t)+gamma_Delta*(3+eta_Delta+eta_S+j-alpha_p*t))*(eta_Delta+j-1+alpha_p*t))/frac_1)*frac_2
         return result
     def integral_Delta_pdf_regge_error(A_Delta,delta_A_Delta,eta_Delta,delta_eta_Delta,eta_S,delta_eta_S,gamma_Delta,delta_gamma_Delta,delta_Delta,delta_delta_Delta,j,alpha_p,t, error_type="central"):
@@ -1310,7 +883,7 @@ def integral_Delta_pdf_regge(j,eta,alpha_p,t, evolution_order = "LO", error_type
              return 0
         def dpdf_dA_Delta(A_Delta,eta_Delta,eta_S,gamma_Delta,delta_Delta,j,alpha_p,t):
             term = (
-            gamma(eta_S + 3) * gamma(eta_Delta + j - alpha_p * t - 1) *
+            mp.gamma(eta_S + 3) * mp.gamma(eta_Delta + j - alpha_p * t - 1) *
             (
                 (
                     (eta_Delta + j - alpha_p * t - 1) *
@@ -1323,12 +896,12 @@ def integral_Delta_pdf_regge(j,eta,alpha_p,t, evolution_order = "LO", error_type
                     (eta_Delta + eta_S + j - alpha_p * t + 3)
                 ) + 1
             )
-            ) / gamma(eta_Delta + eta_S + j - alpha_p * t + 2)
+            ) / mp.gamma(eta_Delta + eta_S + j - alpha_p * t + 2)
         
             return term
         def dpdf_deta_Delta(A_Delta,eta_Delta,eta_S,gamma_Delta,delta_Delta,j,alpha_p,t):
             term_1 = (
-                A_Delta * gamma(eta_S + 3) * gamma(eta_Delta + j - alpha_p * t - 1) *
+                A_Delta * mp.gamma(eta_S + 3) * mp.gamma(eta_Delta + j - alpha_p * t - 1) *
                 (
                     -(
                         (eta_Delta + j - alpha_p * t - 1) *
@@ -1364,11 +937,11 @@ def integral_Delta_pdf_regge(j,eta,alpha_p,t, evolution_order = "LO", error_type
                         (eta_Delta + eta_S + j - alpha_p * t + 3)
                     )
                 )
-            ) / gamma(eta_Delta + eta_S + j - alpha_p * t + 2)
+            ) / mp.gamma(eta_Delta + eta_S + j - alpha_p * t + 2)
         
             term_2 = (
-                A_Delta * gamma(eta_S + 3) * gamma(eta_Delta + j - alpha_p * t - 1) *
-                digamma(eta_Delta + j - alpha_p * t - 1) *
+                A_Delta * mp.gamma(eta_S + 3) * mp.gamma(eta_Delta + j - alpha_p * t - 1) *
+                mp.digamma(eta_Delta + j - alpha_p * t - 1) *
                 (
                     (
                         (eta_Delta + j - alpha_p * t - 1) *
@@ -1381,11 +954,11 @@ def integral_Delta_pdf_regge(j,eta,alpha_p,t, evolution_order = "LO", error_type
                         (eta_Delta + eta_S + j - alpha_p * t + 3)
                     ) + 1
                 )
-            ) / gamma(eta_Delta + eta_S + j - alpha_p * t + 2)
+            ) / mp.gamma(eta_Delta + eta_S + j - alpha_p * t + 2)
             
             term_3 = (
-                -A_Delta * gamma(eta_S + 3) * gamma(eta_Delta + j - alpha_p * t - 1) *
-                digamma(eta_Delta + eta_S + j - alpha_p * t + 2) *
+                -A_Delta * mp.gamma(eta_S + 3) * mp.gamma(eta_Delta + j - alpha_p * t - 1) *
+                mp.digamma(eta_Delta + eta_S + j - alpha_p * t + 2) *
                 (
                     (
                         (eta_Delta + j - alpha_p * t - 1) *
@@ -1398,13 +971,13 @@ def integral_Delta_pdf_regge(j,eta,alpha_p,t, evolution_order = "LO", error_type
                         (eta_Delta + eta_S + j - alpha_p * t + 3)
                     ) + 1
                 )
-            ) / gamma(eta_Delta + eta_S + j - alpha_p * t + 2)
+            ) / mp.gamma(eta_Delta + eta_S + j - alpha_p * t + 2)
             
             return term_1 + term_2 + term_3
         
         def dpdf_deta_S(A_Delta,eta_Delta,eta_S,gamma_Delta,delta_Delta,j,alpha_p,t):
             term_1 = (
-                A_Delta * gamma(eta_S + 3) * gamma(eta_Delta + j - alpha_p * t - 1) *
+                A_Delta * mp.gamma(eta_S + 3) * mp.gamma(eta_Delta + j - alpha_p * t - 1) *
                 (
                     -(
                         (eta_Delta + j - alpha_p * t - 1) *
@@ -1433,10 +1006,10 @@ def integral_Delta_pdf_regge(j,eta,alpha_p,t, evolution_order = "LO", error_type
                         (eta_Delta + eta_S + j - alpha_p * t + 3)
                     )
                 )
-            ) / gamma(eta_Delta + eta_S + j - alpha_p * t + 2)
+            ) / mp.gamma(eta_Delta + eta_S + j - alpha_p * t + 2)
             
             term_2 = (
-                A_Delta * gamma(eta_S + 3) * digamma(eta_S + 3) * gamma(eta_Delta + j - alpha_p * t - 1) *
+                A_Delta * mp.gamma(eta_S + 3) * mp.digamma(eta_S + 3) * mp.gamma(eta_Delta + j - alpha_p * t - 1) *
                 (
                     (
                         (eta_Delta + j - alpha_p * t - 1) *
@@ -1449,11 +1022,11 @@ def integral_Delta_pdf_regge(j,eta,alpha_p,t, evolution_order = "LO", error_type
                         (eta_Delta + eta_S + j - alpha_p * t + 3)
                     ) + 1
                 )
-            ) / gamma(eta_Delta + eta_S + j - alpha_p * t + 2)
+            ) / mp.gamma(eta_Delta + eta_S + j - alpha_p * t + 2)
             
             term_3 = (
-                -A_Delta * gamma(eta_S + 3) * gamma(eta_Delta + j - alpha_p * t - 1) *
-                digamma(eta_Delta + eta_S + j - alpha_p * t + 2) *
+                -A_Delta * mp.gamma(eta_S + 3) * mp.gamma(eta_Delta + j - alpha_p * t - 1) *
+                mp.digamma(eta_Delta + eta_S + j - alpha_p * t + 2) *
                 (
                     (
                         (eta_Delta + j - alpha_p * t - 1) *
@@ -1466,22 +1039,22 @@ def integral_Delta_pdf_regge(j,eta,alpha_p,t, evolution_order = "LO", error_type
                         (eta_Delta + eta_S + j - alpha_p * t + 3)
                     ) + 1
                 )
-            ) / gamma(eta_Delta + eta_S + j - alpha_p * t + 2)
+            ) / mp.gamma(eta_Delta + eta_S + j - alpha_p * t + 2)
             
             return term_1 + term_2 + term_3
         def dpdf_dgamma_Delta(A_Delta,eta_Delta,eta_S,gamma_Delta,delta_Delta,j,alpha_p,t):
-            term_1 = gamma(eta_Delta + j - alpha_p * t)
-            term_2 = gamma(3 + eta_Delta + eta_S + j - alpha_p * t)
-            result = A_Delta * gamma(3+eta_S) * term_1 / term_2
+            term_1 = mp.gamma(eta_Delta + j - alpha_p * t)
+            term_2 = mp.gamma(3 + eta_Delta + eta_S + j - alpha_p * t)
+            result = A_Delta * mp.gamma(3+eta_S) * term_1 / term_2
             return result
         def dpdf_ddelta_Delta(A_Delta,eta_Delta,eta_S,gamma_Delta,delta_Delta,j,alpha_p,t):
             return (
-                A_Delta * gamma(eta_S + 3) * (eta_Delta + j - alpha_p * t - 1) * (eta_Delta + j - alpha_p * t) * 
-                gamma(eta_Delta + j - alpha_p * t - 1)
+                A_Delta * mp.gamma(eta_S + 3) * (eta_Delta + j - alpha_p * t - 1) * (eta_Delta + j - alpha_p * t) * 
+                mp.gamma(eta_Delta + j - alpha_p * t - 1)
             ) / (
                 (eta_Delta + eta_S + j - alpha_p * t + 2) *
                 (eta_Delta + eta_S + j - alpha_p * t + 3) *
-                gamma(eta_Delta + eta_S + j - alpha_p * t + 2)
+                mp.gamma(eta_Delta + eta_S + j - alpha_p * t + 2)
             )
         # Debug
         # print(dpdf_dA_Delta(A_Delta,eta_Delta,eta_S,gamma_Delta,delta_Delta,j,alpha_p,t))
@@ -1496,10 +1069,10 @@ def integral_Delta_pdf_regge(j,eta,alpha_p,t, evolution_order = "LO", error_type
         Delta_gamma_Delta = dpdf_dgamma_Delta(A_Delta,eta_Delta,eta_S,gamma_Delta,delta_Delta,j,alpha_p,t) * delta_gamma_Delta
         Delta_delta_Delta = dpdf_ddelta_Delta(A_Delta,eta_Delta,eta_S,gamma_Delta,delta_Delta,j,alpha_p,t) * delta_delta_Delta
 
-        result = np.sqrt(Delta_A_Delta**2+Delta_eta_Delta**2+Delta_eta_S**2+Delta_gamma_Delta**2+Delta_delta_Delta**2)
+        result = mp.sqrt(Delta_A_Delta**2+Delta_eta_Delta**2+Delta_eta_S**2+Delta_gamma_Delta**2+Delta_delta_Delta**2)
         return result
     
-    check_error_type(error_type)
+    hp.check_error_type(error_type)
 
      # Define a dictionary that maps the error_type to column indices
     error_mapping = {
@@ -1556,7 +1129,7 @@ def integral_gluon_pdf_regge(j,eta,alpha_p,t, evolution_order = "LO", error_type
     The value of the Reggeized integral together with the error of g(x) based on the selected parameters and error type.
     """
     # Check type
-    check_error_type(error_type)
+    hp.check_error_type(error_type)
     
      # Define a dictionary that maps the error_type to column indices
     error_mapping = {
@@ -1593,8 +1166,8 @@ def integral_gluon_pdf_regge(j,eta,alpha_p,t, evolution_order = "LO", error_type
         A_pdf_prime = MSTW_PDF[[evolution_order]].iloc[index_A_g_prime,0][0]
         eta_1_prime = MSTW_PDF[[evolution_order]].iloc[index_delta_g_prime,0][0]
         eta_2_prime = MSTW_PDF[[evolution_order]].iloc[index_eta_g_prime,0][0]
-        nlo_term = A_pdf_prime * (eta_1_prime + eta_2_prime + j - alpha_p * t) * gamma(j - alpha_p *t + eta_1_prime-1)*gamma(1+eta_2_prime)/\
-                gamma(j-alpha_p*t+eta_1_prime+eta_2_prime + 1)
+        nlo_term = A_pdf_prime * (eta_1_prime + eta_2_prime + j - alpha_p * t) * mp.gamma(j - alpha_p *t + eta_1_prime-1)*mp.gamma(1+eta_2_prime)/\
+                mp.gamma(j-alpha_p*t+eta_1_prime+eta_2_prime + 1)
         # print(pdf,nlo_term)
         pdf += nlo_term
     if error_type != "central":
@@ -1618,21 +1191,21 @@ def integral_gluon_pdf_regge(j,eta,alpha_p,t, evolution_order = "LO", error_type
             # print(A_pdf_prime,eta_1_prime,eta_2_prime)
             # print(delta_A_prime_pdf,delta_eta_1_prime,delta_eta_2_prime)
 
-            dpdf_dA = gamma(j - alpha_p *t + eta_1_prime-1)*gamma(1+eta_2_prime)/\
-                gamma(j-alpha_p*t+eta_1_prime+eta_2_prime)
-            dpdf_deta_1 = (A_pdf_prime * gamma(1+eta_2_prime) * gamma(j - alpha_p *t + eta_1_prime-1)/\
-                gamma(j-alpha_p*t+eta_1_prime+eta_2_prime) * \
-            (digamma(eta_1_prime + 1 )-digamma(eta_1_prime + eta_2_prime + j - alpha_p * t))
+            dpdf_dA = mp.gamma(j - alpha_p *t + eta_1_prime-1)*mp.gamma(1+eta_2_prime)/\
+                mp.gamma(j-alpha_p*t+eta_1_prime+eta_2_prime)
+            dpdf_deta_1 = (A_pdf_prime * mp.gamma(1+eta_2_prime) * mp.gamma(j - alpha_p *t + eta_1_prime-1)/\
+                mp.gamma(j-alpha_p*t+eta_1_prime+eta_2_prime) * \
+            (mp.digamma(eta_1_prime + 1 )-mp.digamma(eta_1_prime + eta_2_prime + j - alpha_p * t))
             )
-            dpdf_deta_2 = (A_pdf_prime * gamma(1+eta_2_prime) * gamma(j - alpha_p *t + eta_1_prime-1)/\
-              gamma(j-alpha_p*t+eta_1_prime+eta_2_prime + 1) * \
-             (1 + (eta_1_prime + eta_2_prime + j -alpha_p * t) * (digamma(eta_2_prime + 1) - digamma(eta_1_prime + eta_2_prime + j -alpha_p * t + 1)))
+            dpdf_deta_2 = (A_pdf_prime * mp.gamma(1+eta_2_prime) * mp.gamma(j - alpha_p *t + eta_1_prime-1)/\
+              mp.gamma(j-alpha_p*t+eta_1_prime+eta_2_prime + 1) * \
+             (1 + (eta_1_prime + eta_2_prime + j -alpha_p * t) * (mp.digamma(eta_2_prime + 1) - mp.digamma(eta_1_prime + eta_2_prime + j -alpha_p * t + 1)))
             )
             # print(dpdf_dA,dpdf_deta_1,dpdf_deta_2)
             Delta_A = dpdf_dA * delta_A_prime_pdf
             Delta_eta_1 = dpdf_deta_1 * delta_eta_1_prime
             Delta_eta_2 = dpdf_deta_2 * delta_eta_2_prime
-            pdf_error+= np.sqrt(Delta_A**2+Delta_eta_1**2+Delta_eta_2**2)
+            pdf_error+= mp.sqrt(Delta_A**2+Delta_eta_1**2+Delta_eta_2**2)
         return pdf, pdf_error
     else:
         return pdf, 0
@@ -1653,7 +1226,7 @@ def integral_polarized_uv_pdf_regge(j,eta,alpha_p,t, evolution_order = "LO", err
         The value of the Reggeized integral together with the error of uv(x) based on the selected parameters and error type.
         """
         # Check type
-        check_error_type(error_type)
+        hp.check_error_type(error_type)
 
         # Define a dictionary that maps the error_type to column indices
         error_mapping = {
@@ -1723,7 +1296,7 @@ def integral_polarized_dv_pdf_regge(j,eta,alpha_p,t, evolution_order = "LO", err
         The value of the Reggeized integral together with the error of dv(x) based on the selected parameters and error type.
         """
         # Check type
-        check_error_type(error_type)
+        hp.check_error_type(error_type)
 
         # Define a dictionary that maps the error_type to column indices
         error_mapping = {
@@ -1783,7 +1356,8 @@ def integral_polarized_dv_pdf_regge(j,eta,alpha_p,t, evolution_order = "LO", err
 
 def integral_polarized_S_pdf_regge(j,eta,alpha_p,t, evolution_order = "LO", error_type="central"):
         """
-        Result of the integral of the Reggeized S(x) PDF based on the given LO parameters and selected errors.
+        Result of the integral of the Reggeized S(x) PDF based on the given LO parameters and selected errors. 
+        We are assuming \Delta u = \Delta d = \Delta s = s
         
         Arguments:
         - j (float) conformal spin,
@@ -1797,7 +1371,7 @@ def integral_polarized_S_pdf_regge(j,eta,alpha_p,t, evolution_order = "LO", erro
         The value of the Reggeized integral together with the error of S(x) based on the selected parameters and error type.
         """
         # Check type
-        check_error_type(error_type)
+        hp.check_error_type(error_type)
 
         # Define a dictionary that maps the error_type to column indices
         error_mapping = {
@@ -1816,11 +1390,11 @@ def integral_polarized_S_pdf_regge(j,eta,alpha_p,t, evolution_order = "LO", erro
         index_epsilon_S=MSTW_PDF[MSTW_PDF["Parameter"] == "epsilon_S"].index[0]
         index_gamma_S=MSTW_PDF[MSTW_PDF["Parameter"] == "gamma_S"].index[0]
 
-        # Get row index of entry
         index_delta_A_S=AAC_PDF[AAC_PDF["Parameter"] == "Delta_A_S"].index[0]
         index_alpha_S=AAC_PDF[AAC_PDF["Parameter"] == "alpha_S"].index[0]
         index_delta_lambda_S=AAC_PDF[AAC_PDF["Parameter"] == "Delta_lambda_S"].index[0]
         index_delta_gamma_S=AAC_PDF[AAC_PDF["Parameter"] == "Delta_gamma_S"].index[0]
+
 
         # Extracting central parameter values
         A_pdf = MSTW_PDF[[evolution_order]].iloc[index_A_S,0][0]
@@ -1828,16 +1402,15 @@ def integral_polarized_S_pdf_regge(j,eta,alpha_p,t, evolution_order = "LO", erro
         eta_2 = MSTW_PDF[[evolution_order]].iloc[index_eta_S,0][0]
         epsilon = MSTW_PDF[[evolution_order]].iloc[index_epsilon_S,0][0]
         gamma_pdf = MSTW_PDF[[evolution_order]].iloc[index_gamma_S,0][0]
-        # Extracting parameter values based on error type
+
         delta_A_pdf = AAC_PDF[[evolution_order]].iloc[index_delta_A_S,0][0]
         alpha = AAC_PDF[[evolution_order]].iloc[index_alpha_S,0][0]
         gamma_pol = AAC_PDF[[evolution_order]].iloc[index_delta_gamma_S,0][0]
         lambda_pol = AAC_PDF[[evolution_order]].iloc[index_delta_lambda_S,0][0]
 
         pdf = integral_polarized_pdf_regge(A_pdf,eta_1,eta_2,epsilon,gamma_pdf,
-                                           delta_A_pdf,alpha,gamma_pol,lambda_pol,
+                                            delta_A_pdf,alpha,gamma_pol,lambda_pol,
                                            j,alpha_p,t,evolution_order)
-        
         if error_type != "central":
             err_delta_A_pdf = AAC_PDF[[evolution_order]].iloc[index_delta_A_S,0][error_col_index]
             err_alpha = AAC_PDF[[evolution_order]].iloc[index_alpha_S,0][error_col_index]
@@ -1847,6 +1420,11 @@ def integral_polarized_S_pdf_regge(j,eta,alpha_p,t, evolution_order = "LO", erro
             pdf_error = integral_polarized_pdf_regge_error(A_pdf,eta_1,eta_2,epsilon,gamma_pdf,
                                            delta_A_pdf,err_delta_A_pdf,alpha,err_alpha,gamma_pol,err_gamma_pol,lambda_pol,err_lambda_pol,
                                            j,alpha_p,t,evolution_order,error_type)
+            # Polarized sea quark pdf extremely sensitive to parametrization
+            # Enforcing standard form combined with Gaussian error propagation
+            # gives a huge error that is not compatible with the results by AAC
+            # so we enforce the same scale for now
+            pdf_error /= 5.20
             return pdf, pdf_error
         else:
             return pdf, 0
@@ -1867,7 +1445,7 @@ def integral_polarized_gluon_pdf_regge(j,eta,alpha_p,t, evolution_order = "LO", 
         The value of the Reggeized integral together with the error of gluon(x) based on the selected parameters and error type.
         """
         # Check type
-        check_error_type(error_type)
+        hp.check_error_type(error_type)
 
         # Define a dictionary that maps the error_type to column indices
         error_mapping = {
@@ -1908,13 +1486,11 @@ def integral_polarized_gluon_pdf_regge(j,eta,alpha_p,t, evolution_order = "LO", 
         # print(A_pdf,eta_1,eta_2,epsilon,gamma_pdf)
         # print(delta_A_pdf,alpha,gamma_pol,lambda_pol)
 
-        # We shift by j-1 such that the moments come out right
-        # Thus, we need to add a factor of x when resumming the GPD
         pdf = integral_polarized_pdf_regge(A_pdf,eta_1,eta_2,epsilon,gamma_pdf,
                                            delta_A_pdf,alpha,gamma_pol,lambda_pol,
                                            j,alpha_p,t,evolution_order)
         if evolution_order != "LO":
-            # Additional gluon contribution at NLO and NNLO that is not of the standard form
+            # Additional gluon contribution at NLO and NNLO that is not of the LO form
             index_A_g_prime=MSTW_PDF[MSTW_PDF["Parameter"] == "A_g'"].index[0]
             index_delta_g_prime=MSTW_PDF[MSTW_PDF["Parameter"] == "delta_g'"].index[0]
             index_eta_g_prime=MSTW_PDF[MSTW_PDF["Parameter"] == "eta_g'"].index[0]
@@ -1922,60 +1498,74 @@ def integral_polarized_gluon_pdf_regge(j,eta,alpha_p,t, evolution_order = "LO", 
             eta_1_prime = MSTW_PDF[[evolution_order]].iloc[index_delta_g_prime,0][0]
             eta_2_prime = MSTW_PDF[[evolution_order]].iloc[index_eta_g_prime,0][0]
 
-            pdf+= (A_pdf_prime * delta_A_pdf *gamma(1+eta_2_prime) *
-                    (1-gamma_pol)*gamma(eta_1_prime + j + alpha - alpha_p * t - 1)/
-                    gamma(eta_1_prime + eta_2_prime + j + alpha - alpha_p * t) +
-                    gamma_pol * gamma(eta_1_prime + j + alpha - alpha_p * t + lambda_pol- 1)/
-                    gamma(eta_1_prime + eta_2_prime + j + alpha - alpha_p * t + lambda_pol)
+            pdf += A_pdf_prime * delta_A_pdf *mp.gamma(1+eta_2_prime) * (
+                    (1-gamma_pol)*mp.gamma(eta_1_prime + j + alpha - alpha_p * t - 1)/
+                    mp.gamma(eta_1_prime + eta_2_prime + j + alpha - alpha_p * t) +
+                    gamma_pol * mp.gamma(eta_1_prime + j + alpha - alpha_p * t + lambda_pol- 1)/
+                    mp.gamma(eta_1_prime + eta_2_prime + j + alpha - alpha_p * t + lambda_pol)
             )
+
+            # pdf += A_pdf_prime * delta_A_pdf * mp.gamma(1+eta_2_prime) * (
+            #         gamma_pol * mp.gamma(-1 + eta_1_prime + j + alpha - alpha_p * t + lambda_pol)/
+            #         mp.gamma(eta_1_prime + eta_2_prime + j + alpha - alpha_p * t  + lambda_pol) +
+            #         (1- gamma_pol) * mp.gamma(eta_1_prime + j + alpha - alpha_p * t - 1)/
+            #         mp.gamma(eta_1_prime + eta_2_prime + j + alpha - alpha_p * t)
+            # )
 
         if error_type != "central":
             err_delta_A_pdf = AAC_PDF[[evolution_order]].iloc[index_delta_A_g,0][error_col_index]
             err_alpha = AAC_PDF[[evolution_order]].iloc[index_alpha_g,0][error_col_index]
             err_gamma_pol = AAC_PDF[[evolution_order]].iloc[index_delta_gamma_g,0][error_col_index]
             err_lambda_pol = AAC_PDF[[evolution_order]].iloc[index_delta_lambda_g,0][error_col_index]
+            # print(err_delta_A_pdf,err_alpha,err_gamma_pol,err_lambda_pol)
 
             pdf_error = integral_polarized_pdf_regge_error(A_pdf,eta_1,eta_2,epsilon,gamma_pdf,
                                            delta_A_pdf,err_delta_A_pdf,alpha,err_alpha,gamma_pol,err_gamma_pol,lambda_pol,err_lambda_pol,
                                            j,alpha_p,t,evolution_order,error_type)
             if evolution_order != "LO":
-                dpdf_dA = A_pdf_prime *gamma(1+eta_2_prime) * (
-                    (1-gamma_pol)*gamma(eta_1_prime + j + alpha - alpha_p * t - 1)/
-                    gamma(eta_1_prime + eta_2_prime + j + alpha - alpha_p * t) +
-                    gamma_pol * gamma(eta_1_prime + j + alpha - alpha_p * t + lambda_pol- 1)/
-                    gamma(eta_1_prime + eta_2_prime + j + alpha - alpha_p * t + lambda_pol)
+                dpdf_dA = A_pdf_prime *mp.gamma(1+eta_2_prime) * (
+                    (1-gamma_pol)*mp.gamma(eta_1_prime + j + alpha - alpha_p * t - 1)/
+                    mp.gamma(eta_1_prime + eta_2_prime + j + alpha - alpha_p * t) +
+                    gamma_pol * mp.gamma(eta_1_prime + j + alpha - alpha_p * t + lambda_pol- 1)/
+                    mp.gamma(eta_1_prime + eta_2_prime + j + alpha - alpha_p * t + lambda_pol)
                             )
-                dpdf_dalpha = A_pdf_prime * delta_A_pdf * gamma(eta_2_prime + 1) * (
+                dpdf_dalpha = A_pdf_prime * delta_A_pdf * mp.gamma(eta_2_prime + 1) * (
                             (
-                                gamma_pol * gamma(eta_1_prime + j + alpha - alpha_p * t + lambda_pol - 1) *
-                                (digamma(eta_1_prime + j + alpha - alpha_p * t + lambda_pol - 1) -
-                                digamma(eta_1_prime + eta_2_prime + j + alpha - alpha_p * t + lambda_pol))
+                                gamma_pol * mp.gamma(eta_1_prime + j + alpha - alpha_p * t + lambda_pol - 1) *
+                                (mp.digamma(eta_1_prime + j + alpha - alpha_p * t + lambda_pol - 1) -
+                                mp.digamma(eta_1_prime + eta_2_prime + j + alpha - alpha_p * t + lambda_pol))
                             )/\
-                            gamma(eta_1_prime + eta_2_prime + j + alpha - alpha_p * t + lambda_pol) + \
+                            mp.gamma(eta_1_prime + eta_2_prime + j + alpha - alpha_p * t + lambda_pol) + \
                             (
-                            (gamma_pol - 1) * gamma(eta_1_prime + j + alpha - alpha_p * t - 1) *
-                            (digamma(eta_1_prime + eta_2_prime + j + alpha - alpha_p * t) -
-                            digamma(eta_1_prime + j + alpha - alpha_p * t - 1))
+                            (gamma_pol - 1) * mp.gamma(eta_1_prime + j + alpha - alpha_p * t - 1) *
+                            (mp.digamma(eta_1_prime + eta_2_prime + j + alpha - alpha_p * t) -
+                            mp.digamma(eta_1_prime + j + alpha - alpha_p * t - 1))
                             ) /\
-                            gamma(eta_1_prime + eta_2_prime + j + alpha - alpha_p * t)
+                            mp.gamma(eta_1_prime + eta_2_prime + j + alpha - alpha_p * t)
                             )
-                dpdf_dgamma_pol = A_pdf_prime * delta_A_pdf * gamma(eta_2_prime + 1) * (
-                                gamma(eta_1_prime + j + alpha - alpha_p * t + lambda_pol - 1) / \
-                                gamma(eta_1_prime + eta_2_prime + j + alpha - alpha_p * t + lambda_pol) - \
-                                gamma(eta_1_prime + j + alpha - alpha_p * t - 1) / \
-                                gamma(eta_1_prime + eta_2_prime + j + alpha - alpha_p * t)
+                dpdf_dgamma_pol = A_pdf_prime * delta_A_pdf * mp.gamma(eta_2_prime + 1) * (
+                                mp.gamma(eta_1_prime + j + alpha - alpha_p * t + lambda_pol - 1) / \
+                                mp.gamma(eta_1_prime + eta_2_prime + j + alpha - alpha_p * t + lambda_pol) - \
+                                mp.gamma(eta_1_prime + j + alpha - alpha_p * t - 1) / \
+                                mp.gamma(eta_1_prime + eta_2_prime + j + alpha - alpha_p * t)
                                 )
-                dpdf_dlambda_pol = A_pdf_prime * delta_A_pdf * gamma_pol * gamma(eta_2_prime + 1) * (
-                                gamma(eta_1_prime + j + alpha - alpha_p * t + lambda_pol - 1) *
-                                (digamma(eta_1_prime + j + alpha - alpha_p * t + lambda_pol - 1) -
-                                digamma(eta_1_prime + eta_2_prime + j + alpha - alpha_p * t + lambda_pol))
-                                )/gamma(eta_1_prime + eta_2_prime + j + alpha - alpha_p * t + lambda_pol)
+                dpdf_dlambda_pol = A_pdf_prime * delta_A_pdf * gamma_pol * mp.gamma(eta_2_prime + 1) * (
+                                mp.gamma(eta_1_prime + j + alpha - alpha_p * t + lambda_pol - 1) *
+                                (mp.digamma(eta_1_prime + j + alpha - alpha_p * t + lambda_pol - 1) -
+                                mp.digamma(eta_1_prime + eta_2_prime + j + alpha - alpha_p * t + lambda_pol))
+                                )/mp.gamma(eta_1_prime + eta_2_prime + j + alpha - alpha_p * t + lambda_pol)
                 Delta_A_pdf = dpdf_dA * err_delta_A_pdf
                 Delta_alpha = dpdf_dalpha * err_alpha
                 Delta_gamma_pol = dpdf_dgamma_pol * err_gamma_pol
                 Delta_lambda_pol = dpdf_dlambda_pol * err_lambda_pol
                 # print(dpdf_dA,dpdf_dalpha,dpdf_dgamma_pol,dpdf_dlambda_pol)
-                pdf_error += np.sqrt(Delta_A_pdf**2 + Delta_alpha**2 + Delta_gamma_pol**2 +Delta_lambda_pol**2)
+                # print(Delta_A_pdf,Delta_alpha,Delta_gamma_pol,Delta_lambda_pol)
+                pdf_error += mp.sqrt(Delta_A_pdf**2 + Delta_alpha**2 + Delta_gamma_pol**2 +Delta_lambda_pol**2)
+                # Polarized gluon pdf extremely sensitive to parametrization
+                # Enforcing standard form combined with Gaussian error propagation
+                # gives a huge error that is not compatible with the results by AAC
+                # so we enforce the same scale for now
+                pdf_error /= 5.20
             return pdf, pdf_error
         else:
             return pdf, 0
@@ -1986,51 +1576,30 @@ def non_singlet_isovector_moment(j,eta,t, moment_label="A",evolve_type="vector",
     Currently no skewness dependence!
     """
    # Check type
-    check_error_type(error_type)
-    check_evolution_order(evolution_order)
-    check_moment_type_label("non_singlet_isovector",moment_label)
-    check_evolve_type(evolve_type)
+    hp.check_error_type(error_type)
+    hp.check_evolution_order(evolution_order)
+    hp.check_moment_type_label("non_singlet_isovector",moment_label)
+    hp.check_evolve_type(evolve_type)
 
-    alpha_prime = get_regge_slope("non_singlet_isovector",moment_label,evolve_type)
+    alpha_prime = hp.get_regge_slope("non_singlet_isovector",moment_label,evolve_type)
 
     if moment_label in ["A","B"]:
-        if evolution_order == "LO":
-            if moment_label == "A":
-                norm, gud = 1, 1
-            if moment_label == "B":
-                norm, gud = 3.83651, 1
-        elif evolution_order == "NLO":
-            if moment_label == "A":
-                norm, gud = 1, 1 
-            if moment_label == "B":
-                print("norm and gud is todo")
-                return
-        else:
-           raise ValueError(f"Currently unsupporte evolution order {evolution_order}")
         uv, uv_error = integral_uv_pdf_regge(j,eta,alpha_prime,t,evolution_order,error_type)
         dv, dv_error = integral_dv_pdf_regge(j,eta,alpha_prime,t,evolution_order,error_type)
     elif moment_label =="Atilde":
-       #norm, gu, gd = 1.29597 , 0.926, 0.341
-       #result = norm * (gu * integral_polarized_uv_pdf_regge(j,eta,alpha_prime,t,error_type) - gd * integral_polarized_dv_pdf_regge(j,eta,alpha_prime,t,error_type))
-       if evolution_order == "LO":
-        norm, gud = 0.78682, 1.2723
-       elif evolution_order == "NLO":
-           print("norm and gud is todo")
-           return
-       else:
-           raise ValueError(f"Currently unsupporte evolution order {evolution_order}")
        uv, uv_error = integral_polarized_uv_pdf_regge(j,eta,alpha_prime,t,evolution_order,error_type)
        dv, dv_error = integral_polarized_dv_pdf_regge(j,eta,alpha_prime,t,evolution_order,error_type)
 
-    error = error_sign(np.sqrt(uv_error**2+dv_error**2),error_type)
-    result = norm * gud * ( uv - dv + error )
+    norm = hp.get_moment_normalizations("non_singlet_isovector",moment_label,evolve_type,evolution_order)
+    error = hp.error_sign(mp.sqrt(uv_error**2+dv_error**2),error_type)
+    result = norm * ( uv - dv + error )
 
     return result
 
 def u_minus_d_pdf_regge(j,eta,t, evolution_order = "LO", error_type="central"):
     """ Currently only experimental function that does not set ubar=dbar"""
     # Check type
-    check_error_type(error_type)
+    hp.check_error_type(error_type)
     # Value optmized for range -t < 5 GeV
     alpha_prime = 0.675606
     # Normalize to 1 at t = 0
@@ -2043,46 +1612,29 @@ def non_singlet_isoscalar_moment(j,eta,t, moment_label="A",evolve_type="vector",
     Currently no skewness dependence!
     """
     # Check type
-    check_error_type(error_type)
-    check_moment_type_label("non_singlet_isoscalar",moment_label)
-    check_evolve_type(evolve_type)
+    hp.check_error_type(error_type)
+    hp.check_moment_type_label("non_singlet_isoscalar",moment_label)
+    hp.check_evolve_type(evolve_type)
 
-    alpha_prime = get_regge_slope("non_singlet_isoscalar",moment_label,evolve_type)
+    alpha_prime = hp.get_regge_slope("non_singlet_isoscalar",moment_label,evolve_type)
 
     if moment_label in ["A","B"]:
-        if evolution_order == "LO":
-            if moment_label == "A":
-                norm, gud = 1, 1
-            if moment_label == "B":
-                norm, gud = -0.122, 1
-        elif evolution_order == "NLO":
-            print("norm and gud is todo")
-            return
-        else:
-            raise ValueError(f"Currently unsupporte evolution order {evolution_order}")
         uv, uv_error = integral_uv_pdf_regge(j,eta,alpha_prime,t,evolution_order,error_type)
         dv, dv_error = integral_dv_pdf_regge(j,eta,alpha_prime,t,evolution_order,error_type)
     elif moment_label =="Atilde":
-       #norm, gu, gd = 0.783086 , 0.926, 0.341
-       #result = norm * (gu * integral_polarized_uv_pdf_regge(j,eta,alpha_prime,t,error_type) + gd * integral_polarized_dv_pdf_regge(j,eta,alpha_prime,t,error_type))
-        if evolution_order == "LO":
-            norm, gud = 1.71407, 0.4044
-        elif evolution_order == "NLO":
-            print("norm and gud is todo")
-            return
-        else:
-            raise ValueError(f"Currently unsupporte evolution order {evolution_order}")
         uv, uv_error = integral_polarized_uv_pdf_regge(j,eta,alpha_prime,t,evolution_order,error_type)
         dv, dv_error = integral_polarized_dv_pdf_regge(j,eta,alpha_prime,t,evolution_order,error_type)
-    error = error_sign(np.sqrt(uv_error**2+dv_error**2),error_type)
-    result = norm * gud * ( uv + dv + error )
+
+    norm = hp.get_moment_normalizations("non_singlet_isoscalar",moment_label,evolve_type,evolution_order)
+    error = hp.error_sign(mp.sqrt(uv_error**2+dv_error**2),error_type)
+    result = norm * ( uv + dv + error )
 
     return result
 
 def u_plus_d_pdf_regge(j,eta,t, evolution_order = "LO", error_type="central"):
     """ Currently only experimental function that does not set ubar=dbar"""
     # Check type
-    check_error_type(error_type)
+    hp.check_error_type(error_type)
     # Value optmized for range -t < 5 GeV
     alpha_prime = 0.949256
     # Normalize to 1 at t = 0
@@ -2106,6 +1658,8 @@ def d_hat(j,eta,t):
     if eta == 0:
         result = 1
     else :
+        if mp.im(j) <= 0:
+            j = mp.conj(j)
         result = mp.hyp2f1(-j/2, -(j-1)/2, 1/2 - j, - 4 * m_N**2/t * eta**2)
     return result
     
@@ -2128,13 +1682,13 @@ def quark_singlet_regge_A(j,eta,t, Nf=3, alpha_prime_ud=0.891, moment_label="A",
     else:
         raise ValueError(f"Unsupported moment label {moment_label}")
     if Nf == 3 or Nf == 4:
-        error = np.sqrt(uv_error**2+dv_error**2+Spdf_error**2)
+        error = mp.sqrt(uv_error**2+dv_error**2+Spdf_error**2)
         result = uv + dv + Spdf
     elif Nf == 2:
-        error = np.sqrt(uv_error**2+dv_error**2+Spdf_error**2+s_plus_error**2)
+        error = mp.sqrt(uv_error**2+dv_error**2+Spdf_error**2+s_plus_error**2)
         result = uv + dv + Spdf - s_plus
     elif Nf == 1:
-        error = .5*np.sqrt(4*uv_error**2+Spdf_error**2+s_plus_error**2+4*Delta_error**2)
+        error = .5*mp.sqrt(4*uv_error**2+Spdf_error**2+s_plus_error**2+4*Delta_error**2)
         result = .5*(Spdf-s_plus+2*uv-2*Delta)
     else :
         raise ValueError("Currently only (integer) 1 <= Nf <= 3 supported")
@@ -2175,50 +1729,49 @@ def quark_singlet_regge_D(j,eta,t, Nf=3, alpha_prime_ud=0.891,alpha_prime_s=1.82
 
     if Nf == 3 or Nf == 4:
         term_1 = uv + dv + Sv
-        error_1 = np.sqrt(uv_error**2+dv_error**2+Sv_error**2) 
+        error_1 = mp.sqrt(uv_error**2+dv_error**2+Sv_error**2) 
         term_2 = uv_s + dv_s + Sv_s 
-        error_2 = np.sqrt(uv_s_error**2+dv_s_error**2+Sv_s_error**2) 
+        error_2 = mp.sqrt(uv_s_error**2+dv_s_error**2+Sv_s_error**2) 
     elif Nf == 2:
         term_1 = uv + dv + Sv - s_plus
-        error_1 = np.sqrt(uv_error**2+dv_error**2+Sv_error**2+s_plus_error**2)
+        error_1 = mp.sqrt(uv_error**2+dv_error**2+Sv_error**2+s_plus_error**2)
         term_2 = uv_s + dv_s + Sv_s - s_plus_s
-        error_2 = np.sqrt(uv_s_error**2+dv_s_error**2+Sv_s_error**2+s_plus_s_error**2) 
+        error_2 = mp.sqrt(uv_s_error**2+dv_s_error**2+Sv_s_error**2+s_plus_s_error**2) 
     elif Nf == 1:
         term_1 = .5*(Sv-s_plus+2*uv-2*Delta)
-        error_1 = .5*np.sqrt(4*uv_error**2+Sv_error**2+s_plus_error**2+4*Delta_error**2)
+        error_1 = .5*mp.sqrt(4*uv_error**2+Sv_error**2+s_plus_error**2+4*Delta_error**2)
         term_2 = .5*(Sv_s-s_plus_s+2*uv_s-2*Delta_s)
-        error_2 = .5*np.sqrt(4*uv_s_error**2+Sv_s_error**2+s_plus_s_error**2+4*Delta_s_error**2)
+        error_2 = .5*mp.sqrt(4*uv_s_error**2+Sv_s_error**2+s_plus_s_error**2+4*Delta_s_error**2)
     else :
         raise ValueError("Currently only (integer) 1 <= Nf <= 3 supported")
-    error = (d_hat(j,eta,t)-1)*np.sqrt(error_1**2+error_2**2)
+    error = (d_hat(j,eta,t)-1)*mp.sqrt(error_1**2+error_2**2)
     result = (d_hat(j,eta,t)-1)*(term_1-term_2)
     return result, error
 
 def quark_singlet_regge(j,eta,t,Nf=3,moment_label="A",evolve_type="vector",evolution_order="LO",error_type="central"):
     # Check type
-    check_error_type(error_type)
-    check_evolve_type(evolve_type)
-    check_moment_type_label("singlet",moment_label)
-    check_evolution_order(evolution_order)
+    hp.check_error_type(error_type)
+    hp.check_evolve_type(evolve_type)
+    hp.check_moment_type_label("singlet",moment_label)
+    hp.check_evolution_order(evolution_order)
     if moment_label == "B":
         prf = -1
     else:
         prf = +1
 
-    # alpha_prime_ud = 0.891
-    # alpha_prime_s = 1.828
-    alpha_prime_ud = get_regge_slope("non_singlet_isoscalar",moment_label,evolve_type)
-    alpha_prime_s, _, _ = get_regge_slope("singlet",moment_label,evolve_type)
+    alpha_prime_ud, alpha_prime_s, _, _ = hp.get_regge_slope("singlet",moment_label,evolve_type)
+    norm_A, norm_D, _, _ = hp.get_moment_normalizations("singlet",moment_label,evolve_type,evolution_order)
 
     term_1, error_1 = quark_singlet_regge_A(j,eta,t,Nf,alpha_prime_ud,moment_label,evolution_order,error_type)
     term_2, error_2 = quark_singlet_regge_D(j,eta,t,Nf,alpha_prime_ud,alpha_prime_s,moment_label,evolution_order,error_type)
-    sum_squared = error_1**2 + error_2**2
+    sum_squared = norm_A**2 * error_1**2 + norm_D**2 * error_2**2
+
     error = np.frompyfunc(mp.sqrt, 1, 1)(sum_squared)
-    #error = np.array(mp.sqrt(error_1**2+error_2**2))
-    result = term_1 + prf * term_2
+    result = norm_A * term_1 + norm_D * prf * term_2
+
     return result, error
 
-def gluon_regge_A(j,eta,t, alpha_prime_T = 0.627,moment_label="A", evolution_order="LO",error_type="central"):
+def gluon_singlet_regge_A(j,eta,t, alpha_prime_T = 0.627,moment_label="A", evolution_order="LO",error_type="central"):
     if moment_label == "A":
         result, error = integral_gluon_pdf_regge(j,eta,alpha_prime_T,t,evolution_order,error_type)
     elif moment_label =="Atilde":
@@ -2227,60 +1780,62 @@ def gluon_regge_A(j,eta,t, alpha_prime_T = 0.627,moment_label="A", evolution_ord
         raise ValueError(f"Unsupported moment label {moment_label}")
     return result, error
 
-def gluon_regge_D(j,eta,t, alpha_prime_T = 0.627, alpha_prime_S = 4.277,moment_label="A",evolution_order="LO", error_type="central"):
+def gluon_singlet_regge_D(j,eta,t, alpha_prime_T = 0.627, alpha_prime_S = 4.277,moment_label="A",evolution_order="LO", error_type="central"):
     # Check type
-    check_error_type(error_type)
-    check_moment_type_label("singlet",moment_label)
+    hp.check_error_type(error_type)
+    hp.check_moment_type_label("singlet",moment_label)
     if eta == 0:
         return 0, 0 
     else :
         term_1 = (d_hat(j,eta,t)-1)
-        term_2, error_2 = gluon_regge_A(j,eta,t,alpha_prime_T,moment_label,evolution_order,error_type)
+        term_2, error_2 = gluon_singlet_regge_A(j,eta,t,alpha_prime_T,moment_label,evolution_order,error_type)
         if moment_label == "A":
             term_3, error_3 = integral_gluon_pdf_regge(j,eta,t,alpha_prime_S,evolution_order,error_type)
         elif moment_label =="Atilde":
             term_3, error_3 = integral_polarized_gluon_pdf_regge(j,eta,t,alpha_prime_S,evolution_order,error_type)
         else:
             raise ValueError(f"Unsupported moment label {moment_label}")
-        error = term_1 * np.sqrt(error_2**2+error_3**2)
+        error = term_1 * mp.sqrt(error_2**2+error_3**2)
         result = term_1 * (term_2-term_3)
         return result, error
     
 def gluon_singlet_regge(j,eta,t,moment_label="A",evolve_type="vector", evolution_order="LO",error_type="central"):
     # Check type
-    check_error_type(error_type)
-    check_evolve_type(evolve_type)
-    check_moment_type_label("singlet",moment_label)
+    hp.check_error_type(error_type)
+    hp.check_evolve_type(evolve_type)
+    hp.check_moment_type_label("singlet",moment_label)
 
     if moment_label == "B":
         prf = -1
     else:
         prf = +1
 
-    _, alpha_prime_T, alpha_prime_S = get_regge_slope("singlet",moment_label,evolve_type)
-    term_1, error_1 = gluon_regge_A(j,eta,t,alpha_prime_T,moment_label,evolution_order,error_type)
+    _, _, alpha_prime_T, alpha_prime_S = hp.get_regge_slope("singlet",moment_label,evolve_type)
+    _, _, norm_A, norm_D = hp.get_moment_normalizations("singlet",moment_label,evolve_type,evolution_order)
+
+    term_1, error_1 = gluon_singlet_regge_A(j,eta,t,alpha_prime_T,moment_label,evolution_order,error_type)
     if eta == 0:
         result = term_1
         error = error_1
     else :
-        term_2, error_2 = gluon_regge_D(j,eta,t,alpha_prime_T,alpha_prime_S,moment_label,evolution_order,error_type)
-        sum_squared = error_1**2 + error_2**2
+        term_2, error_2 = gluon_singlet_regge_D(j,eta,t,alpha_prime_T,alpha_prime_S,moment_label,evolution_order,error_type)
+        sum_squared = norm_A**2 * error_1**2 + norm_D**2 * error_2**2
         error = np.frompyfunc(mp.sqrt, 1, 1)(sum_squared)
-        #error = np.array(mp.sqrt(error_1**2+error_2**2))
-        result = term_1 + prf * term_2
+        result = norm_A * term_1 + norm_D * prf * term_2
     return result, error
 
 def singlet_moment(j,eta,t,Nf=3,moment_label="A",evolve_type="vector",solution="+",evolution_order="LO",error_type="central"):
     """
     Returns 0 if the moment_label = "B", in accordance with holography and quark model considerations. 
-    Otherwise it returns the diagonal combination of quark + gluon moment.
+    Otherwise it returns the diagonal combination of quark + gluon moment. Error for singlet_moment at j = 1
+    for solution "-" unreliable because of pole in gamma. Better reconstruct evolved moment from GPD.
     """
     # Check type
-    check_error_type(error_type)
-    check_evolve_type(evolve_type)
+    hp.check_error_type(error_type)
+    hp.check_evolve_type(evolve_type)
 
     if moment_label == "B":
-        return 0
+        return 0, 0
 
     # Switch sign
     if solution == "+":
@@ -2296,22 +1851,23 @@ def singlet_moment(j,eta,t,Nf=3,moment_label="A",evolve_type="vector",solution="
     gluon_prf = .5 * (gamma_qg(j-1,Nf,evolve_type,"LO")/
                     (gamma_qq(j-1,Nf,"singlet",evolve_type,"LO")-gamma_pm(j-1,Nf,evolve_type,solution)))
     gluon_in, gluon_in_error = gluon_singlet_regge(j,eta,t,moment_label,evolve_type,evolution_order,error_type)
+    # print(solution,gluon_prf)
     sum_squared = quark_prf**1 * quark_in_error**2 + gluon_prf**2*gluon_in_error**2
-    error = error_sign(np.frompyfunc(mp.sqrt, 1, 1)(sum_squared),error_type)
-    #error = error_sign(np.array(mp.sqrt(quark_in_error**2+gluon_prf**2*gluon_in_error**2)),error_type)
-    result = quark_prf * quark_in + gluon_prf * gluon_in + error
-    return result
 
-# Initialize the MOMENT_TO_FUNCTION dictionary
-# after all functions are defined
-initialize_moment_to_function()
+    error = np.frompyfunc(mp.sqrt, 1, 1)(sum_squared)
+    result = quark_prf * quark_in + gluon_prf * gluon_in
+    return result, error
 
 ################################
 ##### Evolution Equations ######
 ################################
 
 def harmonic_sum(l,j):
-    return sum(1/k**l for k in range(1, j+1))
+    if j < 0:
+        print("Warning: sum called for negative iterator bound")
+    sign = (-1 if l < 0 else 1)
+    l_abs = abs(l)
+    return sum((sign)**k/k**l_abs for k in range(1, j+1))
 
 def harmonic_sum_prime(l,j):
     return 2**(l-1) * sum((1+(-1)**k)/k**l for k in range(1, j+1))
@@ -2347,41 +1903,177 @@ def sommerfeld_watson_trapezoid(func,k_0=1,k_1=False,epsilon=.2,k_range=10,n_k=1
     integral = integral_real + 1j * integral_imag
     return integral
 
-def fractional_finite_sum(func,k_0=1,k_1=1,epsilon=.2,k_range=10,n_k=150,alternating_sum=False):
-    # start_time = time.time()
-    k_vals = np.linspace(-k_range, k_range, n_k) 
-    k_vals-= k_0.imag
-    k_vals_trig = mp.re(k_0) - epsilon + 1j * k_vals
-    k_vals_shift = k_1 + 1 - epsilon + 1j * k_vals
-    if alternating_sum:
-        trig_term = np.array([mp.csc(mp.pi * k) for k in k_vals_trig])
+def fractional_finite_sum(func,k_0=1,k_1=1,epsilon=.2,k_range=10,n_k=300,alternating_sum=False, n_tuple = 1, plot_integrand = False,trap=False):
+    """
+    Computes the fractional finite sume of a one-parameter function by either using mpmath quad (trap = False) or a trapezoidal rule (trap = True).
+    Can handle tuples of functions as input.
+    """
+    if not trap and not plot_integrand:
+        def integrand_quad(k):
+            if abs(k) < 1e-6:
+                return 0
+            k = mp.re(k_0) - epsilon + 1j * (k - mp.im(k_0))
+            if alternating_sum:
+                trig_term = mp.csc(mp.pi * k)
+                alt_sign = power_minus_1(k_1)
+            else:
+                trig_term = mp.cot(mp.pi * k )
+                alt_sign = 1
+            res = -.5 * trig_term * (func(k) - alt_sign * func(k+k_1))
+            return res
+        # start_time = time.time()
+        integral = [0] * n_tuple
+        for i in range(n_tuple):
+            int_tmp, err_tmp = mp.quad(integrand_quad,[-mp.inf,mp.inf], maxdegree=10, error=True)
+            if err_tmp > 1e-4:
+                print(f"Warning: large error={err_tmp} detected in fractional_finite_sum")
+            integral[i] += int_tmp
+        # end_time = time.time()
+        # print("mp.quad with alternating_sum =",alternating_sum,integral, end_time-start_time)
+        # return integral
     else:
-        trig_term = np.array([mp.cot(mp.pi * k ) for k in k_vals_trig])
-    f_vals = np.array([func(k) for k in k_vals_trig])
-    f_vals_shift = np.array([func(k) for k in k_vals_shift])
-    if alternating_sum:
-        f_vals_shift *= (-1)**(k_0.real+k_1.real+1)
-    f_vals -= f_vals_shift
-    integrand = -0.5 * trig_term * f_vals
+        # Trapezoidal rule
+        # start_time = time.time()
+        k_vals = np.linspace(-k_range, k_range, n_k) 
+        k_vals = k_vals - mp.im(k_0)
+        k_vals_trig = mp.re(k_0) - epsilon + 1j * k_vals
+        # k_vals_shift = k_1 + 1 - epsilon + 1j * k_vals
+        k_vals_shift = k_vals_trig + k_1
 
-    integrand_real = np.array([float(mp.re(x)) for x in integrand])
-    integrand_imag = np.array([float(mp.im(x)) for x in integrand])
+        if alternating_sum:
+            trig_term = np.array([mp.csc(mp.pi * k) for k in k_vals_trig])
+        else:
+            trig_term = np.array([mp.cot(mp.pi * k ) for k in k_vals_trig])
 
-    integral_real = trapezoid(integrand_real, k_vals)
-    integral_imag = trapezoid(integrand_imag, k_vals)
-    # end_time = time.time()
-    # print("t0",end_time - start_time)
-    integral = integral_real + 1j * integral_imag
-    return integral
+        f_vals = np.array([func(k) for k in k_vals_trig])
+        f_vals_shift = np.array([func(k) for k in k_vals_shift])
 
-def harmonic_number(l,j):
+        if n_tuple == 1:
+            f_vals = f_vals.reshape(-1, 1)
+            f_vals_shift = f_vals_shift.reshape(-1, 1)
+
+        if alternating_sum:
+            # Perform index shift on (-1)^k
+            # alt_sign = (-1)**(mp.re(k_0) + mp.re(k_1) + 1)
+            # alt_sign = (-1)**(k_1)
+            alt_sign = power_minus_1(k_1)
+            f_vals_shift = np.array([x * alt_sign for x in f_vals_shift], dtype=object)
+
+        # Compute the difference
+        f_diff = f_vals - f_vals_shift
+
+        # Initialize array for tuple solution
+        integral = [0] * n_tuple
+        if plot_integrand:
+            plt.figure(figsize=(10, 6))
+        for i in range(n_tuple):
+            integrand = -0.5 * trig_term * f_diff[:,i]
+            # Compute integrand
+            integrand_real = np.array([float(mp.re(x)) for x in integrand])
+            integrand_imag = np.array([float(mp.im(x)) for x in integrand])
+
+            if plot_integrand:
+                print("integrands at k_max:",integrand_real[-1],integrand_imag[-1])
+                plt.plot(k_vals,integrand_real,label=f"real_{i}")
+                plt.plot(k_vals,integrand_imag,label=f"imag_{i}")
+            else:
+                integral_real = trapezoid(integrand_real, k_vals)
+                integral_imag = trapezoid(integrand_imag, k_vals)
+                # end_time = time.time()
+                # print("t0",end_time - start_time)
+                integral[i] += integral_real + 1j * integral_imag
+                # end_time = time.time()
+                # print("trapezoidal with alternating_sum =",alternating_sum,integral[i],end_time - start_time)
+
+        if plot_integrand:
+            plt.grid(True)
+            plt.legend()
+            plt.show()
+            integral = [0]
+
+    if n_tuple == 1:
+        # Return a scalar for n_tuple = 1
+        return integral[0]
+    else:
+        return integral
+    
+def polygamma_asymptotic(n, z, terms=5):
+    if n == 0:
+        # Degenerate case: digamma
+        result = mp.ln(z) - 1 / (2 * z)
+        for k in range(1, terms + 1):
+            bernoulli_2k = mp.bernoulli(2 * k)
+            result -= bernoulli_2k / (2 * k * z**(2 * k))
+        return result
+
+    # General polygamma case
+    result = 0
+    sign = (-1)**(n + 1)
+    for k in range(terms):
+        bernoulli_2k = mp.bernoulli(2 * k)
+        if bernoulli_2k == 0 and k > 0:
+            continue  # Bernoulli numbers vanish for odd index > 1
+        coeff = mp.fac(2 * k + n - 1) / mp.fac(k)
+        term = coeff * bernoulli_2k / z**(2 * k + n)
+        result += term
+    return sign * result
+
+def harmonic_number(l,j,k_range=3,n_k=300,plot_integrand=False,trap=False,interpolation=True):
+    if interpolation:
+        interp = hp.harmonic_interpolator(l)
+        return interp(j)
     if isinstance(j, (int, np.integer)):
-        return harmonic_sum(l,j)
-    if l == 1:
+        if j >= 1:
+            result= harmonic_sum(l,j)
+        elif j == 0:
+            result = 0
+        else:
+            result = harmonic_sum(l,-(j+1))
+        return mp.mpc(result)
+    elif l == 1:
         euler_gamma = 0.5772156649
-        result = mp.digamma(j+1) + euler_gamma
+        if abs(j) < 25:
+            result = mp.digamma(j+1) + euler_gamma
+        else:
+        # Approximate with asymptotic series expansion
+            result = polygamma_asymptotic(0,j+1,terms=1) + euler_gamma
+    elif l > 1:
+        if abs(j) < 25:
+            result = mp.zeta(l) - mp.zeta(l,j+1)
+        else:
+        # Approximate with asymptotic series expansion
+            result = mp.zeta(l) - (-1)**l / mp.factorial(l-1) * polygamma_asymptotic(l-1,j+1,terms=1)
+    elif l == -1:
+        if abs(j) < 25:
+            result = power_minus_1(j) * mp.lerchphi(-1, 1, 1 + j) - mp.log(2)
+        else:
+        # Approximate with asymptotic series expansion
+        # Lerch transcendent [-1,1,j+1]
+            lerch_phi = .5 * (polygamma_asymptotic(0,1+.5*j,terms=1) - polygamma_asymptotic(0,.5*(1+j),terms=1))
+            result = power_minus_1(j) * lerch_phi - mp.log(2)
+        return result
+    elif l < -1:
+        m = abs(l)
+        if abs(j) < 25:
+            result = mp.polylog(m,-1) + power_minus_1(j) * 2**(-m) * (
+                mp.zeta(m,(j+1)/2) - mp.zeta(m,1+.5*j)
+            )
+        else: 
+        # Approximate with asymptotic series expansion
+            zeta_1 = polygamma_asymptotic(m-1,(j+1)/2,terms=1)
+            zeta_2 = polygamma_asymptotic(m-1,1+.5*j,terms=1)
+            result = mp.polylog(m,-1) + power_minus_1(j) * 2**(-m) * (-1)**m / mp.factorial(m-1)* (
+                zeta_1 - zeta_2
+            )
+        return result
     else:
-        result = mp.zeta(l) - mp.zeta(l,j+1)
+        def func(i):
+            return (1 / i**abs(l))
+        if l < 0:
+            alternating_sum = True
+        else:
+            alternating_sum = False
+        result = fractional_finite_sum(func,k_1=j,k_range=k_range,n_k=n_k,alternating_sum=alternating_sum,plot_integrand=plot_integrand,trap=trap)
     return result
 
 def harmonic_number_prime(l,j):
@@ -2403,6 +2095,203 @@ def harmonic_number_tilde(j,k_range=10,n_k=500,epsilon=.2):
         result = fractional_finite_sum(stilde,k_0=1,k_1=j,alternating_sum=True,k_range=k_range,n_k=n_k,epsilon=epsilon)
     return result
 
+def nested_harmonic_number(indices, j,interpolation=True,n_k=100,k_range=10,epsilon=1e-1,trap=False):
+    """
+    Nested harmonic sum for j over indices. If interpolation is true, tabulated values are being used.
+    The integration strategy including parameters can be chosen. Currently only handles indices > 0 since
+    for an intermediate index < 0 there is an alternating and a non_alternating pieces in the series.
+    These can be handled manually
+    """
+    # Convert to tuple such that the checks always compare the same type
+    indices = tuple(int(i) for i in indices)
+    # Use interpolated tables for complex values
+    if interpolation:
+        interp = hp.harmonic_interpolator(indices)
+        return interp(j)
+    # interpolation=interpolation for independent generation of tables
+    # with generate_harmonic_table
+    # (92)
+    if indices == (1,1):
+        result = harmonic_number(1,j,interpolation=interpolation)**2 + harmonic_number(2,j,interpolation=interpolation)
+        result /= 2
+        return result
+    # (93)
+    if indices == (1,1,1):
+        result = (harmonic_number(1,j,interpolation=interpolation)**3 + 3 * harmonic_number(1,j,interpolation=interpolation) * harmonic_number(2,j,interpolation=interpolation)
+                   + 2 * harmonic_number(3,j,interpolation=interpolation))
+        result /= 6
+        return result
+    # Return harmonic number for single index
+    if len(indices) == 1:
+        return harmonic_number(indices[0], j,n_k=n_k,k_range=k_range,trap=trap)
+    # Explicitly compute result
+    if isinstance(j, (int, np.integer)):
+        m, *rest = indices
+        total = 0.0
+        for i in range(1, j + 1):
+            factor = (1 / i**abs(m)) * ((-1)**i if m < 0 else 1)
+            inner_sum = nested_harmonic_number(rest, i,interpolation=False,k_range=k_range,n_k=n_k,epsilon=epsilon,trap=trap)
+            total += factor * inner_sum
+        return total
+    else:
+        m, *rest = indices
+        if m < 0:
+            alternating_sum = True
+        else:
+            alternating_sum = False
+
+        def func(i):
+            factor = (1 / i**abs(m)) 
+            inner_sum = nested_harmonic_number(rest,i,interpolation=False,k_range=k_range,n_k=n_k,epsilon=epsilon,trap=trap)
+            return factor * inner_sum
+        total = fractional_finite_sum(func,k_1=j,alternating_sum=alternating_sum, n_k=n_k,k_range=k_range,epsilon=epsilon,trap=trap)
+        return total
+    
+def generate_harmonic_table(indices,re_j_min=0, re_j_max=10, im_j_min=0, im_j_max=110,step=0.1, n_jobs=-1):
+    def compute_values(re_j, im_j):
+        j = complex(re_j, im_j)
+        if isinstance(indices,int):
+            val = harmonic_number(indices, j, interpolation=False)
+        else:
+            val = nested_harmonic_number(indices, j, interpolation=False)
+        row = [[re_j, im_j, val]]
+        if im_j > 0:
+            row.append([re_j, -im_j, np.conj(val)])
+        return row
+
+    re_vals = np.arange(re_j_min, re_j_max + step, step)
+    im_vals = np.arange(im_j_min, im_j_max + step, step)
+
+    if isinstance(indices,int):
+        m1 = indices
+        filename = cfg.ANOMALOUS_DIMENSIONS_PATH / f"harmonic_m1_{m1}.csv"
+    elif len(indices) == 2:
+        m1, m2 = indices
+        filename = cfg.ANOMALOUS_DIMENSIONS_PATH / f"nested_harmonic_m1_{m1}_m2_{m2}.csv"
+    elif len(indices) == 3:
+        m1, m2, m3 = indices
+        filename = cfg.ANOMALOUS_DIMENSIONS_PATH / f"nested_harmonic_m1_{m1}_m2_{m2}_m3_{m3}.csv"
+    else:
+        raise ValueError("Table generation currently only supports 3 nested harmonics")
+
+    # Generate grid points
+    grid = [(re_j, im_j) for re_j in re_vals for im_j in im_vals]
+    with hp.tqdm_joblib(tqdm(total=len(grid))) as progress_bar:
+        # Parallel computation over (re_j, im_j) pairs
+        results = Parallel(n_jobs=n_jobs)(
+            delayed(compute_values)(re_j, im_j)
+            for re_j, im_j in grid
+        )
+
+    # Flatten the list of lists
+    data = [row for sublist in results for row in sublist]
+    data.sort(key=lambda x: (x[0], x[1]))  # Sort by Re(j), Im(j)
+
+    # Write to CSV
+    with open(filename, mode='w', newline='') as csvfile:
+        writer = csv.writer(csvfile)
+        writer.writerow(["Re(j)", "Im(j)", "harmonic_number"])
+        writer.writerows(data)
+
+    print(f"Successfully wrote table to {filename}")
+    
+def generate_nested_harmonic_table(m1, m2,
+                                            re_j_min=1e-4, re_j_max=3, im_j_min=0, im_j_max=110,
+                                            step=0.1, n_jobs=-1):
+    def compute_values(re_j, im_j, m1, m2):
+        j = complex(re_j, im_j)
+        val = nested_harmonic_number([m1, m2], j, interpolation=False)
+        row = [[re_j, im_j, val]]
+        if im_j > 0:
+            row.append([re_j, -im_j, np.conj(val)])
+        return row
+
+    re_vals = np.arange(re_j_min, re_j_max + step, step)
+    im_vals = np.arange(im_j_min, im_j_max + step, step)
+
+    filename = cfg.ANOMALOUS_DIMENSIONS_PATH / f"nested_harmonic_m1_{m1}_m2_{m2}.csv"
+
+    # Generate grid points
+    grid = [(re_j, im_j) for re_j in re_vals for im_j in im_vals]
+    with hp.tqdm_joblib(tqdm(total=len(grid))) as progress_bar:
+        # Parallel computation over (re_j, im_j) pairs
+        results = Parallel(n_jobs=n_jobs)(
+            delayed(compute_values)(re_j, im_j, m1, m2)
+            for re_j, im_j in grid
+        )
+
+    # Flatten the list of lists
+    data = [row for sublist in results for row in sublist]
+    data.sort(key=lambda x: (x[0], x[1]))  # Sort by Re(j), Im(j)
+
+    # Write to CSV
+    with open(filename, mode='w', newline='') as csvfile:
+        writer = csv.writer(csvfile)
+        writer.writerow(["Re(j)", "Im(j)", "nested_harmonic_number"])
+        writer.writerows(data)
+
+    print(f"Successfully wrote table to {filename}")
+
+def generate_anomalous_dimension_table(suffix,moment_type,evolve_type,Nf=3,
+                                            re_j_min=1e-4, re_j_max=6, im_j_min=0, im_j_max=110,
+                                            step=0.1, n_jobs=-1):
+    def compute_values(re_j, im_j):
+        if im_j == 0:
+            j = int(re_j) if float(re_j).is_integer() else float(re_j)
+        else:
+            j = complex(re_j, im_j)
+        if suffix == "qq":
+            val = gamma_qq(j,Nf,moment_type,evolve_type,evolution_order="NLO")
+        elif suffix == "qg":
+            val = gamma_qg(j,Nf,evolve_type,evolution_order="NLO")
+        elif suffix == "gq":
+            val = gamma_gq(j,Nf,evolve_type,evolution_order="NLO")
+        elif suffix == "gg":
+            val = gamma_gg(j,Nf,evolve_type,evolution_order="NLO")
+        else:
+            raise ValueError(f"Wrong suffix {suffix}")
+        val = complex(val)
+        row = [[re_j, im_j, val]]
+        if im_j > 0:
+            row.append([re_j, -im_j, np.conj(val)])
+        return row
+
+    re_vals = np.arange(re_j_min, re_j_max + step, step)
+    im_vals = np.arange(im_j_min, im_j_max + step, step)
+    if moment_type != "singlet" and suffix == "qq":
+        filename = cfg.ANOMALOUS_DIMENSIONS_PATH / f"gamma_{suffix}_non_singlet_{evolve_type}_nlo.csv"
+    else:
+        filename = cfg.ANOMALOUS_DIMENSIONS_PATH / f"gamma_{suffix}_{evolve_type}_nlo.csv"
+
+    # Generate grid points
+    grid = [(re_j, im_j) for re_j in re_vals for im_j in im_vals]
+    with hp.tqdm_joblib(tqdm(total=len(grid))) as progress_bar:
+        # Parallel computation over (re_j, im_j) pairs
+        results = Parallel(n_jobs=n_jobs)(
+            delayed(compute_values)(re_j, im_j)
+            for re_j, im_j in grid
+        )
+
+    # Flatten the list of lists
+    data = [row for sublist in results for row in sublist]
+    data.sort(key=lambda x: (x[0], x[1]))  # Sort by Re(j), Im(j)
+
+    # Write to CSV
+    with open(filename, mode='w', newline='') as csvfile:
+        writer = csv.writer(csvfile)
+        writer.writerow(["Re(j)", "Im(j)", f"gamma_{suffix}"])
+        writer.writerows(data)
+
+    print(f"Successfully wrote table to {filename}")
+        
+def d_weight(m,k,n):
+    """
+    Sum of harmonic sum weigths. Equivalent to difference of two harmonic sums. Note that N in 
+    Nucl.Phys.B 889 (2014) 351-400 is j + 1 here.
+    """
+    result = 1/(n+k)**m
+    return result 
+
 def gamma_qq(j,Nf=3,moment_type="non_singlet_isovector",evolve_type="vector",evolution_order="LO"):
     """
     Return conformal qq singlet anomalous dimension for conformal spin-j
@@ -2413,38 +2302,77 @@ def gamma_qq(j,Nf=3,moment_type="non_singlet_isovector",evolve_type="vector",evo
     - evolve_type (str. optional): vector or axial
     - evolution_order (str. optional): LO, NLO or NNLO
     """
-    check_evolution_order(evolution_order)
+    hp.check_evolution_order(evolution_order)
     Nc = 3
     c_f = (Nc**2-1)/(2*Nc)
     t_f = .5
 
+    if evolution_order == "NLO":
+        # Nucl.Phys.B 691 (2004) 129-181
+        # Note that N there is j + 1 here
+        # p is +: N -> N + 1 -> j + 2
+        # m is -: N -> N - 1 -> j
+        s_1 = harmonic_number(1,j+1)
+        s_2 = harmonic_number(2,j+1)
+        s_3_p = harmonic_number(3,j+2)
+        s_3_m = harmonic_number(3,j)
+        s_m3 = harmonic_number(-3,j+1)
+        s_1_p = harmonic_number(1,j+2)
+        s_1_m = harmonic_number(1,j)
+        s_2_p = harmonic_number(2,j+2)
+        s_2_pp = harmonic_number(2,j+3)
+        s_2_m = harmonic_number(2,j)
+        s_1_m2_p = nested_harmonic_number([1,-2],j+2)
+        s_1_m2_m = nested_harmonic_number([1,-2],j)
+        s_1_2_p = nested_harmonic_number([1,2],j+2)
+        s_1_2_m = nested_harmonic_number([1,2],j)
+        s_2_1_p = nested_harmonic_number([2,1],j+2)
+        s_2_1_m = nested_harmonic_number([2,1],j)
+
+        if moment_type == "singlet":
+            s_1_mm = harmonic_number(1,j-1)
+            s_1_pp = harmonic_number(1,j+3)
+
     def gamma_qq_lo(j):
         # Belitsky (4.152)
-        result = - c_f * (-4*digamma(j+2)+4*digamma(1)+2/((j+1)*(j+2))+3)
+        result = - c_f * (-4*mp.digamma(j+2)+4*mp.digamma(1)+2/((j+1)*(j+2))+3)
         return result
     
     def gamma_qq_nlo(j):
         # Belitsky K.5 has sign error
         # Check (2.5) in Nucl.Phys.B 153 (1979) 161-186
-        if moment_type == "singlet":
-            sigma = 1
-        else:
-            sigma = (-1)**(mp.nint(mp.re(j))+1)
+        # if moment_type == "singlet":
+        #     sigma = 1
+        # else:
+        #     sigma = (-1)**(mp.nint(mp.re(j))+1)
         c_a = Nc
-        s_0 = harmonic_number(0,j+1)
-        s_1 = harmonic_number(1,j+1)
-        s_2 = harmonic_number(2,j+1)
-        s_2_prime = harmonic_number_prime(2,j+1)
-        s_tilde = harmonic_number_tilde(j+1)
-        s_3_prime = harmonic_number_prime(3,j+1)
-        # print(s_0,s_1,s_2,s_2_prime,s_tilde,s_3_prime)
+        # s_0 = harmonic_number(0,j+1)
+        # s_2_prime = harmonic_number_prime(2,j+1)
+        # s_tilde = harmonic_number_tilde(j+1)
+        # s_3_prime = harmonic_number_prime(3,j+1)
+        # Nucl.Phys.B 688 (2004) 101-134
+        # Note different beta function convention
+        # so we reverse the sign
+        term1 = - 4 * c_a * c_f * (2 * s_3_p - 17/24 - 2 * s_m3 - 28/3 * s_1
+                                 + 151/18 * (s_1_m + s_1_p) + 2 * (s_1_m2_m + s_1_m2_p) - 11/6 * (s_2_m + s_2_p)
+                                 )
+        # 2025
+        term2 = - 8 * c_f * t_f * Nf * (1/12 + 4/3 * s_1 - (11/9 * (s_1_m + s_1_p) - 1/3*(s_2_m + s_2_p)) )
+        term3 = - 4 * c_f**2 * (4*s_m3 + 2*s_1 + 2 * s_2 -3/8 + (s_2_m + 2 * s_3_m)
+                                - ((s_1_m + s_1_p) + 4 * (s_1_m2_m +s_1_m2_p) + 2 * (s_1_2_m + s_1_2_p) + 2 * (s_2_1_m + s_2_1_p) + (s_3_m + s_3_p))
+        )
+        # print(term3,term1,term2)
+        # enforce conservation
+        if moment_type != "singlet" and evolve_type == "vector":
+            term1+= (7 * c_a *c_f - 14 * c_f**2)
+        # print(term2,term3,term1)
         # Belistky differs by a factor of 4 and sign in front of (-1)**(j+1)
         # term1 = (c_f**2 - .5 * c_f * c_a)*(
         #             4 * (2 * j + 3)/((j + 1 )**2 * (j + 2)**2)*s_0
         #             - 2 * (3 * j**3 +10 * j**2 + 11*j +3)/((j + 1 )**3 * (j + 2)**3)
         #             + 4 * (2 * s_1 - 1/((j + 1)*(j + 2))) * (s_2 - s_2_prime)
         #             + 16 * s_tilde + 6 * s_2 - .75 - 2 * s_3_prime
-        #             + 4 * (-1)**(j+1) * (2 * j**2 + 6 * j + 5)/((j + 1 )**3 * (j + 2)**3)
+        #             + 4 * sigma * (2 * j**2 + 6 * j + 5)/((j + 1 )**3 * (j + 2)**3)
         #         )
         # term1 = (c_f**2 - .5 * c_f * c_a)*(
         #             4 * (2 * j + 3)/((j + 1 )**2 * (j + 2)**2)*s_0
@@ -2458,22 +2386,54 @@ def gamma_qq(j,Nf=3,moment_type="non_singlet_isovector",evolve_type="vector",evo
         #                     -43/24 - 1/9 * (151*j**4 + 867 * j**3 +1792*j**2 + 1590*j + 523)/\
         #                     ((j+1)**3*(j+2)**3)
         #                     )
+        # separate c_f**2 and c_f * c_a terms
+        # term1 = (c_f**2)*(
+        #             4 * (2 * j + 3)/((j + 1 )**2 * (j + 2)**2)*s_0
+        #             - 2 * (3 * j**3 +10 * j**2 + 11*j +3)/((j + 1 )**3 * (j + 2)**3)
+        #             + 4 * (2 * s_1 - 1/((j + 1)*(j + 2))) * (s_2 - s_2_prime)
+        #             + 16 * s_tilde + 6 * s_2 - .75 - 2 * s_3_prime
+        #             - 4 * sigma * (2 * j**2 + 6 * j + 5)/((j + 1 )**3 * (j + 2)**3)
+        #         )
+        # term2 = c_f * c_a *( s_1 * (134/9 + 2 * (2*j +3 )/((j+1)**2*(j+2)**2) )
+        #                     - 4 * s_1 * s_2 + s_2 *(-13/3 +2/((j+1)*(j+2)))
+        #                     -43/24 - 1/9 * (151*j**4 + 867 * j**3 +1792*j**2 + 1590*j + 523)/\
+        #                     ((j+1)**3*(j+2)**3)
+        #                 )
+        # term2-= .5 * c_f * c_a*(
+        #             4 * (2 * j + 3)/((j + 1 )**2 * (j + 2)**2)*s_0
+        #             - 2 * (3 * j**3 +10 * j**2 + 11*j +3)/((j + 1 )**3 * (j + 2)**3)
+        #             + 4 * (2 * s_1 - 1/((j + 1)*(j + 2))) * (s_2 - s_2_prime)
+        #             + 16 * s_tilde + 6 * s_2 - .75 - 2 * s_3_prime
+        #             + 4 * sigma * (2 * j**2 + 6 * j + 5)/((j + 1 )**3 * (j + 2)**3)
+        #         )
         # (B.18) in Nucl.Phys.B 192 (1981) 417-462
-        term1 = c_f**2 * (4 * s_1 * (2*j + 3)/((j+1)**2*(j+2)**2) + 4 * (2*s_1 - 1/((j+1)*(j+2)) * (s_2-s_2_prime))
-                          + 6 * s_2 + 16 * s_tilde - 2 * s_3_prime - .75 - 2 * (3 * j**3 + 10 * j**2 + 11*j + 3)/(((j+1)**3 * (j+2)**3))
-                          -4 * sigma * (2*j**2 + 6*j + 5)/(((j+1)**3*(j+2)**3))
-                          ) 
-        term2 = c_f * c_a *(134/9 * s_1 - 2 * (2*s_1-1/((j+1)*(j+2))) * (2*s_2 - s_2_prime) 
-                            - 22/3 * s_2 - 8 * s_tilde + s_3_prime - 17/12
-                            - 1/9 * (151*j**4 + 840*j**3 + 1702 * j**2 + 1491 * j + 496)/((j+1)**3*(j+2)**3)
-                            + 2 * sigma * (2*j**2 + 6*j + 5 )/((j+1)**3*(j+2)**3)
-                            )
-        term3 = c_f * t_f * Nf * (-40/9*s_1 +8/3*s_2 +1/3 +4/9 * (11*j**2 +27*j+13)/((j+1)**2*(j+2)**2))
-        # print("->",term1,term2,term3)
+        # term1 = c_f**2 * (4 * s_1 * (2*j + 3)/((j+1)**2*(j+2)**2) + 4 * (2*s_1 - 1/((j+1)*(j+2)) * (s_2-s_2_prime))
+        #                   + 6 * s_2 + 16 * s_tilde - 2 * s_3_prime - .75 - 2 * (3 * j**3 + 10 * j**2 + 11*j + 3)/(((j+1)**3 * (j+2)**3))
+        #                   -4 * sigma * (2*j**2 + 6*j + 5)/(((j+1)**3*(j+2)**3))
+        #                   ) 
+        # term2 = c_f * c_a *(134/9 * s_1 - 2 * (2*s_1-1/((j+1)*(j+2))) * (2*s_2 - s_2_prime) 
+        #                     - 22/3 * s_2 - 8 * s_tilde + s_3_prime - 17/12
+        #                     - 1/9 * (151*j**4 + 840*j**3 + 1702 * j**2 + 1491 * j + 496)/((j+1)**3*(j+2)**3)
+        #                     + 2 * sigma * (2*j**2 + 6*j + 5 )/((j+1)**3*(j+2)**3)
+        #                     )
+        # term3 = c_f * t_f * Nf * (-40/9*s_1 +8/3*s_2 +1/3 +4/9 * (11*j**2 +27*j+13)/((j+1)**2*(j+2)**2))
         # Belistky differs by a sign in front of (-1)**(j+1)
-        # print(term1,term2,term3)
+        # print(term3,term1,term2)
         nlo_term = term1 + term2 + term3
+        # if moment_type != "singlet":
+        #     ga_j0 = - 5 * (c_f**2 - .5 * c_f * c_a)
+        #     nlo_term-= ga_j0
         result = nlo_term
+        if evolve_type == "axial":
+            term4 = - 16 * c_f * (c_f - .5 * c_a) * (
+                (s_2_m - s_2_p) - (s_3_m - s_3_p)
+                - 2 * (s_1_m + s_1_p - 2 * s_1)
+            )
+            # print(term4)
+            result += term4
+        # Nucl.Phys.B 688 (2004) 101-134 defines Mellin moment
+        # without factor 1/2
+        result*=2
         return result
     
     if evolution_order == "LO":
@@ -2489,16 +2449,35 @@ def gamma_qq(j,Nf=3,moment_type="non_singlet_isovector",evolve_type="vector",evo
     
     elif moment_type == "singlet":
         if evolution_order == "NLO":
-            # Belitsky K.6
             term1 = gamma_qq_nlo(j)
             if evolve_type == "vector":
-                term2 = -(
-                            4*c_f*t_f*Nf * (5 * j**5 + 57 * j**4 + 227 * j**3 + 427 * j**2 + 404 * j + 160)/
-                            (j * (j + 1)**3 * (j + 2)**3 * (j + 3)**2)
+                # Nucl.Phys.B 691 (2004) 129-181
+                # Note different beta function convention
+                # so we reverse the sign
+                # 2025
+                term2 = - 8 * c_f * t_f * Nf * (
+                    20/9 * (s_1_mm - s_1_m) - (56/9*(s_1_p - s_1_pp) + 8/3 * ((s_2_p - s_2_pp)) )
+                    + (8*(s_1 - s_1_p)-4 * (s_2 - s_2_p)) - (2 * (s_1_m - s_1_p) + (s_2_m - s_2_p) + 2 * (s_3_m - s_3_p))
                 )
+                # Belitsky K.6
+                # term2 = -(
+                #             4*c_f*t_f*Nf * (5 * j**5 + 57 * j**4 + 227 * j**3 + 427 * j**2 + 404 * j + 160)/
+                #             (j * (j + 1)**3 * (j + 2)**3 * (j + 3)**2)
+                # )
             if evolve_type == "axial":
-                term2 = + 4 * c_f * t_f * Nf * ((j + 3) * (4 + 5 * j + 3 * j**2 + j**3)) / ((j + 1)**3 * (j + 2)**3)
-
+                # Nucl.Phys.B 889 (2014) 351-400
+                # Note different beta function convention
+                # so we reverse the sign
+                eta = 1/((j+1)*(j+2))
+                d02 = d_weight(2,0,j + 1)
+                d03 = d_weight(3,0,j + 1)
+                term2 = - 4 * c_f * Nf * (-5 * eta + 3 * eta**2 + 2 * eta**3 + 4 * d02 - 4 * d03)
+                # print(term2)
+                # Belistky differs by t_f
+                # term2 = + 4 * c_f * t_f * Nf * ((j + 3) * (4 + 5 * j + 3 * j**2 + j**3)) / ((j + 1)**3 * (j + 2)**3)
+            # Nucl.Phys.B 889 (2014) 351-400 defines Mellin moment
+            # without factor 1/2
+            term2*=2
             result = term1 + term2
             return result
         else:
@@ -2506,8 +2485,6 @@ def gamma_qq(j,Nf=3,moment_type="non_singlet_isovector",evolve_type="vector",evo
     else:
         raise ValueError(f"Wrong moment type {moment_type}")
     
-  
-
 def gamma_qg(j, Nf=3, evolve_type = "vector",evolution_order="LO"):
     """
     Compute off-diagonal qg anomalous dimension
@@ -2526,26 +2503,85 @@ def gamma_qg(j, Nf=3, evolve_type = "vector",evolution_order="LO"):
     t_f = .5
    
     if evolution_order == "LO":
+        if j == 0:
+            j = 1e-12
         if evolve_type == "vector":
             result = -24*Nf*t_f*(j**2+3*j+4)/(j*(j+1)*(j+2)*(j+3))
         elif evolve_type == "axial":
             result = -24*Nf*t_f/((j+1)*(j+2))
         else:
             raise ValueError("evolve_type must be axial or vector")
+        # Match forward to Wilson anomalous dimension
+        result*=j/6
+
     elif evolution_order == "NLO":
-        # Belitsky K.7 and K.11
         s_1 = harmonic_number(1,j+1)
         s_2 = harmonic_number(2,j+1)
-        s_2_prime = harmonic_number_prime(2,j+1)
+        s_1_1_1 = nested_harmonic_number([1,1,1],j+1)
+        s_1_1_1_m = nested_harmonic_number([1,1,1],j)
+        s_1_1_1_p = nested_harmonic_number([1,1,1],j+2)
+        s_1_m2 = nested_harmonic_number([1,-2],j+1)
+        s_1_m2_m = nested_harmonic_number([1,-2],j)
+        s_1_m2_p = nested_harmonic_number([1,-2],j+2)
+        s_1_2 = nested_harmonic_number([1,2],j+1)
+        s_1_2_m = nested_harmonic_number([1,2],j)
+        s_1_2_p = nested_harmonic_number([1,2],j+2)
+        s_2_1 = nested_harmonic_number([2,1],j+1)
+        s_2_1_m = nested_harmonic_number([2,1],j)
+        s_2_1_p = nested_harmonic_number([2,1],j+2)
+        s_1_m = harmonic_number(1,j)
+        s_1_mm = harmonic_number(1,j-1)
+        s_1_p = harmonic_number(1,j+2)
+        s_1_pp = harmonic_number(1,j+3)
+        s_2 = harmonic_number(2,j+1)
+        s_2_m = harmonic_number(2,j)
+        s_2_p = harmonic_number(2,j+2)
+        s_2_pp = harmonic_number(2,j+3)
+        s_1_1 = nested_harmonic_number([1,1],j+1)
+        s_1_1_p = nested_harmonic_number([1,1],j+2)
+        s_3 = harmonic_number(3,j+1)
+        s_3_m = harmonic_number(3,j)
+        s_3_p = harmonic_number(3,j+2)
+
+        s_1_1_pp =nested_harmonic_number([1,1],j+3)
+        s_1_m2_pp = nested_harmonic_number([1,-2],j+3)
+        s_1_1_1_pp = nested_harmonic_number([1,1,1],j+3)
+        s_1_2_pp = nested_harmonic_number([1,2],j+3)
+        s_2_1_pp = nested_harmonic_number([2,1],j+3)
+        s_3_pp = harmonic_number(3,j+3)
+
+        # s_2_prime = harmonic_number_prime(2,j+1)
+
         if evolve_type == "vector":
-            term1 = -2 * c_a * t_f * Nf * (
-                (-2 * s_1**2 + 2 * s_2 - 2 * s_2_prime) * ((j**2 + 3 * j + 4) / ((j + 1) * (j + 2) * (j + 3))) +
-                (960 + 2835 * j + 4057 * j**2 + 3983 * j**3 + 3046 * j**4 + 1777 * j**5 +
-                731 * j**6 + 195 * j**7 + 30 * j**8 + 2 * j**9) / (j * (j + 1)**3 * (j + 2)**3 * (j + 3)**3) +
-                (-1)**(j + 1) * (141 + 165 * j + 92 * j**2 + 27 * j**3 + 3 * j**4) /
-                ((j + 1) * (j + 2)**3 * (j + 3)**3) +
-                8 * (2 * j + 5) / ((j + 2)**2 * (j + 3)**2) * s_1
+            # Nucl.Phys.B 691 (2004) 129-181
+            # Note different beta function convention
+            # so we reverse the sign
+            term1 = - 4 * c_a * Nf * (
+                20/9 * (s_1_mm - s_1_m) - (2* (s_1_m - s_1_p) + (s_2_m - s_2_p) + 2 * (s_3_m - s_3_p))
+                - (218/9*(s_1_p-s_1_pp) + 4 * (s_1_1_p-s_1_1_pp) + 44/3 * (s_2_p - s_2_pp))
+                + (27*(s_1-s_1_p) + 4 * (s_1_1 - s_1_1_p) - 7 * (s_2 - s_2_p) - 2 * (s_3 - s_3_p))
+                - 2 * ((s_1_m2_m + 4 * s_1_m2_p - 2 * s_1_m2_pp - 3 * s_1_m2) + (s_1_1_1_m + 4 * s_1_1_1_p - 2 * s_1_1_1_pp - 3 * s_1_1_1))
             )
+            # 2025
+            term2 = - 8 * c_f * t_f * Nf * (
+                2 * (5*(s_1_p - s_1_pp ) + 2 * (s_1_1_p - s_1_1_pp) - 2 * (s_2_p - s_2_pp) + (s_3_p - s_3_pp))
+                - (43/2 * (s_1-s_1_p) + 4 * (s_1_1 - s_1_1_p) - 7/2 * (s_2 - s_2_p))
+                + (7 * (s_1_m - s_1_p) - 1.5 * (s_2_m - s_2_p))
+                + 2 * ((s_1_1_1_m + 4 * s_1_1_1_p -2 * s_1_1_1_pp - 3 * s_1_1_1)
+                       -(s_1_2_m + 4 * s_1_2_p -2 * s_1_2_pp - 3 * s_1_2)
+                       -(s_2_1_m + 4 * s_2_1_p -2 * s_2_1_pp - 3 * s_2_1)
+                       +.5 * (s_3_m + 4 * s_3_p -2 * s_3_pp - 3 * s_3))
+            )
+            # print(term2,term1)
+            #  Belitsky K.7
+            # term1 = -2 * c_a * t_f * Nf * (
+            #     (-2 * s_1**2 + 2 * s_2 - 2 * s_2_prime) * ((j**2 + 3 * j + 4) / ((j + 1) * (j + 2) * (j + 3))) +
+            #     (960 + 2835 * j + 4057 * j**2 + 3983 * j**3 + 3046 * j**4 + 1777 * j**5 +
+            #     731 * j**6 + 195 * j**7 + 30 * j**8 + 2 * j**9) / (j * (j + 1)**3 * (j + 2)**3 * (j + 3)**3) +
+            #     (-1)**(j + 1) * (141 + 165 * j + 92 * j**2 + 27 * j**3 + 3 * j**4) /
+            #     ((j + 1) * (j + 2)**3 * (j + 3)**3) +
+            #     8 * (2 * j + 5) / ((j + 2)**2 * (j + 3)**2) * s_1
+            # )
             # (B.20) in Nucl.Phys.B 192 (1981) 417-462, but seems to agree at least for j = 1
             # term1 = - 2 * c_a * t_f * Nf * (
             #     (-2 * s_1**2 + 2 * s_2 - 2 * s_2_prime) * ((j**2 + 3 * j + 4) / ((j + 1) * (j + 2) * (j + 3))) +
@@ -2553,32 +2589,56 @@ def gamma_qg(j, Nf=3, evolve_type = "vector",evolution_order="LO"):
             #     15*j**8 + j**9)) / (j * (1 + j)**3 * (2 + j)**3 * (3 + j)**3) +
             #     8 * (2 * j + 5) / ((j + 2)**2 * (j + 3)**2) * s_1
             # ) 
-            term2 = -2 * c_f * t_f * Nf * (
-                (2 * s_1**2 - 2 * s_2 + 5) * ((j**2 + 3 * j + 4) / ((j + 1) * (j + 2) * (j + 3))) -
-                4 * s_1 / ((j + 1)**2) +
-                (11 * j**4 + 70 * j**3 + 159 * j**2 + 160 * j + 64) /
-                ((j + 1)**3 * (j + 2)**3 * (j + 3))
-            )
+            # term2 = -2 * c_f * t_f * Nf * (
+            #     (2 * s_1**2 - 2 * s_2 + 5) * ((j**2 + 3 * j + 4) / ((j + 1) * (j + 2) * (j + 3))) -
+            #     4 * s_1 / ((j + 1)**2) +
+            #     (11 * j**4 + 70 * j**3 + 159 * j**2 + 160 * j + 64) /
+            #     ((j + 1)**3 * (j + 2)**3 * (j + 3))
+            # )
+            # print(term2,term1)
         elif evolve_type == "axial":
-            term1 = 2 * c_f * t_f * Nf * (
-                - (j * (16 + 49 * j + 60 * j**2 + 30 * j**3 + 5 * j**4)) / ((j + 1)**3 * (j + 2)**3) +
-                (4 * j / ((j + 1)**2 * (j + 2))) * s_1 -
-                (2 * j / ((j + 1) * (j + 2))) * (s_1**2 - s_2)
+            # Nucl.Phys.B 889 (2014) 351-400
+            # Note different beta function convention
+            # so we reverse the sign
+            d1 = d_weight(1,1,j+1)
+            d0 = d_weight(1,0,j+1)
+            d02 = d_weight(2,0,j+1)
+            d03 = d_weight(3,0,j+1)
+            d12 = d_weight(2,1,j+1)
+            d13 = d_weight(3,1,j+1)
+            Delta_pqg = (2 * d1 - d0)
+            s_m2 = harmonic_number(-2,j+1)
+            #2025
+            term1 = - 8 * c_f * t_f * Nf * (
+                2 * Delta_pqg * (s_1_1 - s_2) - 2 * (2 * d0 - d02 - 2 * d1) * s_1
+                - 11 * d0 + 9/2 * d02 - d03 + 27/2 * d1 + 4 * d12 - 2 * d13
             )
+            term2 = - 4 * c_a * Nf * (
+                - 2 * Delta_pqg * (s_m2 + s_1_1) + 4 * (d0 - d1 - d12) * s_1
+                + 12 * d0 - d02 - 2 * d03 - 11 * d1 - 12 * d12 - 12 * d13
+            )
+            # Belitsky K.11
+            # term1 = 2 * c_f * t_f * Nf * (
+            #     - (j * (16 + 49 * j + 60 * j**2 + 30 * j**3 + 5 * j**4)) / ((j + 1)**3 * (j + 2)**3) +
+            #     (4 * j / ((j + 1)**2 * (j + 2))) * s_1 -
+            #     (2 * j / ((j + 1) * (j + 2))) * (s_1**2 - s_2)
+            # )
 
-            term2 = 4 * c_a * t_f * Nf * (
-                (8 + 4 * j - 7 * j**2 - 10 * j**3 - 6 * j**4 - j**5) / ((j + 1)**3 * (j + 2)**3) -
-                (4 * s_1 / ((j + 1) * (j + 2)**2)) +
-                (j / ((j + 1) * (j + 2))) * (s_1**2 - s_2 + s_2_prime)
-            )
+            # term2 = 4 * c_a * t_f * Nf * (
+            #     (8 + 4 * j - 7 * j**2 - 10 * j**3 - 6 * j**4 - j**5) / ((j + 1)**3 * (j + 2)**3) -
+            #     (4 * s_1 / ((j + 1) * (j + 2)**2)) +
+            #     (j / ((j + 1) * (j + 2))) * (s_1**2 - s_2 + s_2_prime)
+            # )
+            # print(term1,term2)
         else:
             raise ValueError("evolve_type must be axial or vector")
         result = term1 + term2
+        # Nucl.Phys.B 889 (2014) 351-400 defines Mellin moment
+        # without factor 1/2
+        result*=2
     else:
         raise ValueError(f"Currently unsupported evolution order {evolution_order}")
 
-    # Match forward to Wilson anomalous dimension
-    result*=j/6
     return result
 
 def gamma_gq(j, Nf=3,evolve_type = "vector",evolution_order="LO"):
@@ -2591,7 +2651,7 @@ def gamma_gq(j, Nf=3,evolve_type = "vector",evolution_order="LO"):
     Value of anomalous dimension
     """
     # Check evolve_type
-    check_evolve_type(evolve_type)
+    hp.check_evolve_type(evolve_type)
 
     Nc = 3
     c_a = Nc
@@ -2599,31 +2659,94 @@ def gamma_gq(j, Nf=3,evolve_type = "vector",evolution_order="LO"):
     t_f = .5
     
     if evolution_order == "LO":
+        if j == 0:
+            j = 1e-12
         if evolve_type == "vector":
             result = -c_f*(j**2+3*j+4)/(3*(j+1)*(j+2))
         elif evolve_type == "axial":
             result = -c_f*j*(j+3)/(3*(j+1)*(j+2))
         else:
             raise ValueError("Type must be axial or vector")
+        # Match forward to Wilson anomalous dimension
+        result*=6/j
+    
     elif evolution_order == "NLO":
-        # Belitsky K.8 and K.12
         s_1 = harmonic_number(1,j+1)
         s_2 = harmonic_number(2,j+1)
-        s_2_prime = harmonic_number_prime(2,j+1)
+        # s_2_prime = harmonic_number_prime(2,j+1)
+
+        s_1_1_1 = nested_harmonic_number([1,1,1],j+1)
+        s_1_1_1_m = nested_harmonic_number([1,1,1],j)
+        s_1_1_1_mm = nested_harmonic_number([1,1,1],j-1)
+        s_1_1_1_p = nested_harmonic_number([1,1,1],j+2)
+        s_1_m2 = nested_harmonic_number([1,-2],j+1)
+        s_1_m2_m = nested_harmonic_number([1,-2],j)
+        s_1_m2_mm = nested_harmonic_number([1,-2],j-1)
+        s_1_m2_p = nested_harmonic_number([1,-2],j+2)
+        s_1_2 = nested_harmonic_number([1,2],j+1)
+        s_1_2_m = nested_harmonic_number([1,2],j)
+        s_1_2_mm = nested_harmonic_number([1,2],j-1)
+        s_1_2_p = nested_harmonic_number([1,2],j+2)
+        s_2_1 = nested_harmonic_number([2,1],j+1)
+        s_2_1_m = nested_harmonic_number([2,1],j)
+        s_2_1_mm = nested_harmonic_number([2,1],j-1)
+        s_2_1_p = nested_harmonic_number([2,1],j+2)
+        s_1_m = harmonic_number(1,j)
+        s_1_mm = harmonic_number(1,j-1)
+        s_1_p = harmonic_number(1,j+2)
+        s_1_pp = harmonic_number(1,j+3)
+        s_2 = harmonic_number(2,j+1)
+        s_2_m = harmonic_number(2,j)
+        s_2_p = harmonic_number(2,j+2)
+        s_2_pp = harmonic_number(2,j+3)
+        s_1_1 = nested_harmonic_number([1,1],j+1)
+        s_1_1_m = nested_harmonic_number([1,1],j)
+        s_1_1_mm = nested_harmonic_number([1,1],j-1)
+        s_1_1_p = nested_harmonic_number([1,1],j+2)
+        s_3 = harmonic_number(3,j+1)
+        s_3_m = harmonic_number(3,j)
+        s_3_p = harmonic_number(3,j+2)
+
         if evolve_type == "vector":
-            term1 = - c_f**2 * (
-                (-2 * s_1**2 + 10 * s_1 - 2 * s_2) * ((j**2 + 3 * j + 4) / (j * (j + 1) * (j + 2))) -
-                4 * s_1 / ((j + 2)**2) -
-                (12 * j**6 + 102 * j**5 + 373 * j**4 + 740 * j**3 + 821 * j**2 + 464 * j + 96) /
-                (j * (j + 1)**3 * (j + 2)**3)
+            # Nucl.Phys.B 691 (2004) 129-181
+            # Note different beta function convention
+            # so we reverse the sign
+            term1 = - 4 * c_a * c_f * (
+                2* ((2 * s_1_1_1_mm - 4 * s_1_1_1_m - s_1_1_1_p + 3 *s_1_1_1)
+                    - (2 * s_1_m2_mm - 4 * s_1_m2_m - s_1_m2_p + 3 *s_1_m2) 
+                    - (2 * s_1_2_mm - 4 * s_1_2_m - s_1_2_p + 3 *s_1_2)
+                    - (2 * s_2_1_mm - 4 * s_2_1_m - s_2_1_p + 3 *s_2_1))
+                + (2 * (s_1 - s_1_p) - 13 * (s_1_1 - s_1_1_p) - 7 * (s_2 - s_2_p) - 2 * (s_3 - s_3_p))
+                + (s_1_mm - 2 * s_1_m + s_1_p) - 22/3 * (s_1_1_mm - 2 * s_1_1_m + s_1_1_p)
+                + 4 * (7/9 * (s_1_m - s_1_p) + 3 * (s_2_m - s_2_p) + (s_3_m - s_3_p))
+                + (44/9 * (s_1_p - s_1_pp) + 8/3 * (s_2_p - s_2_pp)) 
             )
-            term2 = -2 * c_a * c_f * (
-                (s_1**2 + s_2 - s_2_prime) * ((j**2 + 3 * j + 4) / (j * (j + 1) * (j + 2))) +
-                (1296 + 10044 * j + 30945 * j**2 + 47954 * j**3 + 42491 * j**4 + 22902 * j**5 + 7515 * j**6 +
-                1384 * j**7 + 109 * j**8) / (9 * j**2 * (j + 1)**3 * (j + 2)**2 * (j + 3)**2) +
-                (-1)**(j + 1) * (8 + 9 * j + 4 * j**2 + j**3) / ((j + 1)**3 * (j + 2)**3) -
-                (17 * j**4 + 68 * j**3 + 143 * j**2 + 128 * j + 24) / (3 * j**2 * (j + 1)**2 * (j + 2)) * s_1
+            # 2025
+            term2 = - 8 * c_f * t_f * Nf * (
+                (4/3 * (s_1_1_mm - 2 * s_1_1_m + s_1_1_p) -20/9 * (s_1_mm - 2 * s_1_m + s_1_p) )
+                - (4 * (s_1 - s_1_p) - 2 * (s_1_1 - s_1_1_p))
             )
+            term3 = - 4 * c_f**2 *(
+                3 * (2 * s_1_1_mm - 4 * s_1_1_m - s_1_1_p + 3 * s_1_1) - 2 * (2 * s_1_1_1_mm - 4 * s_1_1_1_m - s_1_1_1_p + 3 * s_1_1_1)
+                - ((s_1 - s_1_p) - 2 * (s_1_1 - s_1_1_p) + 1.5 * (s_2 - s_2_p) - 3 * (s_3 - s_3_p))
+                - (5/2 * (s_1_m - s_1_p) + 2 * (s_2_m - s_2_p) + 2 * (s_3_m - s_3_p))
+            )
+            # print(term2,term3,term1)
+            
+            # Belitsky K.8
+            # term1 = - c_f**2 * (
+            #     (-2 * s_1**2 + 10 * s_1 - 2 * s_2) * ((j**2 + 3 * j + 4) / (j * (j + 1) * (j + 2))) -
+            #     4 * s_1 / ((j + 2)**2) -
+            #     (12 * j**6 + 102 * j**5 + 373 * j**4 + 740 * j**3 + 821 * j**2 + 464 * j + 96) /
+            #     (j * (j + 1)**3 * (j + 2)**3)
+            # )
+            # term2 = -2 * c_a * c_f * (
+            #     (s_1**2 + s_2 - s_2_prime) * ((j**2 + 3 * j + 4) / (j * (j + 1) * (j + 2))) +
+            #     (1296 + 10044 * j + 30945 * j**2 + 47954 * j**3 + 42491 * j**4 + 22902 * j**5 + 7515 * j**6 +
+            #     1384 * j**7 + 109 * j**8) / (9 * j**2 * (j + 1)**3 * (j + 2)**2 * (j + 3)**2) +
+            #     (-1)**(j + 1) * (8 + 9 * j + 4 * j**2 + j**3) / ((j + 1)**3 * (j + 2)**3) -
+            #     (17 * j**4 + 68 * j**3 + 143 * j**2 + 128 * j + 24) / (3 * j**2 * (j + 1)**2 * (j + 2)) * s_1
+            # )
             # (A.7) hep-ph/9810275
             # term2 = -2 * c_a * c_f * (
             #     (s_1**2 + s_2 - s_2_prime) * ((j**2 + 3 * j + 4) / (j * (j + 1) * (j + 2))) +
@@ -2631,9 +2754,9 @@ def gamma_gq(j, Nf=3,evolve_type = "vector",evolution_order="LO"):
             #     10292 * j**7 + 1602 * j**8 + 109 * j**9) / (9 * j**2 * (j + 1)**3 * (j + 2)**2 * (j + 3)**2) -
             #     (17 * j**4 + 68 * j**3 + 143 * j**2 + 128 * j + 24) / (3 * j**2 * (j + 1)**2 * (j + 2)) * s_1
             # )
-            term3 = -(8 / 3) * c_f * t_f * Nf * (
-                (s_1 - 8 / 3) * ((j**2 + 3 * j + 4) / (j * (j + 1) * (j + 2))) + 1 / ((j + 2)**2)
-            )
+            # term3 = -(8 / 3) * c_f * t_f * Nf * (
+            #     (s_1 - 8 / 3) * ((j**2 + 3 * j + 4) / (j * (j + 1) * (j + 2))) + 1 / ((j + 2)**2)
+            # )
             # (B.21) in Nucl.Phys.B 192 (1981) 417-462
             # term1 = - 4 * c_f**2 * (
             #     (-2 * s_1**2 + 10 * s_1 - 2 * s_2) * ((j**2 + 3 * j + 4) / (j * (j + 1) * (j + 2))) -
@@ -2650,30 +2773,74 @@ def gamma_gq(j, Nf=3,evolve_type = "vector",evolution_order="LO"):
             # term3 = -(32 / 3) * c_f * t_f * (
             #     (s_1 - 8 / 3) * ((j**2 + 3 * j + 4) / (j * (j + 1) * (j + 2))) + 1 / ((j + 2)**2)
             # )
+            # print(term2,term1,term3)
         elif evolve_type == "axial": 
-            term1 = 8 * c_f * t_f * Nf * (
-                ((j + 3) * (5 * j + 7)) / (9 * (j + 1) * (j + 2)**2) -
-                ((j + 3) / (3 * (j + 1) * (j + 2))) * s_1
+            # Nucl.Phys.B 889 (2014) 351-400
+            # Note different beta function convention
+            # so we reverse the sign
+            d1 = d_weight(1,1,j+1)
+            d0 = d_weight(1,0,j+1)
+            d02 = d_weight(2,0,j+1)
+            d03 = d_weight(3,0,j+1)
+            d12 = d_weight(2,1,j+1)
+            d13 = d_weight(3,1,j+1)
+            s_m2 = harmonic_number(-2,j+1)
+            Delta_pgq = (2 * d0 - d1)
+            # 2025
+            term1 = - 16/9 * c_f * t_f * Nf * (
+                3 * Delta_pgq * s_1 - 4 * d0 - d1 - 3 * d12
             )
-            term2 = c_f**2 * (
-                ((j + 3) * (3 * j + 4) * (3 + 14 * j + 12 * j**2 + 3 * j**3)) / ((j + 1)**3 * (j + 2)**3) -
-                (2 * (j + 3) * (3 * j + 4)) / ((j + 1) * (j + 2)**2) * s_1 +
-                (2 * (j + 3) / ((j + 1) * (j + 2))) * (s_1**2 + s_2)
+            term2 = - 4 * c_f**2 * (
+                - Delta_pgq * (2* s_1_1 - s_1) + 2 *(d1 + d12) * s_1
+                -17/2 * d0 + 2 * d02 + 2 * d03 + 4 * d1 + .5 * d12 + d13
             )
-            term3 = 2 * c_a * c_f * (
-                - (750 + 2380 * j + 3189 * j**2 + 2098 * j**3 + 651 * j**4 + 76 * j**5) / (9 * (j + 1)**3 * (j + 2)**3) +
-                ((45 + 44 * j + 11 * j**2) / (3 * (j + 1)**2 * (j + 2))) * s_1 +
-                ((j + 3) / ((j + 1) * (j + 2))) * (-s_1**2 - s_2 + s_2_prime)
+            term3 = - 4 * c_a * c_f *(
+                2* Delta_pgq * (s_1_1 - s_m2 - s_2) - (10/3 * d0 + 4 * d02 + 1/3 * d1) * s_1
+                + 41/9 * d0 - 4 * d02 + 4 * d03 + 35/9 * d1 + 38/3 * d12 + 6 * d13
             )
+            # print(term1,term2,term3)
+            # print(term1+term2+term3)
+            # hep-ph/9508347
+            # n = j + 1
+            # term1 = 32 * c_f * t_f * Nf * (
+            #     - (n+2)/(3*n*(n+1))*s_1 + (5*n**2 + 12*n +4)/(9*n*(n+1)**2)
+            # )
+            # term2 = 4 * c_f**2 *(
+            #     2 * (n+2)/(n*(n+1))*(s_2 + s_1**2) - 2 * (3*n**2 + 7 * n + 2)/(n*(n+1)**2)*s_1
+            #     + (9*n**5 + 30 * n**4 + 24 * n**3 - 7 * n**2 - 16 * n - 4)/(n**3*(n+1)**3)
+            # )
+            # term3 = 8 * c_a * c_f * (
+            #     (n+2)/(n*(n+1))*(-s_2 + s_2_prime - s_1**2) + (11 * n**2 + 22 * n + 12)/(3*n**2*(n+1)) * s_1
+            #     -(76*n**5 + 271 * n**4 + 254 * n**3 + 41 * n**2 + 72 * n + 36)/(9*n**3*(n+1)**3)
+            # )
+            # print(term1,term2,term3)
+            # print("cf nf, cf**2, ca cf")
+            # print(term1/(c_f * Nf),term2/c_f**2,term3/(c_a * c_f))
+            # Belitsky K.12
+            # term1 = 8 * c_f * t_f * Nf * (
+            #     ((j + 3) * (5 * j + 7)) / (9 * (j + 1) * (j + 2)**2) -
+            #     ((j + 3) / (3 * (j + 1) * (j + 2))) * s_1
+            # )
+            # term2 = c_f**2 * (
+            #     ((j + 3) * (3 * j + 4) * (3 + 14 * j + 12 * j**2 + 3 * j**3)) / ((j + 1)**3 * (j + 2)**3) -
+            #     (2 * (j + 3) * (3 * j + 4)) / ((j + 1) * (j + 2)**2) * s_1 +
+            #     (2 * (j + 3) / ((j + 1) * (j + 2))) * (s_1**2 + s_2)
+            # )
+            # term3 = 2 * c_a * c_f * (
+            #     - (750 + 2380 * j + 3189 * j**2 + 2098 * j**3 + 651 * j**4 + 76 * j**5) / (9 * (j + 1)**3 * (j + 2)**3) +
+            #     ((45 + 44 * j + 11 * j**2) / (3 * (j + 1)**2 * (j + 2))) * s_1 +
+            #     ((j + 3) / ((j + 1) * (j + 2))) * (-s_1**2 - s_2 + s_2_prime)
+            # )
+            # print(term1,term2,term3)
         else:
             raise ValueError("Type must be axial or vector")
-        result = (term1 + term2 + term3)
+        result = term1 + term2 + term3
+        # Nucl.Phys.B 889 (2014) 351-400 defines Mellin moment
+        # without factor 1/2
+        result*=2
     else:
         raise ValueError(f"Currently unsupported evolution order {evolution_order}")
 
-
-    # Match forward to Wilson anomalous dimension
-    result*=6/j
     return result
 
 def gamma_gg(j, Nf = 3, evolve_type = "vector",evolution_order="LO"):
@@ -2687,27 +2854,83 @@ def gamma_gg(j, Nf = 3, evolve_type = "vector",evolution_order="LO"):
     Value of anomalous dimension
     """
     # Check evolve_type
-    check_evolve_type(evolve_type)
+    hp.check_evolve_type(evolve_type)
 
     Nc = 3
     c_a = Nc
     c_f = (Nc**2-1)/(2*Nc)
+    
     t_f = .5
     beta_0 = 2/3* Nf - 11/3 * Nc
 
     if evolution_order == "LO":
-            if evolve_type == "vector":
-                result = -c_a*(-4*digamma(j+2)+4*digamma(1)+8*(j**2+3*j+3)/(j*(j+1)*(j+2)*(j+3))-beta_0/c_a)
-            elif evolve_type == "axial":
-                result = -c_a*(-4*digamma(j+2)+4*digamma(1)+8/((j+1)*(j+2))-beta_0/c_a)
-            else:
-                raise ValueError("Type must be axial or vector")
+        if j == 0:
+            j = 1e-12
+        if evolve_type == "vector":
+            result = -c_a*(-4*mp.digamma(j+2)+4*mp.digamma(1)+8*(j**2+3*j+3)/(j*(j+1)*(j+2)*(j+3))-beta_0/c_a)
+        elif evolve_type == "axial":
+            result = -c_a*(-4*mp.digamma(j+2)+4*mp.digamma(1)+8/((j+1)*(j+2))-beta_0/c_a)
+        else:
+            raise ValueError("Type must be axial or vector")
+        
     elif evolution_order == "NLO":
         s_1 = harmonic_number(1,j+1)
-        s_2_prime = harmonic_number_prime(2,j+1)
-        s_3_prime = harmonic_number_prime(3,j+1)
-        s_tilde = harmonic_number_tilde(j+1)
+        s_1_m2 = nested_harmonic_number([1,-2],j+1)
+        s_1_m2_m = nested_harmonic_number([1,-2],j)
+        s_1_m2_mm = nested_harmonic_number([1,-2],j-1)
+        s_1_m2_p = nested_harmonic_number([1,-2],j+2)
+        s_1_2 = nested_harmonic_number([1,2],j+1)
+        s_1_2_m = nested_harmonic_number([1,2],j)
+        s_1_2_mm = nested_harmonic_number([1,2],j-1)
+        s_1_2_p = nested_harmonic_number([1,2],j+2)
+        s_2_1 = nested_harmonic_number([2,1],j+1)
+        s_2_1_m = nested_harmonic_number([2,1],j)
+        s_2_1_mm = nested_harmonic_number([2,1],j-1)
+        s_2_1_p = nested_harmonic_number([2,1],j+2)
+        s_1_m = harmonic_number(1,j)
+        s_1_mm = harmonic_number(1,j-1)
+        s_1_p = harmonic_number(1,j+2)
+        s_1_pp = harmonic_number(1,j+3)
+        s_2 = harmonic_number(2,j+1)
+        s_2_m = harmonic_number(2,j)
+        s_2_p = harmonic_number(2,j+2)
+        s_2_pp = harmonic_number(2,j+3)
+        s_3 = harmonic_number(3,j+1)
+        s_3_m = harmonic_number(3,j)
+        s_3_p = harmonic_number(3,j+2)
+        s_1_m2_pp = nested_harmonic_number([1,-2],j+3)
+        s_1_2_pp = nested_harmonic_number([1,2],j+3)
+        s_2_1_pp = nested_harmonic_number([2,1],j+3)
+        s_m3 = harmonic_number(-3,j+1)
+        s_3_pp = harmonic_number(3,j+3)
+
+        # s_2_prime = harmonic_number_prime(2,j+1)
+        # s_3_prime = harmonic_number_prime(3,j+1)
+        # s_tilde = harmonic_number_tilde(j+1)
+
         if evolve_type == "vector":
+            # Nucl.Phys.B 691 (2004) 129-181
+            # Note different beta function convention
+            # so we reverse the sign
+            term1 = - 4 * c_a * Nf * (
+                2/3 - 16/3 * s_1 -23/9 * (s_1_mm + s_1_pp) + 14/3 * (s_1_m + s_1_p) + 2/3 * (s_2_m - s_2_p)
+            )
+            term2 = - 4 * c_a**2 * (
+                + 2 * s_m3 - 8/3  - 14/3 * s_1 + 2 * s_3 
+                - 4 * ((s_1_m2_mm - 2 * s_1_m2_m - 2 * s_1_m2_p + s_1_m2_pp + 3 * s_1_m2)
+                       + (s_1_2_mm - 2 * s_1_2_m - 2 * s_1_2_p + s_1_2_pp + 3 * s_1_2)
+                       + (s_2_1_mm - 2 * s_2_1_m - 2 * s_2_1_p + s_2_1_pp + 3 * s_2_1)
+                   )
+                + 8/3 * (s_2_p - s_2_pp) - 4  * (3 * (s_2_m - 3 * s_2_p + s_2_pp + s_2) -  (s_3_m - 3 * s_3_p + s_3_pp + s_3)) 
+                + 109/18 * (s_1_m + s_1_p) + 61/3 * (s_2_m - s_2_p)
+            )
+            # 2025
+            term3 = - 8 * c_f * t_f * Nf * (
+                .5 + 2/3 * (s_1_mm - 13 * s_1_m - s_1_p - 5 * s_1_pp + 18 * s_1)
+                + (3 * s_2_m - 5 * s_2_p + 2 * s_2) - 2 * (s_3_m - s_3_p)
+            )
+            # print(term2,term3,term1)
+            # Draft
             # term1 = c_a * t_f * Nf * (
             #     (-40 / 9) * s_1 + (8 / 3) + (8 / 9) * (19 * j**4 + 114 * j**3 + 275 * j**2 + 312 * j + 138) /
             #     (j * (j + 1)**2 * (j + 2)**2 * (j + 3))
@@ -2720,9 +2943,8 @@ def gamma_gg(j, Nf = 3, evolve_type = "vector",evolution_order="LO"):
             #     (134 / 9) * s_1 + 16 * s_1 * (2 * j**5 + 15 * j**4 + 48 * j**3 + 81 * j**2 + 66 * j + 18) /
             #     (j**2 * (j + 1)**2 * (j + 2)**2 * (j + 3)**2) -
             #     (16 / 3) + 8 * s_2_prime * (j**2 + 3 * j + 3) / (j * (j + 1) * (j + 2) * (j + 3)) -
-            #     4 * s_1 * s_2_prime +
-            #     8 * s_tilde - s_3_prime 
-            # )
+            #     4 * s_1 * s_2_prime - s_3_prime + 8 * s_tilde    
+            # # )
             #     # Belitsky additional terms
             #     - (1 / 9) * (457 * j**9 + 6855 * j**8 + 44428 * j**7 + 163542 * j**6) /
             #     (j**2 * (j + 1)**3 * (j + 2)**3 * (j + 3)**3) -
@@ -2730,77 +2952,175 @@ def gamma_gg(j, Nf = 3, evolve_type = "vector",evolution_order="LO"):
             #     (j**2 * (j + 1)**3 * (j + 2)**3 * (j + 3)**3)
             # )
             # (B.22) in Nucl.Phys.B 192 (1981) 417-462
-            term1 = c_a * t_f * Nf * (
-                (-40 / 9) * s_1 + (8 / 3) + (8/ 9) * (19 * j**4 + 114 * j**3 + 275 * j**2 + 312 * j + 138) /
-                (j * (j + 1)**2 * (j + 2)**2 * (j + 3))
-            )
-            term2 = c_f * t_f * Nf * (
-                2 + 4 * (2 * j**6 + 16 * j**5 + 51 * j**4 + 74 * j**3 + 41 * j**2 - 8 * j - 16) /
-                (j * (j + 1)**3 * (j + 2)**3 * (j + 3))
-            )
-            term3 = c_a**2 * Nf * (
-                (134 / 9) * s_1 + 16 * s_1 * (2 * j**5 + 15 * j**4 + 48 * j**3 + 81 * j**2 + 66 * j + 18) /
-                (j**2 * (j + 1)**2 * (j + 2)**2 * (j + 3)**2) -
-                (16 / 3) + 8 * s_2_prime * (j**2 + 3 * j + 3) / (j * (j + 1) * (j + 2) * (j + 3)) -
-                4 * s_1 * s_2_prime +
-                8 * s_tilde - s_3_prime -
-                (1 / 9) * (457 * j**9 + 6855 * j**8 + 44428 * j**7 + 163542 * j**6 +
-                376129 * j**5 + 557883 * j**4 + 529962 * j**3 + 308808 * j**2 + 101088 * j + 15552) /
-                (j**2 * (j + 1)**3 * (j + 2)**3 * (j + 3)**3)
-            )
+            # term1 = c_a * t_f * Nf * (
+            #     (-40 / 9) * s_1 + (8 / 3) + (8/ 9) * (19 * j**4 + 114 * j**3 + 275 * j**2 + 312 * j + 138) /
+            #     (j * (j + 1)**2 * (j + 2)**2 * (j + 3))
+            # )
+            # term2 = c_f * t_f * Nf * (
+            #     2 + 4 * (2 * j**6 + 16 * j**5 + 51 * j**4 + 74 * j**3 + 41 * j**2 - 8 * j - 16) /
+            #     (j * (j + 1)**3 * (j + 2)**3 * (j + 3))
+            # )
+            # term3 = c_a**2 * Nf * (
+            #     (134 / 9) * s_1 + 16 * s_1 * (2 * j**5 + 15 * j**4 + 48 * j**3 + 81 * j**2 + 66 * j + 18) /
+            #     (j**2 * (j + 1)**2 * (j + 2)**2 * (j + 3)**2) -
+            #     (16 / 3) + 8 * s_2_prime * (j**2 + 3 * j + 3) / (j * (j + 1) * (j + 2) * (j + 3)) -
+            #     4 * s_1 * s_2_prime +
+            #     8 * s_tilde - s_3_prime -
+            #     (1 / 9) * (457 * j**9 + 6855 * j**8 + 44428 * j**7 + 163542 * j**6 +
+            #     376129 * j**5 + 557883 * j**4 + 529962 * j**3 + 308808 * j**2 + 101088 * j + 15552) /
+            #     (j**2 * (j + 1)**3 * (j + 2)**3 * (j + 3)**3)
+            # )
+            # print(term3,term2,term1)
         elif evolve_type == "axial":
-            term1 = 2 * c_f * t_f * Nf * (
-                (8 + 30 * j + 70 * j**2 + 71 * j**3 + 35 * j**4 + 9 * j**5 + j**6) /
-                ((j + 1)**3 * (j + 2)**3)
+            # Nucl.Phys.B 889 (2014) 351-400
+            # Note different beta function convention
+            # so we reverse the sign
+            d02 = d_weight(2,0,j+1)
+            d03 = d_weight(3,0,j+1)
+            s_m2 = harmonic_number(-2,j+1)
+            eta = 1/((j+1)*(j+2))
+            # 2025
+            term1 = - 8 * c_f * t_f * Nf * (
+                -.5 - 7 * eta + 5 * eta**2 + 2 * eta**3 + 6 * d02 - 4 * d03
             )
-            term2 = 8 * c_a * t_f * Nf * (
-                (35 + 75 * j + 52 * j**2 + 18 * j**3 + 3 * j**4) / (9 * (j + 1)**2 * (j + 2)**2) -
-                (5 / 9) * s_1
+            term2 = - 4/3 * c_a * Nf *(
+                10/3 * s_1 - 2 - 26/3 * eta + 2 * eta**2
             )
-            term3 = c_a**2 * (
-                - (1768 + 5250 * j + 7075 * j**2 + 4974 * j**3 + 1909 * j**4 + 432 * j**5 + 48 * j**6) /
-                (9 * (j + 1)**3 * (j + 2)**3) +
-                (2 / 9) * (484 + 948 * j + 871 * j**2 + 402 * j**3 + 67 * j**4) / ((j + 1)**2 * (j + 2)**2) * s_1 +
-                (8 / ((j + 1) * (j + 2))) * s_2_prime -
-                4 * s_1 * s_2_prime - s_3_prime +
-                8 * s_tilde
+            term3 = -  4 * c_a**2 * (
+                4 * (s_1_m2 + s_1_2 + s_2_1) - 2 * (s_3 +s_m3) - 67/9 * s_1 + 8/3
+                - 8 * eta * (s_2 + s_m2) + 8 * (2 * eta + eta**2 - 2 * d02) * s_1
+                + 901/18 * eta - 149/3 * eta**2 -24 * eta**3 - 32 * (d02 - d03)
             )
+            # print("cf nf,ca nf, ca^2")
+            # print(term1,term2,term3)
+            # Belistky differs by t_f
+            # term1 = 2 * c_f * t_f * Nf * (
+            #     (8 + 30 * j + 70 * j**2 + 71 * j**3 + 35 * j**4 + 9 * j**5 + j**6) /
+            #     ((j + 1)**3 * (j + 2)**3)
+            # )
+            # term2 = 8 * c_a * t_f * Nf * (
+            #     (35 + 75 * j + 52 * j**2 + 18 * j**3 + 3 * j**4) / (9 * (j + 1)**2 * (j + 2)**2) -
+            #     (5 / 9) * s_1
+            # )
+            # term3 = c_a**2 * (
+            #     - (1768 + 5250 * j + 7075 * j**2 + 4974 * j**3 + 1909 * j**4 + 432 * j**5 + 48 * j**6) /
+            #     (9 * (j + 1)**3 * (j + 2)**3) +
+            #     (2 / 9) * (484 + 948 * j + 871 * j**2 + 402 * j**3 + 67 * j**4) / ((j + 1)**2 * (j + 2)**2) * s_1 +
+            #     (8 / ((j + 1) * (j + 2))) * s_2_prime -
+            #     4 * s_1 * s_2_prime - s_3_prime +
+            #     8 * s_tilde
+            # )
+            # print(term1,term2,term3)
         else:
             raise ValueError("Type must be axial or vector")
         result = term1 + term2 + term3
+        # Nucl.Phys.B 889 (2014) 351-400 defines Mellin moment
+        # without factor 1/2
+        result*=2
     else:
         raise ValueError(f"Currently unsupported evolution order {evolution_order}")
 
     return result
 
+def gamma_qq_axial(j,Nf=3,blah=False):
+    Nc = 3
+    c_a = Nc
+    c_f = (Nc**2-1)/(2*Nc)
+    t_f = .5
+    beta_0 = 2/3* Nf - 11/3 * Nc
+    beta_1 = 10/3 * c_a * Nf + 2 * c_f * Nf -34/3 * c_a**2
+
+    s_1 = harmonic_number(1,j+1)
+    s_2 = harmonic_number(2,j+1)
+    s_3 = harmonic_number(3,j+1)
+    s_1_2 = nested_harmonic_number([1,2],j+1)
+    s_1_m2 = nested_harmonic_number([1,-2],j+1)
+    s_2_1 = nested_harmonic_number([2,1],j+1)
+    d1 = d_weight(1,1,j+1)
+    d0 = d_weight(1,0,j+1)
+    d02 = d_weight(2,0,j+1)
+    d03 = d_weight(3,0,j+1)
+    s_m2 = harmonic_number(-2,j+1)
+    s_m3 = harmonic_number(-3,j+1)
+
+    eta = 1/((j+1) * (j+2))
+
+    term1 = 4 * c_f**2 * (
+        - 4 * (s_m3 - 2 * s_1_m2 - s_1_2 - s_2_1) - 3 * s_2 + 3/8 - 4 * eta * s_m2
+        - 2 * eta * s_2 + 2 * (2 * eta + eta**2 - 2 * d02) * s_1 - eta - 11 * eta**2 - 5 * eta**3 + d02 + 2 * d03
+    )
+    term2 = 4 * c_a * c_f * (
+        2 * (s_m3 - s_3) - 4 * s_1_m2 + 11/3 * s_2 - 67/9 * s_1 + 17/24 
+        + 2 * eta * s_m2 + 217/18 * eta + 35/6 * eta**2 + 2 * eta**3 - 11/3 * d02
+    )
+    # print(2 * (s_m3 - s_3),4 * s_1_m2,11/3 * s_2,- 67/9 * s_1,2 * eta * s_m2, 217/18 * eta,35/6 * eta**2 ,2 * eta**3 ,-11/3 * d02)
+    term3 = 4/9 * c_f * Nf * (
+        - 6 * s_2 + 10 * s_1 - .75 - 17 * eta - 3 * eta**2 + 6 * d02
+    )
+    result = term1 + term2 + term3 
+    # print(term1,term2,term3)
+    if blah:
+        Delta_pqg = - (2 * d1 - d0)
+        Delta_pgq = - (2 * d0 - d1)
+        ns = c_f * (- 4 *s_1 + 2 * eta + 3)
+        print("non_singlet:",ns)
+        qg = 2 * Nf * Delta_pqg
+        print("qg",qg)
+        gq = 2 * c_f * Delta_pgq 
+        print("gq",gq)
+        gg = c_a * (- 4 * s_1 + 8 * eta + 11/3 ) -2/3 * Nf
+        print("gg",gg)
+        print("beta_0",beta_0)
+        print("beta_1",beta_1)
+    return result
+
+def power_minus_1(j):
+    if mp.im(j) < 0:
+        result = mp.mpc(-1,0)**(mp.conj(j))
+        return mp.conj(result)
+    else:
+        result = mp.mpc(-1,0)**j
+        return result
+
 def d_element(j,k):
     """ Belistky (4.204)"""
     if j == k:
         raise ValueError("j and k must be unequal")
-    result = - .5 * (1 + (-1)**(j-k)) * (2 * k + 3)/((j - k)*(j + k + 3))
+    result = - .5 * (1 + power_minus_1(j-k)) * (2 * k + 3)/((j - k)*(j + k + 3))
     return result
 
 def digamma_A(j,k):
     """ Belistky (4.212)"""
     if j == k:
         raise ValueError("j and k must be unqual")
-    result = digamma(.5* (j + k + 4)) - digamma(.5 * (j-k)) + 2 * digamma(j - k) - digamma(j + 2) - digamma(1)
+    result = mp.digamma(.5* (j + k + 4)) - mp.digamma(.5 * (j-k)) + 2 * mp.digamma(j - k) - mp.digamma(j + 2) - mp.digamma(1)
     return result
 
-def discrete_theta(j,k):
-    """Returns 1 if j > k and 0 otherwise
+def heaviside_theta(j,k):
+    """Returns 1 if j > k and 0 otherwise.
     """
+    j = mp.re(j)
+    k = mp.re(k)
     return int(j > k)
 
+    # if isinstance(j,(int,float)) and isinstance(k,(int,float)):
+    #     return int(j > k)
+    # Approximates using a Fermi-Dirac 
+    # distribution comparing the real parts.
+    # else:
+    #     epsilon = 1e-2
+    #     result = 1 / (1+ mp.exp((mp.re(j)-mp.re(k))/epsilon))
+    #     return result
+    
 def conformal_anomaly_qq(j,k):
     """Belitsky (4.206). Equal for vector and axial """
     if j == k:
         raise ValueError("j and k must be unqual")
     Nc = 3
     c_f = (Nc**2-1)/(2*Nc)
-    result =  -c_f * (1 + (-1)**(j - k)) * discrete_theta(j-2,k) * ((3 + 2 * k) / ((j - k) * (j + k + 3))) * (
+    result =  -c_f * (1 + power_minus_1(j-k)) * heaviside_theta(j-2,k) * ((3 + 2 * k) / ((j - k) * (j + k + 3))) * (
         2 * digamma_A(j, k) + 
-        (digamma_A(j, k) - digamma(j + 2) + digamma(1)) * ((j - k) * (j + k + 3)) / ((k + 1) * (k + 2))
+        (digamma_A(j, k) - mp.digamma(j + 2) + mp.digamma(1)) * ((j - k) * (j + k + 3)) / ((k + 1) * (k + 2))
         )
     return result
 
@@ -2810,7 +3130,7 @@ def conformal_anomaly_gq(j,k):
         raise ValueError("j and k must be unqual")
     Nc = 3
     c_f = (Nc**2-1)/(2*Nc)
-    result = -c_f * (1 + (-1)**(j - k)) * discrete_theta(j-2,k) * (1 / 6) * ((3 + 2 * k) / ((k + 1) * (k + 2)))
+    result = -c_f * (1 + power_minus_1(j-k)) * heaviside_theta(j-2,k) * (1 / 6) * ((3 + 2 * k) / ((k + 1) * (k + 2)))
     return result
 
 def conformal_anomaly_gg(j,k):
@@ -2820,13 +3140,13 @@ def conformal_anomaly_gg(j,k):
     Nc = 3
     c_a = Nc
     result = (
-            -c_a * (1 + (-1) ** (j - k)) * discrete_theta(j-2,k) *
+            -c_a * (1 + power_minus_1(j-k)) * heaviside_theta(j-2,k) *
             ((3 + 2 * k) / ((j - k) * (j + k + 3))) *
             (
                 2 * digamma_A(j,k) +
-                (digamma_A(j,k) - digamma(j + 2) + digamma(1)) *
-                ((gamma(j + 4) * gamma(k)) / (gamma(j) * gamma(k + 4)) - 1) +
-                2 * (j - k) * (j + k + 3) * (gamma(k) / gamma(k + 4))
+                (digamma_A(j,k) - mp.digamma(j + 2) + mp.digamma(1)) *
+                ((mp.gamma(j + 4) * mp.gamma(k)) / (mp.gamma(j) * mp.gamma(k + 4)) - 1) +
+                2 * (j - k) * (j + k + 3) * (mp.gamma(k) / mp.gamma(k + 4))
             )
         )
     return result
@@ -2835,7 +3155,7 @@ def gamma_qq_nd(j,k, Nf=3, evolve_type = "vector",evolution_order="LO"):
     """ Belistky (4.203)"""
     if evolution_order == "LO":
         return 0
-    if k >= j:
+    if isinstance(j, (int)) and  isinstance(k, (int)) and k >= j:
         return 0
     Nc = 3
     beta_0 = 2/3* Nf - 11/3 * Nc
@@ -2853,7 +3173,7 @@ def gamma_qg_nd(j,k, Nf=3, evolve_type = "vector",evolution_order="LO"):
     """ Belistky (4.203)"""
     if evolution_order == "LO":
         return 0
-    if k >= j:
+    if isinstance(j, (int)) and  isinstance(k, (int)) and k >= j:
         return 0
     Nc = 3
     beta_0 = 2/3* Nf - 11/3 * Nc
@@ -2873,7 +3193,7 @@ def gamma_gq_nd(j,k, Nf=3, evolve_type = "vector",evolution_order="LO"):
     """ Belistky (4.203)"""
     if evolution_order == "LO":
         return 0
-    if k >= j:
+    if isinstance(j, (int)) and  isinstance(k, (int)) and k >= j:
         return 0
     Nc = 3
     beta_0 = 2/3* Nf - 11/3 * Nc
@@ -2895,7 +3215,7 @@ def gamma_gg_nd(j,k, Nf=3, evolve_type = "vector",evolution_order="LO"):
     """ Belistky (4.203)"""
     if evolution_order == "LO":
         return 0
-    if k >= j:
+    if isinstance(j, (int)) and  isinstance(k, (int)) and k >= j:
         return 0
     Nc = 3
     beta_0 = 2/3* Nf - 11/3 * Nc
@@ -2920,10 +3240,10 @@ def gamma_pm(j, Nf = 3, evolve_type = "vector",solution="+"):
     The eigenvalues (+) and (-) in terms of an array
     """
     # Check evolve_type
-    check_evolve_type(evolve_type)
+    hp.check_evolve_type(evolve_type)
     
     base = gamma_qq(j,evolution_order="LO")+gamma_gg(j,Nf,evolve_type,evolution_order="LO")
-    root = np.sqrt((gamma_qq(j,evolution_order="LO")-gamma_gg(j,Nf,evolve_type,evolution_order="LO"))**2+4*gamma_gq(j,Nf,evolve_type,evolution_order="LO")*gamma_qg(j,Nf,evolve_type,evolution_order="LO"))
+    root = mp.sqrt((gamma_qq(j,evolution_order="LO")-gamma_gg(j,Nf,evolve_type,evolution_order="LO"))**2+4*gamma_gq(j,Nf,evolve_type,evolution_order="LO")*gamma_qg(j,Nf,evolve_type,evolution_order="LO"))
     if solution == "+":
         return (base + root)/2
     elif solution == "-":
@@ -2975,29 +3295,32 @@ def R_gg(j,Nf=3,evolve_type="vector"):
     result = term1 + term2
     return result
 
-def evolve_conformal_moment(j,eta,t,mu,Nf = 3,particle="quark",moment_type="non_singlet_isovector",moment_label ="A", evolution_order = "LO", error_type = "central"):
+def evolve_conformal_moment(j,eta,t,mu,Nf=3,A0=1,particle="quark",moment_type="non_singlet_isovector",moment_label ="A", evolution_order = "LO", error_type = "central",
+                            n_k=100,k_range=10,trap=False,plot_integrand=False):
     """
     Evolve the conformal moment F_{j}^{+-} from some input scale mu_in to some other scale mu. 
 
     Arguments:
-    j (float): conformal spin
-    eta (float): skewness parameter
-    t (float): Mandelstam t
-    mu (float): Resolution scale
-    Nf (int. optional): Number of active flavors (default Nf = 3)
-    moment_type (str. optional): non_singlet_isovector, non_singlet_isoscalar, or singlet
-    moment_label (str. optional): A(Tilde) B(Tilde) depending on H(Tilde) or E(Tilde) GPD etc.
-    evolution_order (str. optional): LO, NLO
-    error_type (str. optional): Choose central, upper or lower value for input PDF parameters
+    - j (float): conformal spin
+    - eta (float): skewness parameter
+    - t (float): Mandelstam t
+    - mu (float): Resolution scale
+    - Nf (int. optional): Number of active flavors (default Nf = 3)
+    - A0 (float optional): Normalization factor (default A0 = 1)
+    - particle (str. optional): quark or gluon
+    - moment_type (str. optional): non_singlet_isovector, non_singlet_isoscalar, or singlet
+    - moment_label (str. optional): A(Tilde) B(Tilde) depending on H(Tilde) or E(Tilde) GPD etc.
+    - evolution_order (str. optional): LO, NLO
+    - error_type (str. optional): Choose central, upper or lower value for input PDF parameters
 
     Returns:
     The value of the evolved conformal moment at scale mu
     """
     
-    check_particle_type(particle)
-    check_moment_type_label(moment_type,moment_label)
-    check_error_type(error_type)
-    check_evolution_order(evolution_order)
+    hp.check_particle_type(particle)
+    hp.check_moment_type_label(moment_type,moment_label)
+    hp.check_error_type(error_type)
+    hp.check_evolution_order(evolution_order)
     if particle == "gluon" and moment_type != "singlet":
         raise ValueError("Gluon is only singlet")
 
@@ -3011,16 +3334,26 @@ def evolve_conformal_moment(j,eta,t,mu,Nf = 3,particle="quark",moment_type="non_
     alpha_s_in = get_alpha_s(evolution_order)
     alpha_s_evolved = evolve_alpha_s(mu,Nf,evolution_order)
 
-    moment_in, evolve_type = MOMENT_TO_FUNCTION.get((moment_type, moment_label))
+    if moment_label in ["A","B"]:
+        evolve_type = "vector"
+    elif moment_label in ["Atilde","Btilde"]:
+        evolve_type = "axial"
+
+    if moment_type == "non_singlet_isovector":
+        moment_in = non_singlet_isovector_moment(j,eta,t,moment_label,evolve_type,evolution_order,error_type)
+    elif moment_type == "non_singlet_isoscalar":
+        moment_in = non_singlet_isoscalar_moment(j,eta,t,moment_label,evolve_type,evolution_order,error_type)
+
+    # moment_in, evolve_type = MOMENT_TO_FUNCTION.get((moment_type, moment_label))
 
     ga_qq = gamma_qq(j-1,Nf,moment_type,evolve_type,evolution_order="LO")
-       
+
     if moment_type == "singlet":
         # Roots  of LO anomalous dimensions
         ga_p = gamma_pm(j-1,Nf,evolve_type,"+")
         ga_m = gamma_pm(j-1,Nf,evolve_type,"-")
-        moment_in_p = moment_in(j,eta,t, Nf, moment_label, evolve_type,"+",evolution_order,error_type)
-        moment_in_m = moment_in(j,eta,t, Nf, moment_label, evolve_type,"-",evolution_order,error_type)
+        moment_in_p, error_p = singlet_moment(j,eta,t, Nf, moment_label, evolve_type,"+",evolution_order,error_type)
+        moment_in_m, error_m = singlet_moment(j,eta,t, Nf, moment_label, evolve_type,"-",evolution_order,error_type)
         ga_gq = gamma_gq(j-1,Nf, evolve_type,"LO")
         ga_qg = gamma_qg(j-1,Nf, evolve_type,"LO")
         if evolution_order != "LO":
@@ -3032,14 +3365,14 @@ def evolve_conformal_moment(j,eta,t,mu,Nf = 3,particle="quark",moment_type="non_
 
     # Precompute alpha_s fraction:
     alpha_frac  = (alpha_s_in/alpha_s_evolved)    
-
-    # Functions appearing in LO evolution
-    def get_ga_moment(solution):
+    
+    # Functions appearing in evolution
+    def get_gammas(solution):
         # switch + <-> - when necessary
         if solution == "+":
-            return ga_p, ga_m, moment_in_p
+            return ga_p, ga_m
         elif solution == "-": 
-            return ga_m, ga_p, moment_in_m
+            return ga_m, ga_p
         else:
             raise ValueError(f"Wrong solution type: {solution}")
 
@@ -3048,60 +3381,77 @@ def evolve_conformal_moment(j,eta,t,mu,Nf = 3,particle="quark",moment_type="non_
 
     def E_non_singlet_nlo(j):
         ga_qq = gamma_qq(j,Nf,moment_type,evolve_type,"LO")
+        # print("lo",j,ga_qq)
         ga_qq_nlo = gamma_qq(j,Nf,moment_type,evolve_type,"NLO")
+        # print("nlo",j,ga_qq_nlo)
         result = alpha_frac**(ga_qq/beta_0) * (1 + (.5 * beta_1/beta_0**2 *  ga_qq - ga_qq_nlo/beta_0) * \
                                       (alpha_s_evolved - alpha_s_in)/(2*np.pi)
                                       )
+        # print("res",j,result)
         return result
     def B_non_singlet_nlo(k):
         gamma_term = (ga_qq - gamma_qq(k,Nf,moment_type,evolve_type,"LO") + beta_0)
-        result = alpha_s_evolved/(2*np.pi) * gamma_qq_nd(j-1,k,Nf,evolve_type,evolution_order)/gamma_term * (
+        ga_nd = gamma_qq_nd(j-1,k,Nf,evolve_type,evolution_order)
+        result = alpha_s_evolved/(2*np.pi) * ga_nd/gamma_term * (
             1 - alpha_frac**(gamma_term/beta_0)
         )
         if j - 1 == k:
             result+= 1
         return result
 
+    def EB_non_singlet_nlo(k):
+        # Combinede function to call in fractional_finite_sum
+        if moment_type == "non_singlet_isovector":
+            moment_k  = non_singlet_isovector_moment(j,eta,t,moment_label,evolve_type,evolution_order,error_type)
+        else:
+            moment_k  = non_singlet_isoscalar_moment(j,eta,t,moment_label,evolve_type,evolution_order,error_type)
+        non_diagonal_terms = eta**(j - k) * B_non_singlet_nlo(k-1) * E_non_singlet_nlo(k-1) * moment_k
+        # print(j,k,non_diagonal_terms)
+        return non_diagonal_terms
+    # "+" goes with "+" moment
     def A_lo_quark(solution):
         # The switch also takes care of the relative minus sign
-        ga_p, ga_m, moment = get_ga_moment(solution)
-        result = (ga_qq - ga_m)/(ga_p - ga_m) * alpha_frac**(ga_p/beta_0) * 2 * moment
+        ga_p, ga_m = get_gammas(solution)
+        result = (ga_qq - ga_m)/(ga_p - ga_m) * alpha_frac**(ga_p/beta_0) * 2
+        # print("quark",solution,result/moment)
         return result
     
     def A_lo_gluon(solution):
-        ga_p, ga_m, moment = get_ga_moment(solution)
-        result = ga_gq/(ga_p - ga_m) * alpha_frac**(ga_p/beta_0) * 2 * moment
+        ga_p, ga_m = get_gammas(solution)
+        result = ga_gq/(ga_p - ga_m) * alpha_frac**(ga_p/beta_0) * 2
+        # print("gluon",solution,result/moment)
         return result
 
-    def A_nlo_quark(solution):
-        ga_p, ga_m, moment = get_ga_moment(solution)
-        term1 = - (alpha_s_evolved - alpha_s_in)/(2*np.pi)/beta_0 * alpha_frac**(ga_p/beta_0) / \
-                (ga_p - ga_m)**2 * (2 * moment )
+    def A_quark_nlo(solution):
+        ga_p, ga_m = get_gammas(solution)
+        term1 = - (alpha_s_evolved - alpha_s_in)/(2*mp.pi)/beta_0 * alpha_frac**(ga_p/beta_0) / \
+                (ga_p - ga_m)**2 * (2)
         term2 = (ga_qq - ga_m) * (r_qq * (ga_qq-ga_m) + r_qg * ga_gq)
         term3 = ga_qg * (r_gq * (ga_qq - ga_m) + r_gg * ga_gq)
         result = term1 * (term2 + term3)
         return result
     
-    def B_nlo_quark(solution):
-        ga_p, ga_m, moment = get_ga_moment(solution)
-        term1 = alpha_s_evolved/(2*np.pi)/(ga_m - ga_p + beta_0) * 2 * moment / (ga_p - ga_m)**2
+    def B_quark_nlo(solution):
+        ga_p, ga_m = get_gammas(solution)
+        term1 = alpha_s_evolved/(2*mp.pi)/(ga_m - ga_p + beta_0) * 2 / (ga_p - ga_m)**2
         term2 = (1 - alpha_frac**((ga_m - ga_p + beta_0)/beta_0)) * alpha_frac**(ga_p/beta_0)
         term3 = ((ga_qq - ga_p) * (r_qq * (ga_qq - ga_m) + r_qg * ga_gq) + ga_qg * (r_gq * (ga_qq - ga_m) + r_gg * ga_gq))
         result = term1 * term2 * term3
         return result
 
-    def A_nlo_gluon(solution):
-        ga_p, ga_m, moment = get_ga_moment(solution)
-        term1 = - (alpha_s_evolved - alpha_s_in)/(2*np.pi)/beta_0 * alpha_frac**(ga_p/beta_0) / \
-                (ga_p - ga_m)**2 * (2 * moment )
+    def A_gluon_nlo(solution):
+        ga_p, ga_m = get_gammas(solution)
+        term1 = - (alpha_s_evolved - alpha_s_in)/(2*mp.pi)/beta_0 * alpha_frac**(ga_p/beta_0) / \
+                (ga_p - ga_m)**2 * (2)
+        # print("->",(ga_p/beta_0),alpha_frac**(ga_p/beta_0),(ga_p - ga_m)**2)
         term2 = ga_gq * (r_qq * (ga_qq-ga_m) + r_qg * ga_gq)
         term3 = (ga_gg - ga_m) * (r_gq * (ga_qq - ga_m) + r_gg * ga_gq)
         result = term1 * (term2 + term3)
         return result
 
-    def B_nlo_gluon(solution):
-        ga_p, ga_m, moment = get_ga_moment(solution)
-        term1 = alpha_s_evolved/(2*np.pi)/(ga_m - ga_p + beta_0) * 2 * moment / (ga_p - ga_m)**2
+    def B_gluon_nlo(solution):
+        ga_p, ga_m = get_gammas(solution)
+        term1 = alpha_s_evolved/(2*mp.pi)/(ga_m - ga_p + beta_0) * 2 / (ga_p - ga_m)**2
         term2 = (1 - alpha_frac**((ga_m - ga_p + beta_0)/beta_0)) * alpha_frac**(ga_p/beta_0)
         term3 = (ga_gq  * (r_qq * (ga_qq - ga_m) + r_qg * ga_gq) + (ga_gg - ga_p) * (r_gq * (ga_qq - ga_m) + r_gg * ga_gq) )
         result = term1 * term2 * term3
@@ -3110,160 +3460,206 @@ def evolve_conformal_moment(j,eta,t,mu,Nf = 3,particle="quark",moment_type="non_
     def prf_T_nlo(k):
         ga_j_p, ga_j_m = ga_p, ga_m
         ga_k_p, ga_k_m = gamma_pm(k-1,Nf,evolve_type,"+"), gamma_pm(k-1,Nf,evolve_type,"-")
-        alpha_term = alpha_s_evolved/(2*np.pi)
-        ga_j_p_plus_ga_k_m = ga_j_p + ga_k_m + beta_0
-        ga_j_p_minus_ga_k_m = ga_j_p - ga_k_m + beta_0
-        ga_j_m_minus_ga_k_p = ga_j_m - ga_k_p
-        ga_j_m_minus_ga_k_m = ga_j_m - ga_k_m
-        ga_kk_times_ga_jj = (ga_k_p - ga_k_m)*(ga_j_p - ga_j_m)
-        prf_T_1 = - alpha_term/ga_j_p_plus_ga_k_m * (1 - alpha_frac**(ga_j_p_plus_ga_k_m/beta_0))/ga_kk_times_ga_jj
-        prf_T_2 = - alpha_term/ga_j_p_minus_ga_k_m * (1 - alpha_frac**(ga_j_p_minus_ga_k_m/beta_0))/ga_kk_times_ga_jj
-        prf_T_3 = - alpha_term/ga_j_m_minus_ga_k_p * (1 - alpha_frac**(ga_j_m_minus_ga_k_p/beta_0))/ga_kk_times_ga_jj
-        prf_T_4 = - alpha_term/ga_j_m_minus_ga_k_m * (1 - alpha_frac**(ga_j_m_minus_ga_k_m/beta_0))/ga_kk_times_ga_jj
+        alpha_term = alpha_s_evolved/(2*mp.pi)
+        ga_1 = ga_j_p - ga_k_p + beta_0
+        ga_2 = ga_j_p - ga_k_m + beta_0
+        ga_3 = ga_j_m - ga_k_p + beta_0
+        ga_4 = ga_j_m - ga_k_m + beta_0
+        ga_kk_jj = (ga_k_p - ga_k_m)*(ga_j_p - ga_j_m)
+        prf_T_1 = - alpha_term/ga_1 * (1 - alpha_frac**(ga_1/beta_0))/ga_kk_jj
+        prf_T_2 = - alpha_term/ga_2 * (1 - alpha_frac**(ga_2/beta_0))/ga_kk_jj
+        prf_T_3 = - alpha_term/ga_3 * (1 - alpha_frac**(ga_3/beta_0))/ga_kk_jj
+        prf_T_4 = - alpha_term/ga_4 * (1 - alpha_frac**(ga_4/beta_0))/ga_kk_jj
 
         return prf_T_1, prf_T_2, prf_T_3, prf_T_4
-    
-    def T_nlo_quark():
-        # Sum from k = 2 to j - 1
+
+    # T1 and T3 go with "+" solution and T2 and T4 go with "-" solution
+    def T_quark_nlo(k):
         # Note T = 0 for j=k
-        quark_non_diagonal_part = 0
         ga_j_p, ga_j_m = ga_p, ga_m
-        for k in range(2,j - 2 + 1):
-            ga_k_p, ga_k_m = gamma_pm(k-1,Nf,evolve_type,"+"), gamma_pm(k-1,Nf,evolve_type,"-")
-            ga_qq_k = gamma_qq(k-1,evolution_order="LO")
-            ga_gq_k = gamma_gq(k-1,Nf, evolve_type,"LO")
-            ga_qg_k = gamma_qg(k-1,Nf, evolve_type,"LO")
-            ga_qq_nd = gamma_qq_nd(j-1,k-1,Nf,evolve_type,"NLO")
-            ga_qg_nd = gamma_qg_nd(j-1,k-1,Nf,evolve_type,"NLO")
-            ga_gq_nd = gamma_gq_nd(j-1,k-1,Nf,evolve_type,"NLO")
-            ga_gg_nd = gamma_gg_nd(j-1,k-1,Nf,evolve_type,"NLO")
+   
+        ga_k_p, ga_k_m = gamma_pm(k-1,Nf,evolve_type,"+"), gamma_pm(k-1,Nf,evolve_type,"-")
+        ga_qq_k = gamma_qq(k-1,evolution_order="LO")
+        ga_gq_k = gamma_gq(k-1,Nf, evolve_type,"LO")
+        # ga_qg_k = gamma_qg(k-1,Nf, evolve_type,"LO")
+        ga_qq_nd = gamma_qq_nd(j-1,k-1,Nf,evolve_type,"NLO")
+        ga_qg_nd = gamma_qg_nd(j-1,k-1,Nf,evolve_type,"NLO")
+        ga_gq_nd = gamma_gq_nd(j-1,k-1,Nf,evolve_type,"NLO")
+        ga_gg_nd = gamma_gg_nd(j-1,k-1,Nf,evolve_type,"NLO")
 
-            prf_T_1, prf_T_2, prf_T_3, prf_T_4 = prf_T_nlo(k)
-            moment_k_p = moment_in(k,eta,t, Nf, moment_label, evolve_type,"+",evolution_order,error_type)
-            moment_k_m = moment_in(k,eta,t, Nf, moment_label, evolve_type,"-",evolution_order,error_type)
-            T_1_top = prf_T_1 * 2 * moment_k_p * (
-                (ga_qq - ga_j_m) * ( ga_qq_nd * (ga_qq_k - ga_k_m) + ga_qg_nd * ga_gq_k )
-                + ga_qg * ( ga_gq_nd * (ga_qq_k - ga_k_m) + ga_gg_nd * ga_gq_k )                             
-            )          
-            T_2_top = prf_T_2 * 2 * moment_k_m *  (
-                (ga_qq - ga_j_m) * ( ga_qq_nd * (ga_qq_k - ga_k_p) + ga_qg_nd * ga_gq_k )
-                + ga_qg * ( ga_gq_nd * (ga_qq_k - ga_k_p) + ga_gg_nd * ga_gq_k )                             
-            )                    
-            T_3_top = - prf_T_3 * 2 * moment_k_p *  (
-                (ga_qq - ga_j_p) * ( ga_qq_nd * (ga_qq_k - ga_k_m) + ga_qg_nd * ga_gq_k )
-                + ga_qg * ( ga_gq_nd * (ga_qq_k - ga_k_m) + ga_gg_nd * ga_gq_k )                             
-            )
-            T_4_top = prf_T_4 * 2 * moment_k_m *  (
-                (ga_qq - ga_j_p) * ( ga_qq_nd * (ga_qq_k - ga_k_p) + ga_qg_nd * ga_gq_k )
-                + ga_qg * ( ga_gq_nd * (ga_qq_k - ga_k_p) + ga_gg_nd * ga_gq_k )                             
-            )
-            # 
-            quark_non_diagonal_part += eta**(j-k) * ( T_1_top + T_2_top + T_3_top + T_4_top)
+        prf_T_1, prf_T_2, prf_T_3, prf_T_4 = prf_T_nlo(k)
 
-        return quark_non_diagonal_part
+        moment_k_p, error_k_p = singlet_moment(k,eta,t, Nf, moment_label, evolve_type,"+",evolution_order,error_type)
+        moment_k_m, error_k_m = singlet_moment(k,eta,t, Nf, moment_label, evolve_type,"-",evolution_order,error_type)
 
-    def T_nlo_gluon():
-        # Sum from k = 2 to j - 1
+        T_1_top = prf_T_1 * 2 * (
+            (ga_qq - ga_j_m) * ( ga_qq_nd * (ga_qq_k - ga_k_m) + ga_qg_nd * ga_gq_k )
+            + ga_qg * ( ga_gq_nd * (ga_qq_k - ga_k_m) + ga_gg_nd * ga_gq_k )                             
+        )          
+        T_2_top = prf_T_2 * 2 *  (
+            (ga_qq - ga_j_m) * ( ga_qq_nd * (ga_qq_k - ga_k_p) + ga_qg_nd * ga_gq_k )
+            + ga_qg * ( ga_gq_nd * (ga_qq_k - ga_k_p) + ga_gg_nd * ga_gq_k )                             
+        )                    
+        T_3_top = - prf_T_3 * (-2) *  (
+            (ga_qq - ga_j_p) * ( ga_qq_nd * (ga_qq_k - ga_k_m) + ga_qg_nd * ga_gq_k )
+            + ga_qg * ( ga_gq_nd * (ga_qq_k - ga_k_m) + ga_gg_nd * ga_gq_k )                             
+        )
+        T_4_top = prf_T_4 * 2 *  (
+            (ga_qq - ga_j_p) * ( ga_qq_nd * (ga_qq_k - ga_k_p) + ga_qg_nd * ga_gq_k )
+            + ga_qg * ( ga_gq_nd * (ga_qq_k - ga_k_p) + ga_gg_nd * ga_gq_k )                             
+        )
+        plus_terms = T_1_top + T_3_top
+        minus_terms = T_2_top + T_4_top
+
+        quark_non_diagonal_part = eta**(j-k) * (plus_terms * moment_k_p + minus_terms * moment_k_m)
+        sum_squared = (eta**(j-k) * plus_terms * error_k_p)**2 + (eta**(j-k) * minus_terms * error_k_m)**2
+        quark_non_diagonal_errors = np.frompyfunc(mp.sqrt, 1, 1)(sum_squared)
+
+        return quark_non_diagonal_part, quark_non_diagonal_errors
+
+    def T_gluon_nlo(k):
         # Note T = 0 for j=k
-        gluon_non_diagonal_part = 0
         ga_j_p, ga_j_m = ga_p, ga_m
-        for k in range(2,j - 2 + 1):
-            ga_k_p, ga_k_m = gamma_pm(k-1,Nf,evolve_type,"+"), gamma_pm(k-1,Nf,evolve_type,"-")
-            ga_qq_k = gamma_qq(k-1,evolution_order="LO")
-            ga_gq_k = gamma_gq(k-1,Nf, evolve_type,"LO")
-            ga_qg_k = gamma_qg(k-1,Nf, evolve_type,"LO")
-            ga_qq_nd = gamma_qq_nd(j-1,k-1,Nf,evolve_type,"NLO")
-            ga_qg_nd = gamma_qg_nd(j-1,k-1,Nf,evolve_type,"NLO")
-            ga_gq_nd = gamma_gq_nd(j-1,k-1,Nf,evolve_type,"NLO")
-            ga_gg_nd = gamma_gg_nd(j-1,k-1,Nf,evolve_type,"NLO")
+        ga_k_p, ga_k_m = gamma_pm(k-1,Nf,evolve_type,"+"), gamma_pm(k-1,Nf,evolve_type,"-")
+        ga_qq_k = gamma_qq(k-1,evolution_order="LO")
+        ga_gq_k = gamma_gq(k-1,Nf, evolve_type,"LO")
+        # ga_qg_k = gamma_qg(k-1,Nf, evolve_type,"LO")
+        ga_qq_nd = gamma_qq_nd(j-1,k-1,Nf,evolve_type,"NLO")
+        ga_qg_nd = gamma_qg_nd(j-1,k-1,Nf,evolve_type,"NLO")
+        ga_gq_nd = gamma_gq_nd(j-1,k-1,Nf,evolve_type,"NLO")
+        ga_gg_nd = gamma_gg_nd(j-1,k-1,Nf,evolve_type,"NLO")
 
-            prf_T_1, prf_T_2, prf_T_3, prf_T_4 = prf_T_nlo(k)
-            moment_k_p = moment_in(k,eta,t, Nf, moment_label, evolve_type,"+",evolution_order,error_type)
-            moment_k_m = moment_in(k,eta,t, Nf, moment_label, evolve_type,"-",evolution_order,error_type)
-            T_1_bot = prf_T_1 * 2 * moment_k_p * (
-                ga_gq * ( ga_qq_nd * (ga_qq_k - ga_k_m) + ga_qg_nd * ga_gq_k )    
-                + (ga_gg - ga_j_m) * ( ga_gq_nd * (ga_qq_k - ga_k_m) + ga_gg_nd * ga_gq_k )                         
-            )
-            T_2_bot = prf_T_2 * 2 * moment_k_m * (
-                ga_gq * ( ga_qq_nd * (ga_qq_k - ga_k_p) + ga_qg_nd * ga_gq_k )    
-                + (ga_gg - ga_j_m) * ( ga_gq_nd * (ga_qq_k - ga_k_p) + ga_gg_nd * ga_gq_k )                         
-            )
-            T_3_bot = - prf_T_3 * 2 * moment_k_p * (
-                ga_gq * ( ga_qq_nd * (ga_qq_k - ga_k_m) + ga_qg_nd * ga_gq_k )    
-                + (ga_gg - ga_j_p) * ( ga_gq_nd * (ga_qq_k - ga_k_m) + ga_gg_nd * ga_gq_k )   
-            )                      
-            T_4_bot = prf_T_4 * 2 * moment_k_m * (
-                ga_gq * ( ga_qq_nd * (ga_qq_k - ga_k_p) + ga_qg_nd * ga_gq_k )    
-                + (ga_gg - ga_j_p) * (ga_gq_nd * (ga_qq_k - ga_k_p) + ga_gg_nd * ga_gq_k )                         
-            )
-            gluon_non_diagonal_part += eta**(j-k) *  ( T_1_bot + T_2_bot + T_3_bot + T_4_bot )
-        return gluon_non_diagonal_part
+        prf_T_1, prf_T_2, prf_T_3, prf_T_4 = prf_T_nlo(k)
+
+        moment_k_p, error_k_p = singlet_moment(k,eta,t, Nf, moment_label, evolve_type,"+",evolution_order,error_type)
+        moment_k_m, error_k_m = singlet_moment(k,eta,t, Nf, moment_label, evolve_type,"-",evolution_order,error_type)
+
+        T_1_bot = prf_T_1 * 2 * (
+            ga_gq * ( ga_qq_nd * (ga_qq_k - ga_k_m) + ga_qg_nd * ga_gq_k )    
+            + (ga_gg - ga_j_m) * ( ga_gq_nd * (ga_qq_k - ga_k_m) + ga_gg_nd * ga_gq_k )                         
+        )
+        T_2_bot = prf_T_2 * 2  * (
+            ga_gq * ( ga_qq_nd * (ga_qq_k - ga_k_p) + ga_qg_nd * ga_gq_k )    
+            + (ga_gg - ga_j_m) * ( ga_gq_nd * (ga_qq_k - ga_k_p) + ga_gg_nd * ga_gq_k )                         
+        )
+        T_3_bot = - prf_T_3 * (-2) * (
+            ga_gq * ( ga_qq_nd * (ga_qq_k - ga_k_m) + ga_qg_nd * ga_gq_k )    
+            + (ga_gg - ga_j_p) * ( ga_gq_nd * (ga_qq_k - ga_k_m) + ga_gg_nd * ga_gq_k )   
+        )                      
+        T_4_bot = prf_T_4 * 2 * (
+            ga_gq * ( ga_qq_nd * (ga_qq_k - ga_k_p) + ga_qg_nd * ga_gq_k )    
+            + (ga_gg - ga_j_p) * (ga_gq_nd * (ga_qq_k - ga_k_p) + ga_gg_nd * ga_gq_k )                         
+        )
+        plus_terms = T_1_bot + T_3_bot
+        minus_terms = T_2_bot + T_4_bot
+
+        gluon_non_diagonal_part = eta**(j-k) * (plus_terms * moment_k_p + minus_terms * moment_k_m)
+        sum_squared = (eta**(j-k) * plus_terms * error_k_p)**2 + (eta**(j-k) * minus_terms * error_k_m)**2
+        gluon_non_diagonal_errors = np.frompyfunc(mp.sqrt, 1, 1)(sum_squared)
+
+        return gluon_non_diagonal_part, gluon_non_diagonal_errors
     # print("check")
-    # print("lo",A_lo_quark("+") + A_lo_quark("-") + A_lo_gluon("+") + A_lo_gluon("-"))
-    # print("nlo",A_nlo_quark("+") + A_nlo_quark("-") + A_nlo_gluon("+") + A_nlo_gluon("-") 
-    #      + B_nlo_quark("+") + B_nlo_quark("-") + B_nlo_gluon("+") + B_nlo_gluon("-") + T_nlo_quark() + T_nlo_gluon())
+    # if evolution_order == "LO"  and moment_type == "singlet" and mu != 1 and particle =="quark":
+    #     print("------")
+    #     print("A_q_+",A_lo_quark("+"))
+    #     print("A_q_-",A_lo_quark("-"))
+    #     print("A_g_+",A_lo_gluon("+"))
+    #     print("A_g_-",A_lo_gluon("-"))
+    #     print("------")
+    # print("nlo",A_quark_nlo("+") + A_quark_nlo("-") + A_gluon_nlo("+") + A_gluon_nlo("-") 
+    #      + B_quark_nlo("+") + B_quark_nlo("-") + B_gluon_nlo("+") + B_gluon_nlo("-") + T_quark_nlo() + T_gluon_nlo())
     # if mu == 1:
     #     print("A_q_lo_+",A_lo_quark("+"))
     #     print("A_q_lo_-",A_lo_quark("-"))
     #     print("A_g_lo_+",A_lo_gluon("+"))
     #     print("A_g_lo_-",A_lo_gluon("-"))
-    # if evolution_order == "NLO" and moment_type == "singlet" and mu != 1:
+    # if evolution_order == "NLO" and moment_type == "singlet" and mu != 1 and particle =="quark":
+    #     print("lo")
+    #     print("A_q_+",A_lo_quark("+"))
+    #     print("A_q_-",A_lo_quark("-"))
+    #     print("A_g_+",A_lo_gluon("+"))
+    #     print("A_g_-",A_lo_gluon("-"))
     #     print("------")
-    #     print("A_q_+",A_nlo_quark("+"))
-    #     print("A_q_-",A_nlo_quark("-"))
-    #     print("A_g_+",A_nlo_gluon("+"))
-    #     print("A_g_-",A_nlo_gluon("-"))
-    #     print("B_q",B_nlo_quark("+"))
-    #     print("C_q",B_nlo_quark("-"))
-    #     print("B_g",B_nlo_gluon("+"))
-    #     print("C_g",B_nlo_gluon("-"))
+    #     print("nlo")
+    #     print("A_q_+",A_quark_nlo("+"))
+    #     print("A_q_-",A_quark_nlo("-"))
+    #     print("A_g_+",A_gluon_nlo("+"))
+    #     print("A_g_-",A_gluon_nlo("-"))
+    #     print("B_q",B_quark_nlo("+"))
+    #     print("C_q",B_quark_nlo("-"))
+    #     print("B_g",B_gluon_nlo("+"))
+    #     print("C_g",B_gluon_nlo("-"))
     #     print("------")
 
     if moment_type == "singlet":
         if particle == "quark":
-            # Manually fix the scale to 0.51 @ mu = 2 GeV from 2310.08484
-            if moment_label == "A":
-                A0 = 1 #0.51/0.5618
-            else:
-                A0 = 1
-            result = A_lo_quark("+") + A_lo_quark("-")
-            # print("lo_quark",result)
+            result = A_lo_quark("+") * moment_in_p + A_lo_quark("-") * moment_in_m
+            sum_squared =  (A_lo_quark("+") * error_p)**2 + (A_lo_quark("-") * error_m)**2
+            error = np.frompyfunc(mp.sqrt, 1, 1)(sum_squared)
+            result += hp.error_sign(error,error_type)
             if evolution_order == "NLO":
-                diagonal_terms = A_nlo_quark("+") + A_nlo_quark("-") + B_nlo_quark("+") + B_nlo_quark("-")
-                non_diagonal_terms = T_nlo_quark()
-                # print("nlo_quark",diagonal_terms)
-                # print("T_quark",non_diagonal_terms)
-                result += diagonal_terms + non_diagonal_terms
+                plus_terms = A_quark_nlo("+") + B_quark_nlo("+")
+                minus_terms = A_quark_nlo("-") + B_quark_nlo("-")
+                diagonal_terms = plus_terms * moment_in_p + minus_terms * moment_in_m
+                sum_squared = plus_terms**2 * error_p**2 + minus_terms**2 * error_m**2
+                diagonal_errors = np.frompyfunc(mp.sqrt, 1, 1)(sum_squared)
+
+                non_diagonal_terms = 0
+                non_diagonal_errors = 0
+                if isinstance(j, (int, np.integer)):
+                    for k in range(2,j - 2 + 1):
+                        non_diagonal_terms += T_quark_nlo(k)[0]
+                        non_diagonal_errors += T_quark_nlo(k)[1]
+                else:
+                    print("To do: vary parameters of fractional_finite_sum to check convergence")
+                    non_diagonal_terms, non_diagonal_errors = fractional_finite_sum(T_quark_nlo,k_0=2,k_1=j - 2 + 1,n_tuple=2,k_range=k_range,plot_integrand=plot_integrand,trap=trap)
+        
+                error = diagonal_errors + non_diagonal_errors
+                result += diagonal_terms + non_diagonal_terms + hp.error_sign(error,error_type)
         if particle == "gluon":
-            # Manually fix the scale to 0.501 @ mu = 2 GeV from 2310.08484
-            if moment_label == "A":
-                A0 = 1 # 0.501/0.43807
-            else:
-                A0 = 1
-            result = A_lo_gluon("+") + A_lo_gluon("-")
-            # print("lo_gluon",result)
+            result = A_lo_gluon("+") * moment_in_p + A_lo_gluon("-") * moment_in_m
+            sum_squared =  (A_lo_gluon("+") * error_p)**2 + (A_lo_gluon("-") * error_m)**2
+            error = np.frompyfunc(mp.sqrt, 1, 1)(sum_squared)
+            result += hp.error_sign(error,error_type)
             if evolution_order == "NLO":
-                diagonal_terms = A_nlo_gluon("+") + A_nlo_gluon("-") + B_nlo_gluon("+") + B_nlo_gluon("-")
-                non_diagonal_terms = T_nlo_gluon()
-                # print("T_gluon",non_diagonal_terms)
-                # print("nlo_gluon",diagonal_terms)
-                result += diagonal_terms + non_diagonal_terms
-        result *= A0
-    elif moment_type in ["non_singlet_isovector","non_singlet_isoscalar"]:
-        # result = moment_in(j,eta,t,moment_label,evolve_type,evolution_order,error_type) * alpha_frac**(ga_qq/beta_0)   
+                plus_terms = A_gluon_nlo("+") + B_gluon_nlo("+")
+                minus_terms = A_gluon_nlo("-")  + B_gluon_nlo("-")
+                diagonal_terms =  plus_terms * moment_in_p + minus_terms * moment_in_m
+                sum_squared = plus_terms**2 * error_p**2 + minus_terms**2 * error_m**2
+                diagonal_errors = np.frompyfunc(mp.sqrt, 1, 1)(sum_squared)
+
+                non_diagonal_terms = 0
+                non_diagonal_errors = 0
+                if isinstance(j, (int, np.integer)):
+                    for k in range(2,j - 2 + 1):
+                        non_diagonal_terms += T_gluon_nlo(k)[0]
+                        non_diagonal_errors += T_gluon_nlo(k)[1]
+                else:
+                    print("To do: vary parameters of fractional_finite_sum to check convergence")
+                    non_diagonal_terms, non_diagonal_errors = fractional_finite_sum(T_gluon_nlo,k_0=2,k_1=j - 2 + 1,n_tuple=2,k_range=k_range,plot_integrand=plot_integrand,trap=trap)
+
+                error = diagonal_errors + non_diagonal_errors
+                result += diagonal_terms + non_diagonal_terms + hp.error_sign(error,error_type)
+
+    elif moment_type in ["non_singlet_isovector","non_singlet_isoscalar"]: 
         if evolution_order == "LO":
-            result = moment_in(j,eta,t,moment_label,evolve_type,evolution_order,error_type) * E_non_singlet_lo()
+            result = moment_in * E_non_singlet_lo()
         elif evolution_order == "NLO":
-            moment = moment_in(j,eta,t,moment_label,evolve_type,evolution_order,error_type)
-            diagonal_terms = moment * E_non_singlet_nlo(j-1)
+            result = moment_in * E_non_singlet_nlo(j-1)
             non_diagonal_terms = 0
-            for k in range(1,j - 2 + 1):
-                moment_k  = moment_in(k,eta,t,moment_label,evolve_type,evolution_order,error_type)
-                non_diagonal_terms += eta**(j - k) * B_non_singlet_nlo(k-1) * E_non_singlet_nlo(k-1) * moment_k
-            result = diagonal_terms + non_diagonal_terms
-        else:
-            raise ValueError(f"Currently unsupported evolution_order {evolution_order}")
+            if isinstance(j, (int, np.integer)):
+                for k in range(2,j - 2 + 1):
+                    non_diagonal_terms += EB_non_singlet_nlo(k)
+            else:
+                # print("To do: vary parameters of fractional_finite_sum to check convergence")
+                non_diagonal_terms = fractional_finite_sum(EB_non_singlet_nlo,k_0=2,k_1=j - 2 + 1,n_k=n_k,k_range=k_range,plot_integrand=plot_integrand,trap=trap)
+            result += non_diagonal_terms
+
+    result *= A0
+    if mp.im(result) == 0:
+        return np.float64(mp.re(result))
     return result
+
 
 def first_singlet_moment(eta, mu, particle="quark", gpd_label="H", error_type="central",t0_only=None):
     """
@@ -3277,20 +3673,20 @@ def first_singlet_moment(eta, mu, particle="quark", gpd_label="H", error_type="c
     - error_type (str. optional): central, plus, minus
     - t0_only (bool optional): Only extract value at t=t0
     """
-    check_particle_type(particle)
+    hp.check_particle_type(particle)
 
     prefix = f"singlet_{particle}_GPD_{gpd_label}"
-    FILE_PATH = os.path.join(GPD_PATH, "") 
+    FILE_PATH = os.path.join(cfg.GPD_PATH, "") 
     if not os.path.isdir(FILE_PATH):
         print(f"Directory {FILE_PATH} does not exist. Generate data for parameters (eta,mu)={eta,mu} using plot_gpds")
         return [], []
     
     if t0_only is not None:
         t0 = t0_only
-        filename = generate_filename(eta, t0, mu, prefix=prefix, error_type=error_type)
-        full_path = os.path.join(FILE_PATH, filename)
+        filename = hp.generate_filename(eta, t0, mu, prefix=prefix, error_type=error_type)
+        full_path = FILE_PATH / filename
         if os.path.exists(full_path):
-            x_values, y_values = load_gpd_data(
+            x_values, y_values = hp.load_gpd_data(
                 eta=eta, t=t0, mu=mu, particle=particle,
                 gpd_type="singlet", gpd_label=gpd_label,
                 error_type=error_type
@@ -3316,13 +3712,13 @@ def first_singlet_moment(eta, mu, particle="quark", gpd_label="H", error_type="c
         if not filename.startswith(prefix):
             continue
 
-        parsed = parse_filename(filename, prefix=prefix)
+        parsed = hp.parse_filename(filename, prefix=prefix)
         if parsed is None:
             continue
 
         eta_f, t, mu_f, err = parsed
         if eta == eta_f and mu == mu_f and err == error_type:
-            x_values, y_values = load_gpd_data(
+            x_values, y_values = hp.load_gpd_data(
                 eta=eta, t=t, mu=mu, particle=particle,
                 gpd_type="singlet", gpd_label=gpd_label,
                 error_type=error_type
@@ -3380,12 +3776,12 @@ def dipole_fit_first_singlet_moment(eta,mu,particle="gluon",gpd_label="Htilde",p
         plt.tight_layout()
         plt.show()
     if write_to_file:
-        if (gpd_label) in GPD_LABEL_MAP:
-            moment_label = GPD_LABEL_MAP[gpd_label]
+        if (gpd_label) in cfg.GPD_LABEL_MAP:
+            moment_label = cfg.GPD_LABEL_MAP[gpd_label]
         else:
-            print(f"Key {gpd_label} not found in GPD_LABEL_MAP - abort")
+            print(f"Key {gpd_label} not found in cfg.GPD_LABEL_MAP - abort")
             return
-        filename = generate_filename(eta,0,mu,MOMENTUM_SPACE_MOMENTS_PATH + f"singlet_{particle}_dipole_moment_{moment_label}",error_type=error_type)
+        filename = hp.generate_filename(eta,0,mu,cfg.MOMENTUM_SPACE_MOMENTS_PATH / f"singlet_{particle}_dipole_moment_{moment_label}",error_type=error_type)
         with open(filename, 'w') as f:
             f.write(f"AD,{AD_fit:.5f}\n")
             f.write(f"mD2,{m_D2_fit:.5f}\n")
@@ -3425,47 +3821,47 @@ def first_singlet_moment_dipole(eta,t,mu,Nf=3,particle="gluon",moment_label="Ati
     if Nf != 3:
         print("Warning: Currently no distinction on file system for Nf != 3")
 
-    FILE_PATH = generate_filename(eta,0,mu,MOMENTUM_SPACE_MOMENTS_PATH + f"singlet_{particle}_dipole_moment_{moment_label}" )
+    FILE_PATH = hp.generate_filename(eta,0,mu,cfg.MOMENTUM_SPACE_MOMENTS_PATH / f"singlet_{particle}_dipole_moment_{moment_label}" )
     result = get_dipole_from_csv(t,FILE_PATH)
     return result
 
-def evolve_singlet_D(j,eta,t,mu,Nf=3,particle="quark",moment_label="A",evolution_order="LO",error_type="central"):
-    check_particle_type(particle)
-    check_moment_type_label("singlet",moment_label)
-    if particle == "quark":
-        # Manually fix the scale to 1.3 @ mu = 2 GeV from 2310.08484
-        D0 = 1.3/1.037769
-    else :
-        # Manually fix the scale from holography (II.9) in 2204.08857
-        D0 = 2.57/3.027868
-
-    eta = 1 # Result is eta independent 
-    term_1 = evolve_conformal_moment(j,eta,t,mu,Nf,particle,"singlet",moment_label,evolution_order,error_type)
-    term_2 = evolve_conformal_moment(j,0,t,mu,Nf,particle,"singlet",moment_label,evolution_order,error_type)
+def evolve_singlet_D(j,eta,t,mu,Nf=3,D0=1,particle="quark",moment_label="A",evolution_order="LO",error_type="central"):
+    hp.check_particle_type(particle)
+    hp.check_moment_type_label("singlet",moment_label)
+    # if particle == "quark":
+    #     # Manually fix the scale to 1.3 @ mu = 2 GeV from 2310.08484
+    #     D0 = 1.3/1.037769
+    # else :
+    #     # Manually fix the scale from holography (II.9) in 2204.08857
+    #     D0 = 2.57/3.027868
+    if j == 2:
+        eta = 1 # Result is eta independent 
+    term_1 = evolve_conformal_moment(j,eta,t,mu,Nf,1,particle,"singlet",moment_label,evolution_order,error_type)
+    term_2 = evolve_conformal_moment(j,0,t,mu,Nf,1,particle,"singlet",moment_label,evolution_order,error_type)
     result = D0 * (term_1-term_2)/eta**2
     return result
 
-def evolve_quark_non_singlet(j,eta,t,mu,Nf=3,moment_type="non_singlet_isovector",moment_label = "A",evolution_order="LO",error_type="central"):
-    result = evolve_conformal_moment(j,eta,t,mu,Nf,"quark",moment_type,moment_label,evolution_order,error_type)
+def evolve_quark_non_singlet(j,eta,t,mu,Nf=3,A0=1,moment_type="non_singlet_isovector",moment_label = "A",evolution_order="LO",error_type="central"):
+    result = evolve_conformal_moment(j,eta,t,mu,Nf,A0,"quark",moment_type,moment_label,evolution_order,error_type)
     return result
 
-def evolve_quark_singlet(j,eta,t,mu,Nf=3,moment_label = "A",evolution_order="LO",error_type="central"):
-    result = evolve_conformal_moment(j,eta,t,mu,Nf,"quark","singlet",moment_label,evolution_order,error_type)
+def evolve_quark_singlet(j,eta,t,mu,Nf=3,A0=1,moment_label = "A",evolution_order="LO",error_type="central"):
+    result = evolve_conformal_moment(j,eta,t,mu,Nf,A0,"quark","singlet",moment_label,evolution_order,error_type)
     return result
 
-def evolve_gluon_singlet(j,eta,t,mu,Nf=3,moment_label = "A",evolution_order="LO",error_type="central"):
-    result = evolve_conformal_moment(j,eta,t,mu,Nf,"gluon","singlet",moment_label,evolution_order,error_type)
+def evolve_gluon_singlet(j,eta,t,mu,Nf=3,A0=1,moment_label = "A",evolution_order="LO",error_type="central"):
+    result = evolve_conformal_moment(j,eta,t,mu,Nf,A0,"gluon","singlet",moment_label,evolution_order,error_type)
     return result
 
-def evolve_quark_singlet_D(eta,t,mu,Nf=3,moment_label = "A",evolution_order="LO",error_type="central"):
-    result = evolve_singlet_D(eta,t,mu,Nf,"quark",moment_label,evolution_order,error_type)
+def evolve_quark_singlet_D(eta,t,mu,Nf=3,D0=1,moment_label = "A",evolution_order="LO",error_type="central"):
+    result = evolve_singlet_D(eta,t,mu,Nf,D0,"quark",moment_label,evolution_order,error_type)
     return result
 
-def evolve_gluon_singlet_D(j,eta,t,mu,Nf=3,moment_label = "A",evolution_order="LO",error_type="central"):
-    result = evolve_singlet_D(eta,t,mu,Nf,"gluon",moment_label,evolution_order,error_type)
+def evolve_gluon_singlet_D(j,eta,t,mu,Nf=3,D0=1,moment_label = "A",evolution_order="LO",error_type="central"):
+    result = evolve_singlet_D(eta,t,mu,Nf,D0,"gluon",moment_label,evolution_order,error_type)
     return result
 
-def fourier_transform_moment(j,eta,mu,b_vec,Nf=3,particle="quark",moment_type="non_singlet_isovector", moment_label="A",evolution_order="LO", Delta_max = 5,num_points=100, error_type="central"):
+def fourier_transform_moment(j,eta,mu,b_vec,Nf=3,A0=1,particle="quark",moment_type="non_singlet_isovector", moment_label="A",evolution_order="LO", Delta_max = 5,num_points=100, error_type="central"):
     """
     Optimized calculation of Fourier transformed moments using trapezoidal rule.
 
@@ -3475,6 +3871,7 @@ def fourier_transform_moment(j,eta,mu,b_vec,Nf=3,particle="quark",moment_type="n
     - mu (float): RGE scale
     - b_vec: (b_x, b_y), the vector for which to compute the result
     - Nf (int, optional): Number of active flavors. Default is 3.
+    - A0 (float, optional): Overall scale
     - particle (str. optional): "quark" or "gluon". Default is quark.
     - moment_type (str. optional): singlet, non_singlet_isovector or non_singlet_isoscalar. Default is non_singlet_isovector.
     - moment_label (str. optiona): Label of conformal moment, e.g. A
@@ -3485,9 +3882,9 @@ def fourier_transform_moment(j,eta,mu,b_vec,Nf=3,particle="quark",moment_type="n
     Returns:
     - The value of the Fourier transformed moment at (b_vec)
     """
-    check_error_type(error_type)
-    check_particle_type(particle)
-    check_moment_type_label(moment_type,moment_label)
+    hp.check_error_type(error_type)
+    hp.check_particle_type(particle)
+    hp.check_moment_type_label(moment_type,moment_label)
     b_x, b_y = b_vec
     # Limits of integration for Delta_x, Delta_y on a square grid
     x_min, x_max = -Delta_max, Delta_max
@@ -3503,10 +3900,10 @@ def fourier_transform_moment(j,eta,mu,b_vec,Nf=3,particle="quark",moment_type="n
         t = -(Delta_x**2+Delta_y**2)
         exponent = -1j * (b_x * Delta_x + b_y * Delta_y)
         if j >= 2 or moment_type != "singlet":
-            moment = evolve_conformal_moment(j,eta,t,mu,Nf,particle,moment_type,moment_label,evolution_order,error_type)
+            moment = evolve_conformal_moment(j,eta,t,mu,Nf,A0,particle,moment_type,moment_label,evolution_order,error_type)
         else:
             moment = first_singlet_moment_dipole(eta,t,mu,Nf,particle,moment_label,evolution_order,error_type)
-        result = moment*np.exp(exponent)
+        result = np.float64(mp.re(moment))*np.exp(exponent)
         return result
     
     # Compute the integrand for each pair of (Delta_x, Delta_y) values
@@ -3535,7 +3932,7 @@ def inverse_fourier_transform_moment(j,eta,mu,Delta_vec,Nf=3,particle="quark",mo
     Returns:
     - The value of the Fourier transformed moment at (b_vec)
     """
-    check_particle_type(particle)
+    hp.check_particle_type(particle)
     if moment_type not in ["singlet","non_singlet_isovector","non_singlet_isoscalar","u","d"]:
         raise ValueError(f"Wrong moment_type {moment_type}")
 
@@ -3551,7 +3948,7 @@ def inverse_fourier_transform_moment(j,eta,mu,Delta_vec,Nf=3,particle="quark",mo
         b_vec = (b_x,b_y)
         exponent = 1j * (b_x * Delta_x + b_y * Delta_y)
         moment = fourier_transform_moment(j,eta,mu,b_vec,Nf,particle,moment_type,moment_label,evolution_order,num_points=num_points,Delta_max=Delta_max)
-        result = moment*np.exp(exponent)
+        result = np.float64(mp.re(moment))*np.exp(exponent)
         return result
 
     # Compute the integrand for each pair of (Delta_x, Delta_y) values
@@ -3564,7 +3961,7 @@ def inverse_fourier_transform_moment(j,eta,mu,Delta_vec,Nf=3,particle="quark",mo
 
     return integral_result.real
 
-def fourier_transform_transverse_moment(j,eta,mu,b_vec,Nf=3,particle="quark",moment_type="non_singlet_isovector",evolution_order="LO", Delta_max = 5,num_points=100, error_type="central"):
+def fourier_transform_transverse_moment(j,eta,mu,b_vec,Nf=3,A0=1,particle="quark",moment_type="non_singlet_isovector",evolution_order="LO", Delta_max = 5,num_points=100, error_type="central"):
     """
     Optimized calculation of Fourier transformed moments for transversely polarized target using trapezoidal rule. 
     Automatically uses A_n and B_n moments with assumed nucleon mass of M_n = 0.93827 GeV
@@ -3575,6 +3972,7 @@ def fourier_transform_transverse_moment(j,eta,mu,b_vec,Nf=3,particle="quark",mom
     - mu (float): RGE scale
     - b_vec: (b_x, b_y), the vector for which to compute the result
     - Nf (int, optional): Number of active flavors. Default is 3.
+    - A0 (float, optional): Overall scale
     - particle (str. optional): "quark" or "gluon". Default is quark.
     - moment_type (str. optional): singlet, non_singlet_isovector or non_singlet_isoscalar. Default is non_singlet_isovector.
     - Delta_max (float, optional): maximum radius for the integration domain (limits the integration bounds)
@@ -3584,10 +3982,10 @@ def fourier_transform_transverse_moment(j,eta,mu,b_vec,Nf=3,particle="quark",mom
     Returns:
     - The value of the Fourier transformed moment at (b_vec)
     """
-    check_error_type(error_type)
-    check_particle_type(particle)
-    check_moment_type_label(moment_type,"A")
-    check_moment_type_label(moment_type,"B")
+    hp.check_error_type(error_type)
+    hp.check_particle_type(particle)
+    hp.check_moment_type_label(moment_type,"A")
+    hp.check_moment_type_label(moment_type,"B")
     # Nucleon mass in GeV
     M_n = 0.93827
 
@@ -3605,10 +4003,10 @@ def fourier_transform_transverse_moment(j,eta,mu,b_vec,Nf=3,particle="quark",mom
     def integrand(Delta_x,Delta_y,b_x,b_y):
         t = -(Delta_x**2+Delta_y**2)
         exponent = -1j * (b_x * Delta_x + b_y * Delta_y)
-        moment_1 = evolve_conformal_moment(j,eta,t,mu,Nf,particle,moment_type,"A",evolution_order,error_type)
-        moment_2 = 1j * Delta_y/(2*M_n) * evolve_conformal_moment(j,eta,t,mu,Nf,particle,moment_type,"B",evolution_order,error_type)
+        moment_1 = evolve_conformal_moment(j,eta,t,mu,Nf,A0,particle,moment_type,"A",evolution_order,error_type)
+        moment_2 = 1j * Delta_y/(2*M_n) * evolve_conformal_moment(j,eta,t,mu,Nf,A0,particle,moment_type,"B",evolution_order,error_type)
         moment = moment_1 + moment_2
-        result = moment*np.exp(exponent)
+        result = np.float64(mp.re(moment))*np.exp(exponent)
         return result
     
     if moment_type == "singlet" and j < 2:
@@ -3639,10 +4037,10 @@ def fourier_transform_quark_gluon_helicity(eta,mu,b_vec,Nf=3,particle="quark",mo
     Returns:
     - The value of the quark gluon helicity at (b_vec)
     """
-    check_particle_type(particle)
+    hp.check_particle_type(particle)
     if moment_type not in ["singlet","non_singlet_isovector","non_singlet_isoscalar","u","d"]:
         raise ValueError(f"Wrong moment_type {moment_type}")
-    check_error_type(error_type)
+    hp.check_error_type(error_type)
 
     if moment_type in ["singlet","non_singlet_isovector","non_singlet_isoscalar"]:
         result = fourier_transform_moment(1,eta,mu,b_vec,Nf,particle,moment_type,moment_label="Atilde",evolution_order=evolution_order,Delta_max=Delta_max,num_points=num_points,error_type=error_type)/2
@@ -3691,10 +4089,10 @@ def fourier_transform_spin_orbit_correlation(eta,mu,b_vec,Nf=3,evolution_order="
     Returns:
     - The value of the spin-orbit correlation at (b_vec)
     """
-    check_particle_type(particle)
+    hp.check_particle_type(particle)
     if moment_type not in ["singlet","non_singlet_isovector","non_singlet_isoscalar","u","d"]:
         raise ValueError(f"Wrong moment_type {moment_type}")
-    check_error_type(error_type)
+    hp.check_error_type(error_type)
 
     if moment_type in ["singlet","non_singlet_isovector","non_singlet_isoscalar"]:
             term_1 = fourier_transform_moment(2,eta,mu,b_vec,Nf,particle=particle,moment_type=moment_type,moment_label="Atilde",evolution_order=evolution_order,Delta_max=Delta_max,num_points=num_points,error_type="central")
@@ -3763,10 +4161,10 @@ def fourier_transform_orbital_angular_momentum(eta,mu,b_vec,Nf=3,particle="quark
     Returns:
     - The value of the orbital angular momentum at (b_vec)
     """
-    check_particle_type(particle)
+    hp.check_particle_type(particle)
     if moment_type not in ["singlet","non_singlet_isovector","non_singlet_isoscalar","u","d"]:
         raise ValueError(f"Wrong moment_type {moment_type}")
-    check_error_type(error_type)
+    hp.check_error_type(error_type)
 
     if moment_type in ["singlet","non_singlet_isovector","non_singlet_isoscalar"]:
             term_1 = fourier_transform_moment(2,eta,mu,b_vec,Nf,particle=particle,moment_type=moment_type,moment_label="A",evolution_order=evolution_order,Delta_max=Delta_max,num_points=num_points,error_type="central")
@@ -3857,15 +4255,15 @@ def conformal_partial_wave(j, x, eta, particle = "quark", parity="none"):
     Notes:
     - The result is vectorized later on using np.vectorize for handling array inputs.
     """
-    check_particle_type(particle)
-    check_parity(parity)
+    hp.check_particle_type(particle)
+    hp.check_parity(parity)
     if parity not in ["even", "odd","none"]:
         raise ValueError("Parity must be even, odd or none")
     
     # Precompute factors that do not change
     if particle == "quark":
-        gamma_term = lambda j: 2.0**j * gamma(1.5 + j) / (gamma(0.5) * gamma(j))
-        sin_term = lambda j: mp.sin(np.pi * j) / np.pi
+        gamma_term = lambda j: 2.0**j * mp.gamma(1.5 + j) / (mp.gamma(0.5) * mp.gamma(j))
+        sin_term = lambda j: mp.sin(mp.pi * j) / mp.pi
         eta_prf = 1 / eta**j 
         def cal_P(x):
             arg = (1 + x / eta)
@@ -3877,8 +4275,8 @@ def conformal_partial_wave(j, x, eta, particle = "quark", parity="none"):
             result = 1 / x**j * hyp * sin_term(j)
             return result
     else:   
-        gamma_term = lambda j: 2.0**(j-1) * gamma(1.5 + j) / (gamma(0.5) * gamma(j-1))
-        sin_term =lambda j: mp.sin(np.pi * (j+1))  / np.pi 
+        gamma_term = lambda j: 2.0**(j-1) * mp.gamma(1.5 + j) / (mp.gamma(0.5) * mp.gamma(j-1))
+        sin_term =lambda j: mp.sin(mp.pi * (j+1))  / mp.pi 
         eta_prf = 1 / eta**(j-1)
         def cal_P(x):
             arg = (1. + x / eta)
@@ -3913,23 +4311,29 @@ def conformal_partial_wave(j, x, eta, particle = "quark", parity="none"):
 
 # Define get_j_base which contains real part of integration variable and associated parity
 def get_j_base(particle="quark",moment_type="non_singlet_isovector", moment_label="A"):
-    check_particle_type(particle)
-    check_moment_type_label(moment_type,moment_label)
+    hp.check_particle_type(particle)
+    hp.check_moment_type_label(moment_type,moment_label)
 
     if moment_label in ["A","B"]:
         if particle == "quark" and moment_type in ["non_singlet_isovector","non_singlet_isoscalar"]:
-            j_base, parity = .95, "none"
+            # j_base, parity = .95, "none"
+            j_base, parity = 1.2, "none"
         elif particle == "quark" and moment_type == "singlet":
-            j_base, parity = 1.7, "odd"
+            # j_base, parity = 1.7, "odd"
+            j_base, parity = 2.7, "odd"
         elif particle == "gluon" and moment_type == "singlet":
-            j_base, parity = 1.7, "even"
+            # j_base, parity = 1.7, "even"
+            j_base, parity = 2.7, "even"
     elif moment_label == "Atilde":
         if particle == "quark" and moment_type in ["non_singlet_isovector","non_singlet_isoscalar"]:
-            j_base, parity = .95, "none"
+            # j_base, parity = .95, "none"
+            j_base, parity = 1.2, "none"
         if particle == "quark" and moment_type == "singlet":
-            j_base, parity = 1.6, "even"
+            # j_base, parity = 1.6, "even"
+            j_base, parity = 2.6, "even"
         if particle == "gluon" and moment_type == "singlet":
-            j_base, parity = 1.6, "odd"
+            # j_base, parity = 1.6, "odd"
+            j_base, parity = 2.6, "odd"
     else:
         raise ValueError(f"Wrong moment type {moment_type} and/or label {moment_label} for particle {particle}")
     
@@ -3937,7 +4341,7 @@ def get_j_base(particle="quark",moment_type="non_singlet_isovector", moment_labe
 
 
 
-def mellin_barnes_gpd(x, eta, t, mu, Nf=3, particle = "quark", moment_type="singlet",moment_label="A",evolution_order="LO", error_type="central",real_imag ="real",j_max = 15, n_jobs=-1):
+def mellin_barnes_gpd(x, eta, t, mu, Nf=3, A0=1 ,particle = "quark", moment_type="singlet",moment_label="A",evolution_order="LO", error_type="central",real_imag ="real",j_max = 15, n_jobs=-1):
     """
     Numerically evaluate the Mellin-Barnes integral parallel to the imaginary axis to obtain the corresponding GPD
     
@@ -3946,51 +4350,25 @@ def mellin_barnes_gpd(x, eta, t, mu, Nf=3, particle = "quark", moment_type="sing
     - eta (float): Skewness.
     - t (float): Mandelstam t
     - mu (float): Resolution scale
-    - Nf (int 1<= Nf <=3 ): Number of flavors
-    - particle (str): particle species (quark or gluon)
-    - moment_type (str): singlet, non_singlet_isovector, non_singlet_isoscalar
-    - moment_label (str): A, Atilde, B
-    - error_type (str): value of input PDFs (central, plus, minus)
-    - real_imag (str): Choose to compute real part, imaginary part or both
-    - j_max (float): Integration range parallel to the imaginary axis
-    - n_jobs (int): Number of subregions, and thus processes, the integral is split into
-    - n_k (int): Number of sampling points within the interval [-j_max,j_max]
+    - Nf (int 1<= Nf <=3, optional): Number of flavors
+    - A0 (float. optional): Overall scale
+    - particle (str,optional): particle species (quark or gluon)
+    - moment_type (str,optional): singlet, non_singlet_isovector, non_singlet_isoscalar
+    - moment_label (str,optional): A, Atilde, B
+    - error_type (str,optional): value of input PDFs (central, plus, minus)
+    - real_imag (str,optional): Choose to compute real part, imaginary part or both
+    - j_max (float,optional): Integration range parallel to the imaginary axis
+    - n_jobs (int,optional): Number of subregions, and thus processes, the integral is split into
+    - n_k (int,optional): Number of sampling points within the interval [-j_max,j_max]
     Returns: 
     - The value of the Mellin-Barnes integral with real and imaginary part.
     Note:
     - For low x and/or eta it is recommended to divide the integration region
     """
-    check_particle_type(particle)
-    check_error_type(error_type)
-    check_evolution_order(evolution_order)
-    check_moment_type_label(moment_type,moment_label)
-    
-    if moment_type == "singlet":
-        if particle == "quark":
-            # Scale fixed by it's value at the input scale:
-            # print(uv_PDF(1e-3)+dv_PDF(1e-3)+Sv_PDF(1e-3))
-            if moment_label in "A":
-                norm = 1 #1.78160932e+03/ 1.61636674e+03
-            else:
-                norm = 1
-        elif particle == "gluon":
-            # Scale fixed by it's value at the input scale:
-            # print(.1 gluon_PDF(.1))
-            if moment_label == "A":
-                norm = 1# 0.86852857/9.93131764e-01
-            else:
-                norm = 1
-    elif moment_type == "non_singlet_isovector":
-        # Scale fixed by it's value at the input scale:
-        # print(uv_minus_dv_PDF(1e-4))
-        if moment_label == "A":
-            norm = 1 #152.92491544/153.88744991730528
-        else:
-            norm = 1
-    elif moment_type == "non_singlet_isoscalar":
-        # To Do
-        #print("non_singlet_isoscalar norm is To Do")
-        norm = 1
+    hp.check_particle_type(particle)
+    hp.check_error_type(error_type)
+    hp.check_evolution_order(evolution_order)
+    hp.check_moment_type_label(moment_type,moment_label)
 
     j_base, parity = get_j_base(particle,moment_type,moment_label)
 
@@ -4016,25 +4394,25 @@ def mellin_barnes_gpd(x, eta, t, mu, Nf=3, particle = "quark", moment_type="sing
         """
         z = j_base + 1j * k 
         dz = 1j
-        sin_term = mp.sin(np.pi * z)
+        sin_term = mp.sin(mp.pi * z)
         pw_val = conformal_partial_wave(z, x, eta, particle, parity)
 
         if particle == "quark":
             if moment_type == "singlet":
-                mom_val = evolve_quark_singlet(z,eta,t,mu,Nf,moment_label,evolution_order,error_type)
+                mom_val = evolve_quark_singlet(z,eta,t,mu,Nf,A0,moment_label,evolution_order,error_type)
             else:
-                mom_val = evolve_quark_non_singlet(z,eta,t,mu,Nf,moment_type,moment_label,evolution_order,error_type)
+                mom_val = evolve_quark_non_singlet(z,eta,t,mu,Nf,A0,moment_type,moment_label,evolution_order,error_type)
         else:
             # (-1) from shift in Sommerfeld-Watson transform
-            mom_val = (-1) * evolve_gluon_singlet(z,eta,t,mu,Nf, moment_label,evolution_order,error_type)
+            mom_val = (-1) * evolve_gluon_singlet(z,eta,t,mu,Nf,A0,moment_label,evolution_order,error_type)
         result = -.5j * dz * pw_val * mom_val / sin_term
 
         if real_imag == 'real':
-            return result.real
+            return np.float64(mp.re(result))
         elif real_imag == 'imag':
-            return result.imag
+            return np.float64(mp.im(result))
         elif real_imag == 'both':
-            return result.real, result.imag
+            return result
         else:
             raise ValueError("real_imag must be either 'real', 'imag', or 'both'")
 
@@ -4071,7 +4449,7 @@ def mellin_barnes_gpd(x, eta, t, mu, Nf=3, particle = "quark", moment_type="sing
 
             if iterations == max_iterations:
                 raise ValueError("Maximum number of iterations reached without finding a suitable bound. Increase initial value of j_max")
-        if j_max > 350:
+        if j_max > 250:
             print(f"Warning j_max={j_max} is large, adjust corresponding base value in get_j_base")
         #print(iterations,integrand(j_max,real_imag))
         return j_max
@@ -4099,17 +4477,20 @@ def mellin_barnes_gpd(x, eta, t, mu, Nf=3, particle = "quark", moment_type="sing
         k_max = k_values[-1]
 
         if real_imag == 'real':
-            integral, error = quad(lambda k: integrand(k, 'real'), k_min, k_max, limit = 200)
+            integral, error = np.quad(lambda k: integrand(k, 'real'), k_min, k_max, limit = 200)
             # Use symmetry of the real part of the integrand
             integral *= 2
             error *= 2
             return integral, error
         elif real_imag == 'imag':
-            integral, error = quad(lambda k: integrand(k, 'imag'), k_min, k_max, limit = 200)
+            integral, error = np.quad(lambda k: integrand(k, 'imag'), k_min, k_max, limit = 200)
             return integral, error
         elif real_imag == 'both':
-            real_integral, real_error = quad(lambda k: integrand(k, 'real'), k_min, k_max, limit = 200)
-            imag_integral, imag_error = quad(lambda k: integrand(k, 'imag'), k_min, k_max, limit = 200)
+            integral, error = mp.quad(lambda k: integrand(k, 'both'), k_min, k_max, error=True)
+            real_integral, imag_integral = np.float64(mp.re(integral)), np.float64(mp.im(integral))
+            real_error, imag_error = np.float64(mp.re(error)), np.float64(mp.im(error))
+            # real_integral, real_error = quad(lambda k: integrand(k, 'real'), k_min, k_max, limit = 200)
+            # imag_integral, imag_error = quad(lambda k: integrand(k, 'imag'), k_min, k_max, limit = 200)
             return real_integral, real_error, imag_integral, imag_error
         else:
             raise ValueError("real_imag must be either 'real', 'imag', or 'both'") 
@@ -4157,13 +4538,11 @@ def mellin_barnes_gpd(x, eta, t, mu, Nf=3, particle = "quark", moment_type="sing
 
         integral = sum(result[0] for result in results)
         error = np.sqrt(sum(result[1]**2 for result in results))
-        
-
 
     # Check for the estimated error
     if np.abs(error) > 1e-3:
         print(f"Warning: Large error estimate for (x,eta,t)={x,eta,t}: {error}")
-    return norm * integral
+    return float(integral)
 
 # Check normalizations:
 # vectorized_mellin_barnes_gpd=np.vectorize(mellin_barnes_gpd)
@@ -4183,13 +4562,15 @@ def mellin_barnes_gpd(x, eta, t, mu, Nf=3, particle = "quark", moment_type="sing
 #### Additional Observables ####
 ################################
 
-def spin_orbit_corelation(eta,t,mu, particle="quark",moment_type="non_singlet_isovector",evolution_order="LO"):
+def spin_orbit_corelation(eta,t,mu,Nf =3, A0 = 1, particle="quark",moment_type="non_singlet_isovector",evolution_order="LO"):
     """ Returns the spin orbit correlation of moment_type including errors
 
     Parameters:
     - eta (float): Skewness parameter   
     - t (float): Mandelstam t
     - mu (float): The momentum scale of the process
+    - Nf (int. optional): Number of active flavors
+    - A0 (float, optional): Overall scale
     - moment_type (str. optional): The flavor dependence. Either non_singlet_isovector or non_singlet_isoscalar    
     """
 
@@ -4198,18 +4579,22 @@ def spin_orbit_corelation(eta,t,mu, particle="quark",moment_type="non_singlet_is
                            "non_singlet_isovector"]:
         raise ValueError(f"Wrong moment type {moment_type}")
 
-    term_1 = evolve_conformal_moment(2,0,t,mu,particle=particle,moment_type=moment_type,moment_label="Atilde",evolution_order=evolution_order,error_type="central")
-    term_1_plus = evolve_conformal_moment(2,0,t,mu,particle=particle,moment_type=moment_type,moment_label="Atilde",evolution_order=evolution_order,error_type="plus")
-    term_1_minus = evolve_conformal_moment(2,0,t,mu,particle=particle,moment_type=moment_type,moment_label="Atilde",evolution_order=evolution_order,error_type="minus")
+    term_1 = evolve_conformal_moment(2,0,t,mu,Nf,A0,particle=particle,moment_type=moment_type,moment_label="Atilde",evolution_order=evolution_order,error_type="central")
+    term_1_plus = evolve_conformal_moment(2,0,t,mu,Nf,A0,particle=particle,moment_type=moment_type,moment_label="Atilde",evolution_order=evolution_order,error_type="plus")
+    term_1_minus = evolve_conformal_moment(2,0,t,mu,Nf,A0,particle=particle,moment_type=moment_type,moment_label="Atilde",evolution_order=evolution_order,error_type="minus")
 
-    if moment_type != "singlet":
-        term_2 = evolve_conformal_moment(1,0,t,mu,particle=particle,moment_type=moment_type,moment_label="A",evolution_order=evolution_order,error_type="central")
-        term_2_plus = evolve_conformal_moment(1,0,t,mu,particle=particle,moment_type=moment_type,moment_label="A",evolution_order=evolution_order,error_type="plus")
-        term_2_minus = evolve_conformal_moment(1,0,t,mu,particle=particle,moment_type=moment_type,moment_label="A",evolution_order=evolution_order,error_type="minus")
-    else:
-        term_2 = first_singlet_moment(eta,mu,particle=particle,gpd_label="H",error_type="central",t0_only=t)
-        term_2_plus = first_singlet_moment(eta,mu,particle=particle,gpd_label="H",error_type="plus",t0_only=t)
-        term_2_minus = first_singlet_moment(eta,mu,particle=particle,gpd_label="H",error_type="minus",t0_only=t)
+    # if moment_type != "singlet":
+    #     term_2 = evolve_conformal_moment(1,0,t,mu,particle=particle,moment_type=moment_type,moment_label="A",evolution_order=evolution_order,error_type="central")
+    #     term_2_plus = evolve_conformal_moment(1,0,t,mu,particle=particle,moment_type=moment_type,moment_label="A",evolution_order=evolution_order,error_type="plus")
+    #     term_2_minus = evolve_conformal_moment(1,0,t,mu,particle=particle,moment_type=moment_type,moment_label="A",evolution_order=evolution_order,error_type="minus")
+    # else:
+    #     term_2 = first_singlet_moment(eta,mu,particle=particle,gpd_label="H",error_type="central",t0_only=t)
+    #     term_2_plus = first_singlet_moment(eta,mu,particle=particle,gpd_label="H",error_type="plus",t0_only=t)
+    #     term_2_minus = first_singlet_moment(eta,mu,particle=particle,gpd_label="H",error_type="minus",t0_only=t)
+
+    term_2 = evolve_conformal_moment(1,0,t,mu,Nf,A0,particle=particle,moment_type=moment_type,moment_label="A",evolution_order=evolution_order,error_type="central")
+    term_2_plus = evolve_conformal_moment(1,0,t,mu,Nf,A0,particle=particle,moment_type=moment_type,moment_label="A",evolution_order=evolution_order,error_type="plus")
+    term_2_minus = evolve_conformal_moment(1,0,t,mu,Nf,A0,particle=particle,moment_type=moment_type,moment_label="A",evolution_order=evolution_order,error_type="minus")
 
     result = (term_1 - term_2)/2
     error_plus = np.sqrt((term_1_plus-term_1)**2+(term_2_plus-term_2)**2)/2
@@ -4217,12 +4602,14 @@ def spin_orbit_corelation(eta,t,mu, particle="quark",moment_type="non_singlet_is
 
     return result, error_plus, error_minus
 
-def total_spin(t,mu,particle="quark",moment_type="non_singlet_isovector",evolution_order="LO"):
+def total_spin(t,mu,Nf=3,A0=1,particle="quark",moment_type="non_singlet_isovector",evolution_order="LO"):
     """ Returns the total spin of moment_type including errors
 
     Parameters:
     - eta (float): Skewness parameter
     - t (float): Mandelstam t
+    - Nf (int, optional): Number of active quarks
+    - A0 (float, optional): Overall scale
     - mu (float): The momentum scale of the process
     - moment_type (str. optional): The flavor dependence. Either non_singlet_isovector or non_singlet_isoscalar    
     """
@@ -4231,52 +4618,58 @@ def total_spin(t,mu,particle="quark",moment_type="non_singlet_isovector",evoluti
                            "non_singlet_isovector"]:
         raise ValueError(f"Wrong moment type {moment_type}")
 
-    term_1 = evolve_conformal_moment(2,0,t,mu,particle=particle,moment_type=moment_type,moment_label="A",evolution_order=evolution_order,error_type="central")
-    term_2 = evolve_conformal_moment(2,0,t,mu,particle=particle,moment_type=moment_type,moment_label="B",evolution_order=evolution_order,error_type="central")
+    term_1 = evolve_conformal_moment(2,0,t,mu,Nf,A0,particle=particle,moment_type=moment_type,moment_label="A",evolution_order=evolution_order,error_type="central")
+    term_2 = evolve_conformal_moment(2,0,t,mu,Nf,A0,particle=particle,moment_type=moment_type,moment_label="B",evolution_order=evolution_order,error_type="central")
     result = (term_1 + term_2)/2
 
-    term_1_plus = evolve_conformal_moment(2,0,t,mu,particle=particle,moment_type=moment_type,moment_label="A",evolution_order=evolution_order,error_type="plus")
-    term_2_plus = evolve_conformal_moment(2,0,t,mu,particle=particle,moment_type=moment_type,moment_label="B",evolution_order=evolution_order,error_type="plus")
+    term_1_plus = evolve_conformal_moment(2,0,t,mu,Nf,A0,particle=particle,moment_type=moment_type,moment_label="A",evolution_order=evolution_order,error_type="plus")
+    term_2_plus = evolve_conformal_moment(2,0,t,mu,Nf,A0,particle=particle,moment_type=moment_type,moment_label="B",evolution_order=evolution_order,error_type="plus")
     error_plus = np.sqrt((term_1_plus-term_1)**2+(term_2_plus-term_2)**2)/2
 
-    term_1_minus = evolve_conformal_moment(2,0,t,mu,particle=particle,moment_type=moment_type,moment_label="A",evolution_order=evolution_order,error_type="minus")
-    term_2_minus = evolve_conformal_moment(2,0,t,mu,particle=particle,moment_type=moment_type,moment_label="B",evolution_order=evolution_order,error_type="minus")
+    term_1_minus = evolve_conformal_moment(2,0,t,mu,Nf,A0,particle=particle,moment_type=moment_type,moment_label="A",evolution_order=evolution_order,error_type="minus")
+    term_2_minus = evolve_conformal_moment(2,0,t,mu,Nf,A0,particle=particle,moment_type=moment_type,moment_label="B",evolution_order=evolution_order,error_type="minus")
     error_minus = np.sqrt((term_1_minus-term_1)**2+(term_2_minus-term_2)**2)/2
 
     return result, error_plus, error_minus
 
-def orbital_angular_momentum(eta,t,mu, particle="quark",moment_type="non_singlet_isovector",evolution_order="LO"):
+def orbital_angular_momentum(eta,t,mu,Nf=3,A0=1, particle="quark",moment_type="non_singlet_isovector",evolution_order="LO"):
     """ Returns the orbital angular momentum of moment_type including errors
 
     Parameters:
     - eta (float): Skewness parameter
     - t (float): Mandelstam t
+    - Nf (int, optional): Number of active quarks
+    - A0 (float, optional): Overall scale
     - mu (float): The momentum scale of the process
     - moment_type (str. optional): The flavor dependence. Either non_singlet_isovector or non_singlet_isoscalar    
     """
-    check_particle_type(particle)
+    hp.check_particle_type(particle)
     if moment_type not in ["singlet",
                            "non_singlet_isoscalar",
                            "non_singlet_isovector"]:
         raise ValueError(f"Wrong moment type {moment_type}")
 
-    term_1 = evolve_conformal_moment(2,eta,t,mu,particle=particle,moment_type=moment_type,moment_label="A",evolution_order=evolution_order,error_type="central")
-    term_2 = evolve_conformal_moment(2,eta,t,mu,particle=particle,moment_type=moment_type,moment_label="B",evolution_order=evolution_order,error_type="central")
+    term_1 = evolve_conformal_moment(2,eta,t,mu,Nf,A0,particle=particle,moment_type=moment_type,moment_label="A",evolution_order=evolution_order,error_type="central")
+    term_2 = evolve_conformal_moment(2,eta,t,mu,Nf,A0,particle=particle,moment_type=moment_type,moment_label="B",evolution_order=evolution_order,error_type="central")
 
-    term_1_plus = evolve_conformal_moment(2,eta,t,mu,particle=particle,moment_type=moment_type,moment_label="A",evolution_order=evolution_order,error_type="plus")
-    term_2_plus = evolve_conformal_moment(2,eta,t,mu,particle=particle,moment_type=moment_type,moment_label="B",evolution_order=evolution_order,error_type="plus")
+    term_1_plus = evolve_conformal_moment(2,eta,t,mu,Nf,A0,particle=particle,moment_type=moment_type,moment_label="A",evolution_order=evolution_order,error_type="plus")
+    term_2_plus = evolve_conformal_moment(2,eta,t,mu,Nf,A0,particle=particle,moment_type=moment_type,moment_label="B",evolution_order=evolution_order,error_type="plus")
 
-    term_1_minus = evolve_conformal_moment(2,eta,t,mu,particle=particle,moment_type=moment_type,moment_label="A",evolution_order=evolution_order,error_type="minus")
-    term_2_minus = evolve_conformal_moment(2,eta,t,mu,particle=particle,moment_type=moment_type,moment_label="B",evolution_order=evolution_order,error_type="minus")
+    term_1_minus = evolve_conformal_moment(2,eta,t,mu,Nf,A0,particle=particle,moment_type=moment_type,moment_label="A",evolution_order=evolution_order,error_type="minus")
+    term_2_minus = evolve_conformal_moment(2,eta,t,mu,Nf,A0,particle=particle,moment_type=moment_type,moment_label="B",evolution_order=evolution_order,error_type="minus")
 
-    if moment_type != "singlet":
-        term_3 = evolve_conformal_moment(1,eta,t,mu,particle=particle,moment_type=moment_type,moment_label="Atilde",evolution_order=evolution_order,error_type="central")
-        term_3_plus = evolve_conformal_moment(1,eta,t,mu,particle=particle,moment_type=moment_type,moment_label="Atilde",evolution_order=evolution_order,error_type="plus")
-        term_3_minus = evolve_conformal_moment(1,eta,t,mu,particle=particle,moment_type=moment_type,moment_label="Atilde",evolution_order=evolution_order,error_type="minus")
-    else:
-        term_3 = first_singlet_moment(eta,mu,particle=particle,gpd_label="Htilde",error_type="central",t0_only=t)
-        term_3_plus = first_singlet_moment(eta,mu,particle=particle,gpd_label="Htilde",error_type="plus",t0_only=t)
-        term_3_minus = first_singlet_moment(eta,mu,particle=particle,gpd_label="Htilde",error_type="minus",t0_only=t)
+    term_3 = evolve_conformal_moment(1,eta,t,mu,Nf,A0,particle=particle,moment_type=moment_type,moment_label="Atilde",evolution_order=evolution_order,error_type="central")
+    term_3_plus = evolve_conformal_moment(1,eta,t,mu,Nf,A0,particle=particle,moment_type=moment_type,moment_label="Atilde",evolution_order=evolution_order,error_type="plus")
+    term_3_minus = evolve_conformal_moment(1,eta,t,mu,Nf,A0,particle=particle,moment_type=moment_type,moment_label="Atilde",evolution_order=evolution_order,error_type="minus")
+
+    # if moment_type != "singlet":
+    #     term_3 = evolve_conformal_moment(1,eta,t,mu,particle=particle,moment_type=moment_type,moment_label="Atilde",evolution_order=evolution_order,error_type="central")
+    #     term_3_plus = evolve_conformal_moment(1,eta,t,mu,particle=particle,moment_type=moment_type,moment_label="Atilde",evolution_order=evolution_order,error_type="plus")
+    #     term_3_minus = evolve_conformal_moment(1,eta,t,mu,particle=particle,moment_type=moment_type,moment_label="Atilde",evolution_order=evolution_order,error_type="minus")
+    # else:
+    #     term_3 = first_singlet_moment(eta,mu,particle=particle,gpd_label="Htilde",error_type="central",t0_only=t)
+    #     term_3_plus = first_singlet_moment(eta,mu,particle=particle,gpd_label="Htilde",error_type="plus",t0_only=t)
+    #     term_3_minus = first_singlet_moment(eta,mu,particle=particle,gpd_label="Htilde",error_type="minus",t0_only=t)
 
     result = (term_1 + term_2)/2 - term_3/2
     error_plus = np.sqrt((term_1_plus-term_1)**2+(term_2_plus-term_2)**2+(term_3-term_3_plus)**2)/2
@@ -4284,45 +4677,56 @@ def orbital_angular_momentum(eta,t,mu, particle="quark",moment_type="non_singlet
 
     return result, error_plus, error_minus
 
-def quark_gluon_helicity(eta,t,mu, particle="quark",moment_type="non_singlet_isovector",evolution_order="LO"):
+def quark_gluon_helicity(eta,t,mu,Nf=3,A0=1, particle="quark",moment_type="non_singlet_isovector",evolution_order="LO"):
     """ Prints the quark helicity of moment_type including errors
 
     Parameters:
     - eta (float): Skewness parameter
     - t (float): Mandelstam t
     - mu (float): The momentum scale of the process
+    - Nf (int, optional): Number of active quarks
+    - A0 (float, optional): Overall scale
     - moment_type (str. optional): The flavor dependence. Either non_singlet_isovector or non_singlet_isoscalar    
     """
-    check_particle_type(particle)
+    hp.check_particle_type(particle)
     if moment_type not in ["singlet","non_singlet_isoscalar","non_singlet_isovector"]:
         raise ValueError(f"Wrong moment type {moment_type}")
     if particle == "gluon" and moment_type != "singlet":
         raise ValueError(f"Wrong moment_type {moment_type} for {particle}")
 
-    if particle == "quark":
-        result = evolve_conformal_moment(1,eta,t,mu,particle=particle,moment_type=moment_type,moment_label="Atilde",evolution_order=evolution_order,error_type="central")/2
+    # if particle == "quark":
+    #     result = evolve_conformal_moment(1,eta,t,mu,particle=particle,moment_type=moment_type,moment_label="Atilde",evolution_order=evolution_order,error_type="central")/2
 
-        term_1 = evolve_conformal_moment(1,eta,t,mu,particle=particle,moment_type=moment_type,moment_label="Atilde",evolution_order=evolution_order,error_type="plus")/2
-        error_plus = abs(result - term_1)
+    #     term_1 = evolve_conformal_moment(1,eta,t,mu,particle=particle,moment_type=moment_type,moment_label="Atilde",evolution_order=evolution_order,error_type="plus")/2
+    #     error_plus = abs(result - term_1)
 
-        term_1 = evolve_conformal_moment(1,eta,t,mu,particle=particle,moment_type=moment_type,moment_label="Atilde",evolution_order=evolution_order,error_type="minus")/2
-        error_minus = abs(result - term_1)
-    else:
-        result = first_singlet_moment(eta=eta,mu=mu,particle="gluon",gpd_label="Htilde",error_type="central",t0_only=t)/2
+    #     term_1 = evolve_conformal_moment(1,eta,t,mu,particle=particle,moment_type=moment_type,moment_label="Atilde",evolution_order=evolution_order,error_type="minus")/2
+    #     error_minus = abs(result - term_1)
+    # else:
+    #     result = first_singlet_moment(eta=eta,mu=mu,particle="gluon",gpd_label="Htilde",error_type="central",t0_only=t)/2
 
-        term_1 = first_singlet_moment(eta=eta,mu=mu,particle="gluon",gpd_label="Htilde",error_type="plus",t0_only=t)/2
-        error_plus = abs(result - term_1)
+    #     term_1 = first_singlet_moment(eta=eta,mu=mu,particle="gluon",gpd_label="Htilde",error_type="plus",t0_only=t)/2
+    #     error_plus = abs(result - term_1)
 
-        term_1 = first_singlet_moment(eta=eta,mu=mu,particle="gluon",gpd_label="Htilde",error_type="plus",t0_only=t)/2
-        error_minus = abs(result - term_1)
+    #     term_1 = first_singlet_moment(eta=eta,mu=mu,particle="gluon",gpd_label="Htilde",error_type="plus",t0_only=t)/2
+    #     error_minus = abs(result - term_1)
+
+    result = evolve_conformal_moment(1,eta,t,mu,Nf,A0,particle=particle,moment_type=moment_type,moment_label="Atilde",evolution_order=evolution_order,error_type="central")/2
+
+    term_1 = evolve_conformal_moment(1,eta,t,mu,Nf,A0,particle=particle,moment_type=moment_type,moment_label="Atilde",evolution_order=evolution_order,error_type="plus")/2
+    error_plus = abs(result - term_1)
+
+    term_1 = evolve_conformal_moment(1,eta,t,mu,Nf,A0,particle=particle,moment_type=moment_type,moment_label="Atilde",evolution_order=evolution_order,error_type="minus")/2
+    error_minus = abs(result - term_1)
+
     return result, error_plus, error_minus
 
-def quark_helicity(eta,t,mu, moment_type="non_singlet_isovector",evolution_order="LO"):
-    result, error_plus, error_minus = quark_gluon_helicity(eta,t,mu,particle="quark",moment_type=moment_type,evolution_order=evolution_order)
+def quark_helicity(eta,t,mu,Nf=3,A0=1, moment_type="non_singlet_isovector",evolution_order="LO"):
+    result, error_plus, error_minus = quark_gluon_helicity(eta,t,mu,Nf,A0,particle="quark",moment_type=moment_type,evolution_order=evolution_order)
     return result, error_plus, error_minus
 
-def gluon_helicity(eta,t,mu,evolution_order="LO"):
-    result, error_plus, error_minus = quark_gluon_helicity(t,mu,particle="gluon",moment_type="singlet",evolution_order=evolution_order)
+def gluon_helicity(eta,t,mu,Nf=3,A0=1,evolution_order="LO"):
+    result, error_plus, error_minus = quark_gluon_helicity(t,mu,Nf,A0,particle="gluon",moment_type="singlet",evolution_order=evolution_order)
     return result, error_plus, error_minus
 
 ################################
@@ -4330,7 +4734,7 @@ def gluon_helicity(eta,t,mu,evolution_order="LO"):
 ################################
 
 
-def plot_moment(n,eta,y_label,mu_in=2,t_max=3,Nf=3,particle="quark",moment_type="non_singlet_isovector", moment_label="A",evolution_order="LO", n_t=50):
+def plot_moment(n,eta,y_label,mu_in=2,t_max=3,Nf=3,A0=1,particle="quark",moment_type="non_singlet_isovector", moment_label="A",evolution_order="LO", n_t=50):
     """
     Generates plots of lattice data and RGE-evolved functions for a given moment type and label. Unless there is a different scale
     defined in PUBLICATION_MAPPING, the default is mu = 2 GeV.
@@ -4342,18 +4746,19 @@ def plot_moment(n,eta,y_label,mu_in=2,t_max=3,Nf=3,particle="quark",moment_type=
     - mu_in (float, optional): The resolution scale. (default is 2 GeV).
     - t_max (float, optional): Maximum t value for the x-axis (default is 3).
     - Nf (int, optional): Number of active flavors (default is 3)
+    - A0 (float, optional): Overall scale
     - particle (str., optional): Either quark or gluon
     - moment_type (str): The type of moment (e.g., "non_singlet_isovector").
     - moment_label (str): The label of the moment (e.g., "A").
     - n_t (int, optional): Number of points for t_fine (default is 50).
     - num_columns (int, optional): Number of columns for the grid layout (default is 3).
     """
-    check_particle_type(particle)
-    check_moment_type_label(moment_type,moment_label)
+    hp.check_particle_type(particle)
+    hp.check_moment_type_label(moment_type,moment_label)
     # Accessor functions for -t, values, and errors
     def t_values(moment_type, moment_label, pub_id):
         """Return the -t values for a given moment type, label, and publication ID."""
-        data, n_to_row_map = load_lattice_moment_data(particle,moment_type, moment_label, pub_id)
+        data, n_to_row_map = hp.load_lattice_moment_data(particle,moment_type, moment_label, pub_id)
 
         if data is None and n_to_row_map is None:
             print(f"No data found for {moment_type} {moment_label} {pub_id}. Skipping.")
@@ -4371,29 +4776,29 @@ def plot_moment(n,eta,y_label,mu_in=2,t_max=3,Nf=3,particle="quark",moment_type=
         """Compute central, plus, and minus results for a given evolution function."""
         if moment_type != "D":
             results = Parallel(n_jobs=-1)(
-                delayed(lambda t: float(evolve_conformal_moment(j, eta, t, mu, Nf, particle, moment_type, moment_label, evolution_order, "central")))(t)
+                delayed(lambda t: float(evolve_conformal_moment(j, eta, t, mu, Nf, A0, particle, moment_type, moment_label, evolution_order, "central").real))(t)
                 for t in t_vals
             )
             results_plus = Parallel(n_jobs=-1)(
-                delayed(lambda t: float(evolve_conformal_moment(j, eta, t, mu, Nf, particle, moment_type, moment_label, evolution_order, "plus")))(t)
+                delayed(lambda t: float(evolve_conformal_moment(j, eta, t, mu, Nf, A0, particle, moment_type, moment_label, evolution_order, "plus").real))(t)
                 for t in t_vals
             )
             results_minus = Parallel(n_jobs=-1)(
-                delayed(lambda t: float(evolve_conformal_moment(j, eta, t, mu, Nf, particle, moment_type, moment_label, evolution_order, "minus")))(t)
+                delayed(lambda t: float(evolve_conformal_moment(j, eta, t, mu, Nf, A0, particle, moment_type, moment_label, evolution_order, "minus").real))(t)
                 for t in t_vals
             )
             return results, results_plus, results_minus
         else:
             results = Parallel(n_jobs=-1)(
-                delayed(lambda t: float(evolve_singlet_D(j, eta, t, mu, Nf, particle, moment_label, evolution_order, "central")))(t)
+                delayed(lambda t: float(evolve_singlet_D(j, eta, t, mu, Nf, A0, particle, moment_label, evolution_order, "central").real))(t)
                 for t in t_vals
             )
             results_plus = Parallel(n_jobs=-1)(
-                delayed(lambda t: float(evolve_singlet_D(j, eta, t, mu, Nf, particle, moment_label, evolution_order, "plus")))(t)
+                delayed(lambda t: float(evolve_singlet_D(j, eta, t, mu, Nf, A0, particle, moment_label, evolution_order, "plus").real))(t)
                 for t in t_vals
             )
             results_minus = Parallel(n_jobs=-1)(
-                delayed(lambda t: float(evolve_singlet_D(j, eta, t, mu, Nf, particle, moment_label, evolution_order, "minus")))(t)
+                delayed(lambda t: float(evolve_singlet_D(j, eta, t, mu, Nf, A0, particle, moment_label, evolution_order, "minus").real))(t)
                 for t in t_vals
             )
             return results, results_plus, results_minus
@@ -4412,15 +4817,15 @@ def plot_moment(n,eta,y_label,mu_in=2,t_max=3,Nf=3,particle="quark",moment_type=
     
     # Plot data from publications
 
-    for pub_id, (color,mu) in PUBLICATION_MAPPING.items():
+    for pub_id, (color,mu) in cfg.PUBLICATION_MAPPING.items():
         if mu != mu_in:
             continue
-        data, n_to_row_map = load_lattice_moment_data(particle,moment_type, moment_label, pub_id)
+        data, n_to_row_map = hp.load_lattice_moment_data(particle,moment_type, moment_label, pub_id)
         if data is None or n not in n_to_row_map:
             continue
         t_vals = t_values(moment_type, moment_label, pub_id)
-        Fn0_vals = Fn0_values(n, particle, moment_type, moment_label, pub_id)
-        Fn0_errs = Fn0_errors(n, particle, moment_type, moment_label, pub_id)
+        Fn0_vals = hp.Fn0_values(n, particle, moment_type, moment_label, pub_id)
+        Fn0_errs = hp.Fn0_errors(n, particle, moment_type, moment_label, pub_id)
         ax.errorbar(t_vals, Fn0_vals, yerr=Fn0_errs, fmt='o', color=color, label=f"{pub_id}")
 
     # Add labels and formatting
@@ -4437,7 +4842,7 @@ def plot_moment(n,eta,y_label,mu_in=2,t_max=3,Nf=3,particle="quark",moment_type=
     
     plt.show()
 
-def plot_moments_on_grid(eta, y_label, t_max=3, Nf=3, particle="quark", moment_type="non_singlet_isovector", moment_label="A",evolution_order="LO", n_t=50, num_columns=3,D_term = False,set_y_lim=False,y_0 = -1, y_1 =1):
+def plot_moments_on_grid(eta, y_label, t_max=3, Nf=3,A0=1, particle="quark", moment_type="non_singlet_isovector", moment_label="A",evolution_order="LO", n_t=50, num_columns=3,D_term = False,set_y_lim=False,y_0 = -1, y_1 =1):
     """
     Plots conformal moments vs. available lattice data.
 
@@ -4446,6 +4851,7 @@ def plot_moments_on_grid(eta, y_label, t_max=3, Nf=3, particle="quark", moment_t
     - y_label (str.): Label on y-axis
     - t_max (float, optional): Maximum value of -t
     - Nf (float, optional): Number of active flavors
+    - A0 (float, optional): Overall scale, default is 1
     - particle (str. optional): quark or gluon
     - moment_type (str. optional): non_singlet_isovector, singlet...
     - moment_label (str. optional): A, B, Atilde,...
@@ -4456,8 +4862,8 @@ def plot_moments_on_grid(eta, y_label, t_max=3, Nf=3, particle="quark", moment_t
     - y_0 (float, optional): lower limit on y_axis
     - y_1 (float, optional): upper limit on y_axis
     """
-    check_particle_type(particle)
-    check_moment_type_label(moment_type, moment_label)
+    hp.check_particle_type(particle)
+    hp.check_moment_type_label(moment_type, moment_label)
 
     if not D_term:
         data_moment_label = moment_label
@@ -4467,7 +4873,7 @@ def plot_moments_on_grid(eta, y_label, t_max=3, Nf=3, particle="quark", moment_t
     # Accessor functions for -t, values, and errors
     def t_values(data_moment_type, data_moment_label, pub_id):
         """Return the -t values for a given moment type, label, and publication ID."""
-        data, n_to_row_map = load_lattice_moment_data(particle,data_moment_type, data_moment_label, pub_id)
+        data, n_to_row_map = hp.load_lattice_moment_data(particle,data_moment_type, data_moment_label, pub_id)
 
         if data is None and n_to_row_map is None:
             print(f"No data found for {data_moment_type} {data_moment_label} {pub_id}. Skipping.")
@@ -4479,33 +4885,33 @@ def plot_moments_on_grid(eta, y_label, t_max=3, Nf=3, particle="quark", moment_t
             print(f"Data is None for {data_moment_type} {data_moment_label} {pub_id}. Skipping.")
         return None  
 
-    def compute_results(j, eta, t_vals, mu, Nf=3, particle="quark", moment_type="non_singlet_isovector", moment_label="A",evolution_order=evolution_order):
+    def compute_results(j,t_vals):
         """Compute central, plus, and minus results for a given evolution function."""
         if not D_term:
             results = Parallel(n_jobs=-1)(
-                delayed(lambda t: float(evolve_conformal_moment(j, eta, t, mu, Nf, particle, moment_type, moment_label, evolution_order, "central")))(t)
+                delayed(lambda t: float(evolve_conformal_moment(j, eta, t, mu, Nf, A0, particle, moment_type, moment_label, evolution_order, "central").real))(t)
                 for t in t_vals
             )
             results_plus = Parallel(n_jobs=-1)(
-                delayed(lambda t: float(evolve_conformal_moment(j, eta, t, mu, Nf, particle, moment_type, moment_label, evolution_order, "plus")))(t)
+                delayed(lambda t: float(evolve_conformal_moment(j, eta, t, mu, Nf, A0, particle, moment_type, moment_label, evolution_order, "plus").real))(t)
                 for t in t_vals
             )
             results_minus = Parallel(n_jobs=-1)(
-                delayed(lambda t: float(evolve_conformal_moment(j, eta, t, mu, Nf, particle, moment_type, moment_label, evolution_order, "minus")))(t)
+                delayed(lambda t: float(evolve_conformal_moment(j, eta, t, mu, Nf, A0, particle, moment_type, moment_label, evolution_order, "minus").real))(t)
                 for t in t_vals
             )
             return results, results_plus, results_minus
         else:
             results = Parallel(n_jobs=-1)(
-                delayed(lambda t: float(evolve_singlet_D(j, eta, t, mu, Nf, particle, moment_label, evolution_order, "central")))(t)
+                delayed(lambda t: float(evolve_singlet_D(j, eta, t, mu, Nf,A0, particle, moment_label, evolution_order, "central").real))(t)
                 for t in t_vals
             )
             results_plus = Parallel(n_jobs=-1)(
-                delayed(lambda t: float(evolve_singlet_D(j, eta, t, mu, Nf, particle, moment_label, evolution_order, "plus")))(t)
+                delayed(lambda t: float(evolve_singlet_D(j, eta, t, mu, Nf,A0, particle, moment_label, evolution_order, "plus").real))(t)
                 for t in t_vals
             )
             results_minus = Parallel(n_jobs=-1)(
-                delayed(lambda t: float(evolve_singlet_D(j, eta, t, mu, Nf, particle, moment_label, evolution_order, "minus")))(t)
+                delayed(lambda t: float(evolve_singlet_D(j, eta, t, mu, Nf,A0, particle, moment_label, evolution_order, "minus").real))(t)
                 for t in t_vals
             )
             return results, results_plus, results_minus
@@ -4517,8 +4923,8 @@ def plot_moments_on_grid(eta, y_label, t_max=3, Nf=3, particle="quark", moment_t
     # Initialize publication data
     publication_data = {}
     mu = None
-    for pub_id, (color,mu) in PUBLICATION_MAPPING.items():
-        data, n_to_row_map = load_lattice_moment_data(particle,moment_type, data_moment_label, pub_id)
+    for pub_id, (color,mu) in cfg.PUBLICATION_MAPPING.items():
+        data, n_to_row_map = hp.load_lattice_moment_data(particle,moment_type, data_moment_label, pub_id)
         if data is None and n_to_row_map is None:
             continue
         num_n_values = (data.shape[1] - 1) // 2
@@ -4549,7 +4955,7 @@ def plot_moments_on_grid(eta, y_label, t_max=3, Nf=3, particle="quark", moment_t
         ax = axes[n - 1]  # Select the appropriate axis
         
         # Compute results for the current n
-        evolve_moment_central, evolve_moment_plus, evolve_moment_minus = compute_results(n, eta, t_fine, mu, Nf, particle, moment_type, moment_label,evolution_order)
+        evolve_moment_central, evolve_moment_plus, evolve_moment_minus = compute_results(n, t_fine)
 
         if publication_data:
             ax.plot(-t_fine, evolve_moment_central, color="blue", linewidth=2, label="This work")
@@ -4559,13 +4965,13 @@ def plot_moments_on_grid(eta, y_label, t_max=3, Nf=3, particle="quark", moment_t
 
         # Plot data from publications
         if publication_data:
-            for pub_id, (color, mu) in PUBLICATION_MAPPING.items():
-                data, n_to_row_map = load_lattice_moment_data(particle,moment_type, data_moment_label, pub_id)
+            for pub_id, (color, mu) in cfg.PUBLICATION_MAPPING.items():
+                data, n_to_row_map = hp.load_lattice_moment_data(particle,moment_type, data_moment_label, pub_id)
                 if data is None or n not in n_to_row_map:
                     continue
                 t_vals = t_values(moment_type, data_moment_label, pub_id)
-                Fn0_vals = Fn0_values(n, particle, moment_type, data_moment_label, pub_id)
-                Fn0_errs = Fn0_errors(n, particle, moment_type, data_moment_label, pub_id)
+                Fn0_vals = hp.Fn0_values(n, particle, moment_type, data_moment_label, pub_id)
+                Fn0_errs = hp.Fn0_errors(n, particle, moment_type, data_moment_label, pub_id)
                 ax.errorbar(t_vals, Fn0_vals, yerr=Fn0_errs, fmt='o', color=color, label=f"{pub_id}")
             ax.legend()
 
@@ -4579,7 +4985,7 @@ def plot_moments_on_grid(eta, y_label, t_max=3, Nf=3, particle="quark", moment_t
             ax.set_ylim([y_0,y_1])
 
         # Save each plot as a separate PDF (including publication data)
-        pdf_path = f"{PLOT_PATH}{moment_type}_{particle}_{data_moment_label}_n_{n}.pdf"
+        pdf_path = cfg.PLOT_PATH / f"{moment_type}_{particle}_{data_moment_label}_n_{n}.pdf"
         
         # Create a new figure to save the current plot as a PDF
         fig_single, ax_single = plt.subplots(figsize=(7, 5))  # New figure for saving each plot
@@ -4590,13 +4996,13 @@ def plot_moments_on_grid(eta, y_label, t_max=3, Nf=3, particle="quark", moment_t
 
         # Plot data from publications
         if publication_data:
-            for pub_id, (color, mu) in PUBLICATION_MAPPING.items():
-                data, n_to_row_map = load_lattice_moment_data(particle,moment_type, data_moment_label, pub_id)
+            for pub_id, (color, mu) in cfg.PUBLICATION_MAPPING.items():
+                data, n_to_row_map = hp.load_lattice_moment_data(particle,moment_type, data_moment_label, pub_id)
                 if data is None or n not in n_to_row_map:
                     continue
                 t_vals = t_values(moment_type, data_moment_label, pub_id)
-                Fn0_vals = Fn0_values(n, particle, moment_type, data_moment_label, pub_id)
-                Fn0_errs = Fn0_errors(n, particle, moment_type, data_moment_label, pub_id)
+                Fn0_vals = hp.Fn0_values(n, particle, moment_type, data_moment_label, pub_id)
+                Fn0_errs = hp.Fn0_errors(n, particle, moment_type, data_moment_label, pub_id)
                 ax_single.errorbar(t_vals, Fn0_vals, yerr=Fn0_errs, fmt='o', color=color, label=f"{pub_id}")
             ax_single.legend()
         ax_single.set_xlabel("$-t\,[\mathrm{GeV}^2]$", fontsize=14)
@@ -4627,89 +5033,8 @@ def plot_moments_on_grid(eta, y_label, t_max=3, Nf=3, particle="quark", moment_t
     plt.tight_layout()
     plt.show()
 
-    # Close the figure to free up memory
+    # Close the figure
     plt.close(fig)
-
-def plot_moments_D_on_grid(t_max, mu, Nf=3,evolution_order="LO", n_t=50,display="both"):
-    """
-    Plot evolution for gluon or quark singlet D term conformal moments.
-
-    Parameters:
-        t_max (float): Maximum value of Mandelstam t.
-        mu (float): Scale parameter (e.g., 2 GeV).
-        Nf (int, optional): Number of flavors (default is 3).
-        n_t (int, optional): Number of data points
-        display (str, optional): "quark", "gluon", or "both" to specify which plots to display (default is "both").
-    """
-    if display not in ["quark", "gluon", "both"]:
-        raise ValueError("Invalid value for display. Use 'quark', 'gluon', or 'both'.")
-    
-
-
-    # Compute results for the evolution functions
-    def compute_results_D(j, eta, t_vals, mu, Nf=3, particle="quark", moment_type="non_singlet_isovector", moment_label="A"):
-        """Compute central, plus, and minus results for a given evolution function."""
-        results = Parallel(n_jobs=-1)(
-            delayed(lambda t: float(evolve_singlet_D(j, eta, t, mu, Nf, particle, moment_label, evolution_order, "central")))(t)
-            for t in t_vals
-        )
-        results_plus = Parallel(n_jobs=-1)(
-            delayed(lambda t: float(evolve_singlet_D(j, eta, t, mu, Nf, particle, moment_label, evolution_order, "plus")))(t)
-            for t in t_vals
-        )
-        results_minus = Parallel(n_jobs=-1)(
-            delayed(lambda t: float(evolve_singlet_D(j, eta, t, mu, Nf, particle, moment_label, evolution_order, "minus")))(t)
-            for t in t_vals
-        )
-        return results, results_plus, results_minus
-
-    def plot_results(t_values, results, results_plus, results_minus, xlabel, ylabel, ax=None):
-        """Plot results on the given axis, or create a new figure if ax is None."""
-        if ax is None:
-            fig, ax = plt.subplots(figsize=(6, 4))
-        ax.plot(-t_values, results, label="This work", color="blue")
-        ax.fill_between(-t_values, results_minus, results_plus, color="blue", alpha=0.2)
-        ax.set_xlabel(xlabel, fontsize=14)
-        ax.set_ylabel(ylabel, fontsize=14)
-        ax.grid(True)
-        ax.legend()
-        if ax is None:
-            plt.tight_layout()
-            plt.show()
-
-    def plot_evolve_gluon_D(t_values, mu, Nf=3, ax=None):
-        """Compute and plot gluon D evolution."""
-        results, results_plus, results_minus = compute_results_D(2, 0, t_values, mu, Nf, "gluon","A")
-        plot_results(t_values, results, results_plus, results_minus,
-                    xlabel="$-t\,[\mathrm{GeV}^2]$", ylabel="$D_g(t,\mu = 2\,[\mathrm{GeV}])$", ax=ax)
-
-    def plot_evolve_quark_singlet_D(t_values, mu, Nf=3, ax=None):
-        """Compute and plot quark singlet D evolution."""
-        results, results_plus, results_minus = compute_results_D(2, 0, t_values, mu, Nf, "quark","A")
-        plot_results(t_values, results, results_plus, results_minus,
-                    xlabel="$-t\,[\mathrm{GeV}^2]$", ylabel="$D_{u+d+s}(t,\mu = 2\,[\mathrm{GeV}])$", ax=ax)
-
-    # Set up the figure and axes
-    if display == "both":
-        fig, axes = plt.subplots(1, 2, figsize=(12, 6), sharey=True)
-        ax_gluon, ax_quark = axes
-    else:
-        fig, ax = plt.subplots(figsize=(6, 4))
-        ax_gluon = ax_quark = ax
-
-    t_values = np.linspace(-t_max,-1e-2,n_t)
-
-    # Plot gluon evolution if requested
-    if display in ["gluon", "both"]:
-        plot_evolve_gluon_D(t_values, mu, Nf, ax=ax_gluon)
-
-    # Plot quark singlet evolution if requested
-    if display in ["quark", "both"]:
-        plot_evolve_quark_singlet_D(t_values, mu, Nf, ax=ax_quark)
-
-    # Adjust layout and show the plot
-    plt.tight_layout()
-    plt.show()
 
 def plot_spin_orbit_correlation(particle="quark",evolution_order="LO",n_t = 50):
     """
@@ -4741,7 +5066,7 @@ def plot_spin_orbit_correlation(particle="quark",evolution_order="LO",n_t = 50):
     moment_data = []
     for j, pub in enumerate(publications):
         for i, moment_type in enumerate(moment_types):
-            t_values, val_data, err_data = load_Cz_data(particle,moment_type,pub[0],pub[1])
+            t_values, val_data, err_data = hp.load_Cz_data(particle,moment_type,pub[0],pub[1])
             if (t_values is None or (isinstance(t_values, np.ndarray) and t_values.size == 0)) and \
             (val_data is None or (isinstance(val_data, np.ndarray) and val_data.size == 0)) and \
             (err_data is None or (isinstance(err_data, np.ndarray) and err_data.size == 0)): 
@@ -4774,7 +5099,7 @@ def plot_spin_orbit_correlation(particle="quark",evolution_order="LO",n_t = 50):
     #plt.xscale('log') # set x axis to log scale
     plt.tight_layout()
 
-    FILE_PATH = PLOT_PATH + "Cz_over_t" +".pdf"
+    FILE_PATH = cfg.PLOT_PATH / "Cz_over_t" +".pdf"
     plt.savefig(FILE_PATH,format="pdf",bbox_inches="tight",dpi=600)
 
     plt.show()
@@ -4797,8 +5122,8 @@ def plot_fourier_transform_moments(j,eta,mu,plot_title,Nf=3,particle="quark",mom
     - num_points (float, optional): Number of intervals to split [-Delta_max, Delta_max] interval (default is 100).
     - error_type (str. optional): Whether to use central, plus or minus value of input PDF. Default is central.
     """
-    check_particle_type(particle)
-    check_moment_type_label(moment_type,moment_label)
+    hp.check_particle_type(particle)
+    hp.check_moment_type_label(moment_type,moment_label)
     # Define the grid for b_vec
     b_x = np.linspace(-b_max, b_max, 50)  # Range of x-component of b_vec
     b_y = np.linspace(-b_max, b_max, 50)  # Range of y-component of b_vec
@@ -4851,7 +5176,7 @@ def plot_fourier_transform_transverse_moments(j,eta,mu,Nf=3,particle="quark",mom
     - read_from_file (bool): Whether to load data from file system
     - write_to_file (bool): Whether to write data to file system
     """
-    check_particle_type(particle)
+    hp.check_particle_type(particle)
 
     if moment_type not in ["non_singlet_isovector", "non_singlet_isoscalar", "u", "d", "all","singlet"]:
         raise ValueError(f"Wrong moment_type {moment_type}")
@@ -4859,7 +5184,7 @@ def plot_fourier_transform_transverse_moments(j,eta,mu,Nf=3,particle="quark",mom
     if write_to_file and read_from_file:
         raise ValueError("write_to_file and read_from_file can't simultaneously be True")
 
-    FILE_PATH = PLOT_PATH + "imp_param_transv_pol_moment_j_" + str(j) + "_" + moment_type  +".pdf"
+    FILE_PATH = cfg.PLOT_PATH / "imp_param_transv_pol_moment_j_" + str(j) + "_" + moment_type  +".pdf"
 
     # Define the grid for b_vec
     b_x = np.linspace(-b_max, b_max, n_b)
@@ -4885,7 +5210,7 @@ def plot_fourier_transform_transverse_moments(j,eta,mu,Nf=3,particle="quark",mom
         axs = np.array([[axs[0]], [axs[1]]])  # Make it a 2D array for consistency
 
     for i, mom_type in enumerate(moment_types):
-        READ_WRITE_PATH = IMPACT_PARAMETER_MOMENTS_PATH + "imp_param_transv_pol_moment_j_" + str(j) + "_"  + mom_type 
+        READ_WRITE_PATH = cfg.IMPACT_PARAMETER_MOMENTS_PATH / "imp_param_transv_pol_moment_j_" + str(j) + "_"  + mom_type 
         row, col = divmod(i, 4)  # Map index to subplot location
         ax = axs[col]
 
@@ -4909,8 +5234,8 @@ def plot_fourier_transform_transverse_moments(j,eta,mu,Nf=3,particle="quark",mom
             b_y_fm = b_y * hbarc
             if mom_type not in cache:
                 if read_from_file:
-                    file_name = generate_filename(eta,0,mu,READ_WRITE_PATH,"central")
-                    b_x_fm, b_y_fm, fourier_transform_moment_values_flat = read_ft_from_csv(file_name)
+                    file_name = hp.generate_filename(eta,0,mu,READ_WRITE_PATH,"central")
+                    b_x_fm, b_y_fm, fourier_transform_moment_values_flat = hp.read_ft_from_csv(file_name)
                     n_b = len(fourier_transform_moment_values_flat)
                     b_x = np.linspace(-b_max, b_max, n_b)
                     b_y = np.linspace(-b_max, b_max, n_b)
@@ -4927,8 +5252,8 @@ def plot_fourier_transform_transverse_moments(j,eta,mu,Nf=3,particle="quark",mom
 
         if mom_type in ["u","d"]:
             if read_from_file:
-                file_name = generate_filename(eta,0,mu,READ_WRITE_PATH,"central")
-                b_x_fm, b_y_fm, _ = read_ft_from_csv(file_name)
+                file_name = hp.generate_filename(eta,0,mu,READ_WRITE_PATH,"central")
+                b_x_fm, b_y_fm, _ = hp.read_ft_from_csv(file_name)
             elif interpolation:
                 b_x = np.linspace(-b_max, b_max, n_b)
                 b_y = np.linspace(-b_max, b_max, n_b)
@@ -4974,8 +5299,8 @@ def plot_fourier_transform_transverse_moments(j,eta,mu,Nf=3,particle="quark",mom
             fig.colorbar(im, cax=cbar_ax)
 
         if write_to_file:
-            file_name = generate_filename(eta,0,mu,READ_WRITE_PATH,"central")
-            save_ft_to_csv(b_x_fm_write_out,b_y_fm_write_out,ft_write_out,file_name)
+            file_name = hp.generate_filename(eta,0,mu,READ_WRITE_PATH,"central")
+            hp.save_ft_to_csv(b_x_fm_write_out,b_y_fm_write_out,ft_write_out,file_name)
 
         # Remove ticks and labels
         if i != 0 and moment_type == "all":
@@ -5031,7 +5356,7 @@ def plot_fourier_transform_quark_spin_orbit_correlation(eta, mu, Nf=3, moment_ty
     if moment_type not in ["non_singlet_isovector", "non_singlet_isoscalar", "u", "d", "all"]:
         raise ValueError(f"Wrong moment_type {moment_type}")
 
-    FILE_PATH = PLOT_PATH + "imp_param_spin_orbit_" + moment_type  +".pdf"
+    FILE_PATH = cfg.PLOT_PATH + "imp_param_spin_orbit_" + moment_type  +".pdf"
 
     # Define the grid for b_vec
     b_x = np.linspace(-b_max, b_max, n_b)
@@ -5057,7 +5382,7 @@ def plot_fourier_transform_quark_spin_orbit_correlation(eta, mu, Nf=3, moment_ty
         axs = np.array([[axs[0]], [axs[1]]])  # Make it a 2D array for consistency
 
     for i, mom_type in enumerate(moment_types):
-        READ_WRITE_PATH = IMPACT_PARAMETER_MOMENTS_PATH + "imp_param_spin_orbit_" + mom_type 
+        READ_WRITE_PATH = cfg.IMPACT_PARAMETER_MOMENTS_PATH / "imp_param_spin_orbit_" + mom_type 
         row, col = divmod(i, 4)  # Map index to subplot location
         ax = axs[0, col]
         ax_lower = axs[1, col]
@@ -5082,8 +5407,8 @@ def plot_fourier_transform_quark_spin_orbit_correlation(eta, mu, Nf=3, moment_ty
             b_y_fm = b_y * hbarc
             if mom_type not in cache:
                 if read_from_file:
-                    file_name = generate_filename(eta,0,mu,READ_WRITE_PATH,"central")
-                    b_x_fm, b_y_fm, fourier_transform_moment_values_flat = read_ft_from_csv(file_name)
+                    file_name = hp.generate_filename(eta,0,mu,READ_WRITE_PATH,"central")
+                    b_x_fm, b_y_fm, fourier_transform_moment_values_flat = hp.read_ft_from_csv(file_name)
                     n_b = len(fourier_transform_moment_values_flat)
                     b_x = np.linspace(-b_max, b_max, n_b)
                     b_y = np.linspace(-b_max, b_max, n_b)
@@ -5101,10 +5426,10 @@ def plot_fourier_transform_quark_spin_orbit_correlation(eta, mu, Nf=3, moment_ty
             # Generate error bars for lower plot
             if plot_option in ["lower", "both"]:
                 if read_from_file:
-                    file_name = generate_filename(eta,0,mu,READ_WRITE_PATH,"plus")
-                    _, _, fourier_transform_moment_values_flat_plus = read_ft_from_csv(file_name)
-                    file_name = generate_filename(eta,0,mu,READ_WRITE_PATH,"minus")
-                    _, _, fourier_transform_moment_values_flat_minus = read_ft_from_csv(file_name)
+                    file_name = hp.generate_filename(eta,0,mu,READ_WRITE_PATH,"plus")
+                    _, _, fourier_transform_moment_values_flat_plus = hp.read_ft_from_csv(file_name)
+                    file_name = hp.generate_filename(eta,0,mu,READ_WRITE_PATH,"minus")
+                    _, _, fourier_transform_moment_values_flat_minus = hp.read_ft_from_csv(file_name)
                 else:
                     fourier_transform_moment_values_flat_plus = Parallel(n_jobs=-1)(delayed(fourier_transform_spin_orbit_correlation)(
                         eta, mu, b_vec, Nf, particle,mom_type, evolution_order, Delta_max, num_points, "plus") for b_vec in b_vecs)
@@ -5125,8 +5450,8 @@ def plot_fourier_transform_quark_spin_orbit_correlation(eta, mu, Nf=3, moment_ty
 
         if mom_type in ["u","d"]:
             if read_from_file:
-                file_name = generate_filename(eta,0,mu,READ_WRITE_PATH,"central")
-                b_x_fm, b_y_fm, _ = read_ft_from_csv(file_name)
+                file_name = hp.generate_filename(eta,0,mu,READ_WRITE_PATH,"central")
+                b_x_fm, b_y_fm, _ = hp.read_ft_from_csv(file_name)
             elif interpolation:
                 b_x = np.linspace(-b_max, b_max, n_b)
                 b_y = np.linspace(-b_max, b_max, n_b)
@@ -5212,13 +5537,13 @@ def plot_fourier_transform_quark_spin_orbit_correlation(eta, mu, Nf=3, moment_ty
             ax_lower.set_yticks([])
             ax_lower.set_yticklabels([])
         if write_to_file:
-            file_name = generate_filename(eta,0,mu,READ_WRITE_PATH,"central")
-            save_ft_to_csv(b_x_fm_write_out,b_y_fm_write_out,ft_write_out,file_name)
+            file_name = hp.generate_filename(eta,0,mu,READ_WRITE_PATH,"central")
+            hp.save_ft_to_csv(b_x_fm_write_out,b_y_fm_write_out,ft_write_out,file_name)
             if plot_option in ["lower", "both"]:
-                file_name = generate_filename(eta,0,mu,READ_WRITE_PATH,"plus")
-                save_ft_to_csv(b_x_fm_write_out,b_y_fm_write_out,ft_write_out_plus,file_name)
-                file_name = generate_filename(eta,0,mu,READ_WRITE_PATH,"minus")
-                save_ft_to_csv(b_x_fm_write_out,b_y_fm_write_out,ft_write_out_minus,file_name)
+                file_name = hp.generate_filename(eta,0,mu,READ_WRITE_PATH,"plus")
+                hp.save_ft_to_csv(b_x_fm_write_out,b_y_fm_write_out,ft_write_out_plus,file_name)
+                file_name = hp.generate_filename(eta,0,mu,READ_WRITE_PATH,"minus")
+                hp.save_ft_to_csv(b_x_fm_write_out,b_y_fm_write_out,ft_write_out_minus,file_name)
     plt.subplots_adjust(wspace=0, hspace=0)
 
     # File export
@@ -5262,7 +5587,7 @@ def plot_fourier_transform_quark_helicity(eta, mu, Nf=3, moment_type="non_single
     if moment_type not in ["non_singlet_isovector", "non_singlet_isoscalar", "u", "d", "all"]:
         raise ValueError(f"Wrong moment_type {moment_type}")
 
-    FILE_PATH = PLOT_PATH + "imp_param_helicity_" + moment_type +".pdf"
+    FILE_PATH = cfg.PLOT_PATH / "imp_param_helicity_" + moment_type +".pdf"
     
 
     # Define the grid for b_vec
@@ -5289,7 +5614,7 @@ def plot_fourier_transform_quark_helicity(eta, mu, Nf=3, moment_type="non_single
         axs = np.array([[axs[0]], [axs[1]]])  # Make it a 2D array for consistency
 
     for i, mom_type in enumerate(moment_types):
-        READ_WRITE_PATH = IMPACT_PARAMETER_MOMENTS_PATH + "imp_param_helicity_" + mom_type
+        READ_WRITE_PATH = cfg.IMPACT_PARAMETER_MOMENTS_PATH + "imp_param_helicity_" + mom_type
         row, col = divmod(i, 4)  # Map index to subplot location
         ax = axs[0, col]
         ax_lower = axs[1, col]
@@ -5314,8 +5639,8 @@ def plot_fourier_transform_quark_helicity(eta, mu, Nf=3, moment_type="non_single
             b_y_fm = b_y * hbarc
             if mom_type not in cache:
                 if read_from_file:
-                    file_name = generate_filename(eta,0,mu,READ_WRITE_PATH,"central")
-                    b_x_fm, b_y_fm, fourier_transform_moment_values_flat = read_ft_from_csv(file_name)
+                    file_name = hp.generate_filename(eta,0,mu,READ_WRITE_PATH,"central")
+                    b_x_fm, b_y_fm, fourier_transform_moment_values_flat = hp.read_ft_from_csv(file_name)
                     n_b = len(fourier_transform_moment_values_flat)
                     b_x = np.linspace(-b_max, b_max, n_b)
                     b_y = np.linspace(-b_max, b_max, n_b)
@@ -5334,10 +5659,10 @@ def plot_fourier_transform_quark_helicity(eta, mu, Nf=3, moment_type="non_single
                 # Generate error bars for lower plot
                 if plot_option in ["lower", "both"]:
                     if read_from_file:
-                        file_name = generate_filename(eta,0,mu,READ_WRITE_PATH,"plus")
-                        _, _, fourier_transform_moment_values_flat_plus = read_ft_from_csv(file_name)
-                        file_name = generate_filename(eta,0,mu,READ_WRITE_PATH,"minus")
-                        _, _, fourier_transform_moment_values_flat_minus = read_ft_from_csv(file_name)
+                        file_name = hp.generate_filename(eta,0,mu,READ_WRITE_PATH,"plus")
+                        _, _, fourier_transform_moment_values_flat_plus = hp.read_ft_from_csv(file_name)
+                        file_name = hp.generate_filename(eta,0,mu,READ_WRITE_PATH,"minus")
+                        _, _, fourier_transform_moment_values_flat_minus = hp.read_ft_from_csv(file_name)
                     else:
                         fourier_transform_moment_values_flat_plus = Parallel(n_jobs=-1)(delayed(fourier_transform_quark_helicity)(
                             eta, mu, b_vec, Nf, mom_type, evolution_order, Delta_max, num_points, "plus") for b_vec in b_vecs)
@@ -5358,8 +5683,8 @@ def plot_fourier_transform_quark_helicity(eta, mu, Nf=3, moment_type="non_single
         # Use cached values for u and d
         if mom_type in ["u","d"]:
             if read_from_file:
-                file_name = generate_filename(eta,0,mu,READ_WRITE_PATH,"central")
-                b_x_fm, b_y_fm, _ = read_ft_from_csv(file_name)
+                file_name = hp.generate_filename(eta,0,mu,READ_WRITE_PATH,"central")
+                b_x_fm, b_y_fm, _ = hp.read_ft_from_csv(file_name)
             elif interpolation:
                 b_x = np.linspace(-b_max, b_max, n_b)
                 b_y = np.linspace(-b_max, b_max, n_b)
@@ -5443,13 +5768,13 @@ def plot_fourier_transform_quark_helicity(eta, mu, Nf=3, moment_type="non_single
                 ax_lower.set_yticks([])
                 ax_lower.set_yticklabels([])
         if write_to_file:
-            file_name = generate_filename(eta,0,mu,READ_WRITE_PATH,"central")
-            save_ft_to_csv(b_x_fm_write_out,b_y_fm_write_out,ft_write_out,file_name)
+            file_name = hp.generate_filename(eta,0,mu,READ_WRITE_PATH,"central")
+            hp.save_ft_to_csv(b_x_fm_write_out,b_y_fm_write_out,ft_write_out,file_name)
             if plot_option in ["lower", "both"]:
-                file_name = generate_filename(eta,0,mu,READ_WRITE_PATH,"plus")
-                save_ft_to_csv(b_x_fm_write_out,b_y_fm_write_out,ft_write_out_plus,file_name)
-                file_name = generate_filename(eta,0,mu,READ_WRITE_PATH,"minus")
-                save_ft_to_csv(b_x_fm_write_out,b_y_fm_write_out,ft_write_out_minus,file_name)
+                file_name = hp.generate_filename(eta,0,mu,READ_WRITE_PATH,"plus")
+                hp.save_ft_to_csv(b_x_fm_write_out,b_y_fm_write_out,ft_write_out_plus,file_name)
+                file_name = hp.generate_filename(eta,0,mu,READ_WRITE_PATH,"minus")
+                hp.save_ft_to_csv(b_x_fm_write_out,b_y_fm_write_out,ft_write_out_minus,file_name)
     plt.subplots_adjust(wspace=0, hspace=0)
     plt.savefig(FILE_PATH,format="pdf",bbox_inches="tight",dpi=600)
 
@@ -5495,8 +5820,8 @@ def plot_fourier_transform_singlet_helicity(eta, mu, Nf=3, particle = "gluon",ev
         }
     title = title_map[particle]
     
-    FILE_PATH = PLOT_PATH + "imp_param_helicity_" + "singlet_" + particle + ".pdf"
-    READ_WRITE_PATH = IMPACT_PARAMETER_MOMENTS_PATH + "imp_param_helicity_" + "singlet_" + particle
+    FILE_PATH = cfg.PLOT_PATH / "imp_param_helicity_" + "singlet_" + particle + ".pdf"
+    READ_WRITE_PATH = cfg.IMPACT_PARAMETER_MOMENTS_PATH / "imp_param_helicity_" + "singlet_" + particle
 
     # Define the grid for b_vec
     b_x = np.linspace(-b_max, b_max, n_b)
@@ -5517,8 +5842,8 @@ def plot_fourier_transform_singlet_helicity(eta, mu, Nf=3, particle = "gluon",ev
     ax_lower = axs[1, 0]
 
     if read_from_file:
-        file_name = generate_filename(eta,0,mu,READ_WRITE_PATH,"central")
-        b_x_fm, b_y_fm, fourier_transform_moment_values_flat = read_ft_from_csv(file_name)
+        file_name = hp.generate_filename(eta,0,mu,READ_WRITE_PATH,"central")
+        b_x_fm, b_y_fm, fourier_transform_moment_values_flat = hp.read_ft_from_csv(file_name)
     else:
         fourier_transform_moment_values_flat = Parallel(n_jobs=-1)(delayed(fourier_transform_quark_gluon_helicity)(
                     eta, mu, b_vec, Nf, particle,"singlet", evolution_order, Delta_max, num_points, "central") for b_vec in b_vecs)
@@ -5530,10 +5855,10 @@ def plot_fourier_transform_singlet_helicity(eta, mu, Nf=3, particle = "gluon",ev
     # Generate error bars for lower plot
     if plot_option in ["lower", "both"]:
         if read_from_file:
-            file_name = generate_filename(eta,0,mu,READ_WRITE_PATH,"plus")
-            _, _, fourier_transform_moment_values_flat_plus = read_ft_from_csv(file_name)
-            file_name = generate_filename(eta,0,mu,READ_WRITE_PATH,"minus")
-            _, _, fourier_transform_moment_values_flat_minus = read_ft_from_csv(file_name)
+            file_name = hp.generate_filename(eta,0,mu,READ_WRITE_PATH,"plus")
+            _, _, fourier_transform_moment_values_flat_plus = hp.read_ft_from_csv(file_name)
+            file_name = hp.generate_filename(eta,0,mu,READ_WRITE_PATH,"minus")
+            _, _, fourier_transform_moment_values_flat_minus = hp.read_ft_from_csv(file_name)
         else:
             fourier_transform_moment_values_flat_plus = Parallel(n_jobs=-1)(delayed(fourier_transform_quark_gluon_helicity)(
                 eta, mu, b_vec, Nf, particle,"singlet", evolution_order, Delta_max, num_points, "plus") for b_vec in b_vecs)
@@ -5604,13 +5929,13 @@ def plot_fourier_transform_singlet_helicity(eta, mu, Nf=3, particle = "gluon",ev
     fig.savefig(FILE_PATH,format="pdf",bbox_inches="tight",dpi=600)
 
     if write_to_file:
-        file_name = generate_filename(eta,0,mu,READ_WRITE_PATH,"central")
-        save_ft_to_csv(b_x_fm_write_out,b_y_fm_write_out,ft_write_out,file_name)
+        file_name = hp.generate_filename(eta,0,mu,READ_WRITE_PATH,"central")
+        hp.save_ft_to_csv(b_x_fm_write_out,b_y_fm_write_out,ft_write_out,file_name)
         if plot_option in ["lower", "both"]:
-            file_name = generate_filename(eta,0,mu,READ_WRITE_PATH,"plus")
-            save_ft_to_csv(b_x_fm_write_out,b_y_fm_write_out,ft_write_out_plus,file_name)
-            file_name = generate_filename(eta,0,mu,READ_WRITE_PATH,"minus")
-            save_ft_to_csv(b_x_fm_write_out,b_y_fm_write_out,ft_write_out_minus,file_name)
+            file_name = hp.generate_filename(eta,0,mu,READ_WRITE_PATH,"plus")
+            hp.save_ft_to_csv(b_x_fm_write_out,b_y_fm_write_out,ft_write_out_plus,file_name)
+            file_name = hp.generate_filename(eta,0,mu,READ_WRITE_PATH,"minus")
+            hp.save_ft_to_csv(b_x_fm_write_out,b_y_fm_write_out,ft_write_out_minus,file_name)
 
     # Adjust layout and show the plot
     plt.show()
@@ -5653,8 +5978,8 @@ def plot_fourier_transform_singlet_spin_orbit_correlation(eta, mu, Nf=3, particl
         }
     title = title_map[particle]
     
-    FILE_PATH = PLOT_PATH + "imp_param_" + "spin_orbit_singlet_" + particle + ".pdf"
-    READ_WRITE_PATH = IMPACT_PARAMETER_MOMENTS_PATH + "imp_param_"  + "spin_orbit_singlet_" + particle
+    FILE_PATH = cfg.PLOT_PATH / "imp_param_" + "spin_orbit_singlet_" + particle + ".pdf"
+    READ_WRITE_PATH = cfg.IMPACT_PARAMETER_MOMENTS_PATH / "imp_param_"  + "spin_orbit_singlet_" + particle
 
     # Define the grid for b_vec
     b_x = np.linspace(-b_max, b_max, n_b)
@@ -5675,8 +6000,8 @@ def plot_fourier_transform_singlet_spin_orbit_correlation(eta, mu, Nf=3, particl
     ax_lower = axs[1, 0]
 
     if read_from_file:
-        file_name = generate_filename(eta,0,mu,READ_WRITE_PATH,"central")
-        b_x_fm, b_y_fm, fourier_transform_moment_values_flat = read_ft_from_csv(file_name)
+        file_name = hp.generate_filename(eta,0,mu,READ_WRITE_PATH,"central")
+        b_x_fm, b_y_fm, fourier_transform_moment_values_flat = hp.read_ft_from_csv(file_name)
     else:
         fourier_transform_moment_values_flat = Parallel(n_jobs=-1)(delayed(fourier_transform_spin_orbit_correlation)(
                     eta, mu, b_vec, Nf, particle, "singlet", evolution_order, Delta_max, num_points, "central") for b_vec in b_vecs)
@@ -5688,10 +6013,10 @@ def plot_fourier_transform_singlet_spin_orbit_correlation(eta, mu, Nf=3, particl
     # Generate error bars for lower plot
     if plot_option in ["lower", "both"]:
         if read_from_file:
-            file_name = generate_filename(eta,0,mu,READ_WRITE_PATH,"plus")
-            _, _, fourier_transform_moment_values_flat_plus = read_ft_from_csv(file_name)
-            file_name = generate_filename(eta,0,mu,READ_WRITE_PATH,"minus")
-            _, _, fourier_transform_moment_values_flat_minus = read_ft_from_csv(file_name)
+            file_name = hp.generate_filename(eta,0,mu,READ_WRITE_PATH,"plus")
+            _, _, fourier_transform_moment_values_flat_plus = hp.read_ft_from_csv(file_name)
+            file_name = hp.generate_filename(eta,0,mu,READ_WRITE_PATH,"minus")
+            _, _, fourier_transform_moment_values_flat_minus = hp.read_ft_from_csv(file_name)
         else:
             fourier_transform_moment_values_flat_plus = Parallel(n_jobs=-1)(delayed(fourier_transform_spin_orbit_correlation)(
                 eta, mu, b_vec, Nf, particle, "singlet", evolution_order, Delta_max, num_points, "plus") for b_vec in b_vecs)
@@ -5708,13 +6033,13 @@ def plot_fourier_transform_singlet_spin_orbit_correlation(eta, mu, Nf=3, particl
 
     # Save write out values before interpolation
     if write_to_file:
-        file_name = generate_filename(eta,0,mu,READ_WRITE_PATH,"central")
-        save_ft_to_csv(b_x_fm,b_y_fm,fourier_transform_moment_values_flat,file_name)
+        file_name = hp.generate_filename(eta,0,mu,READ_WRITE_PATH,"central")
+        hp.save_ft_to_csv(b_x_fm,b_y_fm,fourier_transform_moment_values_flat,file_name)
         if plot_option in ["lower", "both"]:
-            file_name = generate_filename(eta,0,mu,READ_WRITE_PATH,"plus")
-            save_ft_to_csv(b_x_fm,b_y_fm,fourier_transform_moment_values_flat_plus,file_name)
-            file_name = generate_filename(eta,0,mu,READ_WRITE_PATH,"minus")
-            save_ft_to_csv(b_x_fm,b_y_fm,fourier_transform_moment_values_flat_minus,file_name)
+            file_name = hp.generate_filename(eta,0,mu,READ_WRITE_PATH,"plus")
+            hp.save_ft_to_csv(b_x_fm,b_y_fm,fourier_transform_moment_values_flat_plus,file_name)
+            file_name = hp.generate_filename(eta,0,mu,READ_WRITE_PATH,"minus")
+            hp.save_ft_to_csv(b_x_fm,b_y_fm,fourier_transform_moment_values_flat_minus,file_name)
 
     if interpolation:
         ft_interpolation = RectBivariateSpline(b_x_fm, b_y_fm, fourier_transform_moment_values_flat)
@@ -5801,7 +6126,7 @@ def plot_fourier_transform_quark_orbital_angular_momentum(eta, mu, Nf=3, moment_
     if moment_type not in ["non_singlet_isovector", "non_singlet_isoscalar", "u", "d", "all"]:
         raise ValueError(f"Wrong moment_type {moment_type}")
 
-    FILE_PATH = PLOT_PATH + "imp_param_oam_" + moment_type +".pdf"
+    FILE_PATH = cfg.PLOT_PATH / "imp_param_oam_" + moment_type +".pdf"
 
     # Convert GeV^-1 to fm
     hbarc = 0.1975
@@ -5819,11 +6144,11 @@ def plot_fourier_transform_quark_orbital_angular_momentum(eta, mu, Nf=3, moment_
         axs = np.array([[axs[0]], [axs[1]]])  # Make it a 2D array for consistency
 
     for i, mom_type in enumerate(moment_types):
-        READ_WRITE_PATH = IMPACT_PARAMETER_MOMENTS_PATH + "imp_param_oam_" + mom_type 
+        READ_WRITE_PATH = cfg.IMPACT_PARAMETER_MOMENTS_PATH / "imp_param_oam_" + mom_type 
         # Update the grid to data contained in file
         if read_from_file:
-            file_name = generate_filename(eta,0,mu,READ_WRITE_PATH,"central")
-            b_x_fm, b_y_fm, fourier_transform_moment_values_flat = read_ft_from_csv(file_name)
+            file_name = hp.generate_filename(eta,0,mu,READ_WRITE_PATH,"central")
+            b_x_fm, b_y_fm, fourier_transform_moment_values_flat = hp.read_ft_from_csv(file_name)
 
 
         row, col = divmod(i, 4)  # Map index to subplot location
@@ -5850,8 +6175,8 @@ def plot_fourier_transform_quark_orbital_angular_momentum(eta, mu, Nf=3, moment_
             b_y_fm = b_y * hbarc
             if mom_type not in cache:
                 if read_from_file:
-                    file_name = generate_filename(eta,0,mu,READ_WRITE_PATH,"central")
-                    b_x_fm, b_y_fm, fourier_transform_moment_values_flat = read_ft_from_csv(file_name)
+                    file_name = hp.generate_filename(eta,0,mu,READ_WRITE_PATH,"central")
+                    b_x_fm, b_y_fm, fourier_transform_moment_values_flat = hp.read_ft_from_csv(file_name)
                     # Extract shape for reshaping
                     n_b = len(fourier_transform_moment_values_flat)
                     b_x = np.linspace(-b_max, b_max, n_b)
@@ -5870,10 +6195,10 @@ def plot_fourier_transform_quark_orbital_angular_momentum(eta, mu, Nf=3, moment_
                 # Generate error bars for lower plot
                 if plot_option in ["lower", "both"]:
                     if read_from_file:
-                        file_name = generate_filename(eta,0,mu,READ_WRITE_PATH,"plus")
-                        _, _, fourier_transform_moment_values_flat_plus = read_ft_from_csv(file_name)
-                        file_name = generate_filename(eta,0,mu,READ_WRITE_PATH,"minus")
-                        _, _, fourier_transform_moment_values_flat_minus = read_ft_from_csv(file_name)
+                        file_name = hp.generate_filename(eta,0,mu,READ_WRITE_PATH,"plus")
+                        _, _, fourier_transform_moment_values_flat_plus = hp.read_ft_from_csv(file_name)
+                        file_name = hp.generate_filename(eta,0,mu,READ_WRITE_PATH,"minus")
+                        _, _, fourier_transform_moment_values_flat_minus = hp.read_ft_from_csv(file_name)
                     else:
                         fourier_transform_moment_values_flat_plus = Parallel(n_jobs=-1)(delayed(fourier_transform_quark_orbital_angular_momentum)(
                             eta, mu, b_vec, Nf, mom_type, evolution_order, Delta_max, num_points, "plus") for b_vec in b_vecs)
@@ -5894,8 +6219,8 @@ def plot_fourier_transform_quark_orbital_angular_momentum(eta, mu, Nf=3, moment_
         # Use cached values for u and d
         if mom_type in ["u","d"]:
             if read_from_file:
-                file_name = generate_filename(eta,0,mu,READ_WRITE_PATH,"central")
-                b_x_fm, b_y_fm, _ = read_ft_from_csv(file_name)
+                file_name = hp.generate_filename(eta,0,mu,READ_WRITE_PATH,"central")
+                b_x_fm, b_y_fm, _ = hp.read_ft_from_csv(file_name)
             elif interpolation:
                 b_x = np.linspace(-b_max, b_max, n_b)
                 b_y = np.linspace(-b_max, b_max, n_b)
@@ -5981,13 +6306,13 @@ def plot_fourier_transform_quark_orbital_angular_momentum(eta, mu, Nf=3, moment_
                 ax_lower.set_yticklabels([])
 
         if write_to_file:
-            file_name = generate_filename(eta,0,mu,READ_WRITE_PATH,"central")
-            save_ft_to_csv(b_x_fm_write_out,b_y_fm_write_out,ft_write_out,file_name)
+            file_name = hp.generate_filename(eta,0,mu,READ_WRITE_PATH,"central")
+            hp.save_ft_to_csv(b_x_fm_write_out,b_y_fm_write_out,ft_write_out,file_name)
             if plot_option in ["lower", "both"]:
-                file_name = generate_filename(eta,0,mu,READ_WRITE_PATH,"plus")
-                save_ft_to_csv(b_x_fm_write_out,b_y_fm_write_out,ft_write_out_plus,file_name)
-                file_name = generate_filename(eta,0,mu,READ_WRITE_PATH,"minus")
-                save_ft_to_csv(b_x_fm_write_out,b_y_fm_write_out,ft_write_out_minus,file_name)
+                file_name = hp.generate_filename(eta,0,mu,READ_WRITE_PATH,"plus")
+                hp.save_ft_to_csv(b_x_fm_write_out,b_y_fm_write_out,ft_write_out_plus,file_name)
+                file_name = hp.generate_filename(eta,0,mu,READ_WRITE_PATH,"minus")
+                hp.save_ft_to_csv(b_x_fm_write_out,b_y_fm_write_out,ft_write_out_minus,file_name)
 
     plt.subplots_adjust(wspace=0, hspace=0)
     plt.savefig(FILE_PATH,format="pdf",bbox_inches="tight",dpi=600)
@@ -6006,8 +6331,8 @@ def plot_conformal_partial_wave(j,eta,particle="quark",parity="none"):
     - particle (str., optiona): quark or gluon. Default is quark
     - parity (str., optional): even, odd, or none. Default is none
     """
-    check_particle_type(particle)
-    check_parity(parity)
+    hp.check_particle_type(particle)
+    hp.check_parity(parity)
 
     x_values = np.linspace(-1, 1, 200)
     y_values = Parallel(n_jobs=-1)(delayed(conformal_partial_wave)(j, x, eta , particle, parity) for x in x_values)
@@ -6066,7 +6391,7 @@ def plot_evolved_moment_over_j(eta,t,mu,Nf = 3,j_base = 3,particle="quark",momen
 
     # Evaluate the function for each z
     evolved_moment = np.array(
-        Parallel(n_jobs=-1)(delayed(evolve_conformal_moment)(z, eta, t, mu, Nf, 
+        Parallel(n_jobs=-1)(delayed(evolve_conformal_moment)(z, eta, t, mu, Nf, 1,
                                                         particle, moment_type, moment_label, evolution_order, error_type) for z in z_vals),
                 dtype=complex)
     # evolved_moment = np.array([evolve_conformal_moment(z, eta, t, mu, Nf, 
@@ -6094,8 +6419,8 @@ def plot_conformal_partial_wave_over_j(x,eta,particle="quark",moment_type="non_s
     - particle (str., optiona): quark or gluon. Default is quark
     - parity (str., optional): even, odd, or none. Default is none
     """
-    check_particle_type(particle)
-    check_parity(parity)
+    hp.check_particle_type(particle)
+    hp.check_parity(parity)
 
     j_base, parity = get_j_base(particle,moment_type,moment_label)
     k_values = np.linspace(-15, 15, 200)
@@ -6135,10 +6460,10 @@ def plot_mellin_barnes_gpd_integrand(x, eta, t, mu, Nf=3, particle="quark", mome
     - error_type (str. optional): PDF value type ("central", "plus", "minus").
     - j_max (float. optional): Maximum value of imaginary part k for plotting.
     """
-    check_parity(parity)
-    check_error_type(error_type)
-    check_particle_type(particle)
-    check_moment_type_label(moment_type,moment_label)
+    hp.check_parity(parity)
+    hp.check_error_type(error_type)
+    hp.check_particle_type(particle)
+    hp.check_moment_type_label(moment_type,moment_label)
 
     j_base, parity_check = get_j_base(particle,moment_type,moment_label)
     if parity != parity_check:
@@ -6153,15 +6478,15 @@ def plot_mellin_barnes_gpd_integrand(x, eta, t, mu, Nf=3, particle="quark", mome
         # Plot real
         #z = k
         dz = 1j
-        sin_term = mp.sin(np.pi * z)
+        sin_term = mp.sin(mp.pi * z)
         pw_val = conformal_partial_wave(z, x, eta, particle, parity)
         if particle == "quark":
             if moment_type == "singlet":
-                mom_val = evolve_quark_singlet(z, eta, t, mu, Nf, moment_label, evolution_order, error_type)
+                mom_val = evolve_quark_singlet(z, eta, t, mu, Nf,1, moment_label, evolution_order, error_type)
             else:
-                mom_val = evolve_quark_non_singlet(z, eta, t, mu, Nf, moment_type, moment_label, evolution_order, error_type)
+                mom_val = evolve_quark_non_singlet(z, eta, t, mu, Nf,1, moment_type, moment_label, evolution_order, error_type)
         else:
-            mom_val = evolve_gluon_singlet(z, eta, t, mu, Nf, moment_label, evolution_order, error_type)
+            mom_val = evolve_gluon_singlet(z, eta, t, mu, Nf,1, moment_label, evolution_order, error_type)
         result = -0.5j * dz * pw_val * mom_val / sin_term
         return result.real
 
@@ -6171,15 +6496,15 @@ def plot_mellin_barnes_gpd_integrand(x, eta, t, mu, Nf=3, particle="quark", mome
         # Plot real
         #z = k
         dz = 1j
-        sin_term = mp.sin(np.pi * z)
+        sin_term = mp.sin(mp.pi * z)
         pw_val = conformal_partial_wave(z, x, eta, particle, parity)
         if particle == "quark":
             if moment_type == "singlet":
-                mom_val = evolve_quark_singlet(z, eta, t, mu, Nf, moment_label, evolution_order, error_type)
+                mom_val = evolve_quark_singlet(z, eta, t, mu, Nf,1, moment_label, evolution_order, error_type)
             else:
-                mom_val = evolve_quark_non_singlet(z, eta, t, mu, Nf, moment_type, moment_label, evolution_order, error_type)
+                mom_val = evolve_quark_non_singlet(z, eta, t, mu, Nf,1, moment_type, moment_label, evolution_order, error_type)
         else:
-            mom_val = (-1) * evolve_gluon_singlet(z, eta, t, mu, Nf,moment_label, evolution_order, error_type)
+            mom_val = (-1) * evolve_gluon_singlet(z, eta, t, mu, Nf,1,moment_label, evolution_order, error_type)
         result = -0.5j * dz * pw_val * mom_val / sin_term
         return result.imag
 
@@ -6257,8 +6582,8 @@ def plot_gpd_data(Nf=3,particle="quark",gpd_type="non_singlet_isovector",gpd_lab
     else:
         print(f"Key ({gpd_type}, {gpd_label}) not found in y_label_map - abort")
         return
-    if (gpd_label) in GPD_LABEL_MAP:
-        moment_label = GPD_LABEL_MAP[gpd_label]
+    if (gpd_label) in cfg.GPD_LABEL_MAP:
+        moment_label = cfg.GPD_LABEL_MAP[gpd_label]
     else:
         print(f"Key {gpd_label} not found in GPD_LABEL_MAP - abort")
         return
@@ -6269,13 +6594,13 @@ def plot_gpd_data(Nf=3,particle="quark",gpd_type="non_singlet_isovector",gpd_lab
     # Initialize plot
     fig, ax = plt.subplots(figsize=(6, 4), constrained_layout=True)
 
-    for (pub_id,gpd_type_data,gpd_label_data,eta,t,mu), (color,_) in GPD_PUBLICATION_MAPPING.items():
+    for (pub_id,gpd_type_data,gpd_label_data,eta,t,mu), (color,_) in cfg.GPD_PUBLICATION_MAPPING.items():
         # Check whether type and label agree with input
         if gpd_type_data != gpd_type or gpd_label_data != gpd_label:
             continue
         gpd_interpolation={} # Initialize dictionary
         for error_type in ["central","plus","minus"]:
-            x_values, gpd_values = load_lattice_gpd_data(eta,t,mu,particle,gpd_type,gpd_label,pub_id,error_type)
+            x_values, gpd_values = hp.load_lattice_gpd_data(eta,t,mu,particle,gpd_type,gpd_label,pub_id,error_type)
             if x_values is None:
                 continue
             x_values = np.around(x_values, decimals=4)
@@ -6361,7 +6686,7 @@ def plot_gpd_data(Nf=3,particle="quark",gpd_type="non_singlet_isovector",gpd_lab
             # Measure time for adaptive grid computation
             start_time_adaptive = time.time()
             if read_from_file:
-                x_val, results = load_gpd_data(eta,t,mu,particle,gpd_type,gpd_label)
+                x_val, results = hp.load_gpd_data(eta,t,mu,particle,gpd_type,gpd_label)
                 if x_val is None:
                     print(f"No data for {gpd_type} {gpd_label} at (eta,t,mu) = {eta},{t},{mu} - abort ")
                     return 
@@ -6372,8 +6697,8 @@ def plot_gpd_data(Nf=3,particle="quark",gpd_type="non_singlet_isovector",gpd_lab
             # Error bar computations
             if error_bars:
                 if read_from_file:
-                    x_plus, results_plus = load_gpd_data(eta,t,mu,particle,gpd_type,gpd_label,"plus")
-                    x_minus,results_minus = load_gpd_data(eta,t,mu,particle,gpd_type,gpd_label,"minus")
+                    x_plus, results_plus = hp.load_gpd_data(eta,t,mu,particle,gpd_type,gpd_label,"plus")
+                    x_minus,results_minus = hp.load_gpd_data(eta,t,mu,particle,gpd_type,gpd_label,"minus")
                     if not np.array_equal(x_plus, x_minus) or not np.array_equal(x_plus, x_val):
                         raise ValueError("Mismatch in x-values between error data files")
                 else:
@@ -6386,9 +6711,9 @@ def plot_gpd_data(Nf=3,particle="quark",gpd_type="non_singlet_isovector",gpd_lab
 
             # Write to file system
             if write_to_file:
-                save_gpd_data(x_val,eta,t,mu,results,particle,gpd_type,gpd_label)
-                save_gpd_data(x_val,eta,t,mu,results_plus,particle,gpd_type,gpd_label,"plus")
-                save_gpd_data(x_val,eta,t,mu,results_minus,particle,gpd_type,gpd_label,"minus")
+                hp.save_gpd_data(x_val,eta,t,mu,results,particle,gpd_type,gpd_label)
+                hp.save_gpd_data(x_val,eta,t,mu,results_plus,particle,gpd_type,gpd_label,"plus")
+                hp.save_gpd_data(x_val,eta,t,mu,results_minus,particle,gpd_type,gpd_label,"minus")
 
             print(f"Time for plot computation for parameters (eta,t) = ({eta,t}): {end_time_adaptive - start_time_adaptive:.6f} seconds")
 
@@ -6422,7 +6747,7 @@ def plot_gpd_data(Nf=3,particle="quark",gpd_type="non_singlet_isovector",gpd_lab
     if plot_legend:
         ax.legend(fontsize=10, markerscale=1.5)
     ax.grid(True)  # Add a grid for better readability
-    FILE_PATH = PLOT_PATH + gpd_type + "_" + particle + "_GPD_" + gpd_label +"_comparison" + ".pdf"
+    FILE_PATH = cfg.PLOT_PATH / gpd_type + "_" + particle + "_GPD_" + gpd_label +"_comparison" + ".pdf"
     fig.savefig(FILE_PATH,format="pdf",bbox_inches="tight",dpi=600)
 
 def plot_singlet_quark_gpd(eta, t, mu, Nf=3, moment_label="A",evolution_order="LO", real_imag="real", sampling=True, n_init=os.cpu_count(), n_points=20, x_0=1e-2, x_1=1, error_bars=True):
@@ -6444,7 +6769,7 @@ def plot_singlet_quark_gpd(eta, t, mu, Nf=3, moment_label="A",evolution_order="L
     - x_1 (float): upper bound on parton x
     - error_bars (True or False): Compute error bars as well
     """
-    check_moment_type_label("singlet",moment_label)
+    hp.check_moment_type_label("singlet",moment_label)
     # Ensure x_0 < x_1 for a valid range
     if x_0 >= x_1:
         raise ValueError("x_0 must be less than x_1.")
@@ -6591,7 +6916,7 @@ def plot_non_singlet_quark_gpd(eta, t, mu, Nf=3, moment_type="non_singlet_isovec
     - x_1 (float): upper bound on parton x
     - error_bars (True or False): Compute error bars as well
     """
-    check_moment_type_label(moment_type,moment_label)
+    hp.check_moment_type_label(moment_type,moment_label)
     # Ensure x_0 < x_1 for a valid range
     if x_0 >= x_1:
         raise ValueError("x_0 must be less than x_1.")
@@ -6928,14 +7253,14 @@ def plot_gpds(eta_array, t_array, mu_array, colors, Nf=3, particle="quark",gpd_t
     }
 
     moment_type = gpd_type
-    if (gpd_label) in GPD_LABEL_MAP:
-        moment_label = GPD_LABEL_MAP[gpd_label]
+    if (gpd_label) in cfg.GPD_LABEL_MAP:
+        moment_label = cfg.GPD_LABEL_MAP[gpd_label]
     else:
-        print(f"Key {gpd_label} not found in GPD_LABEL_MAP - abort")
+        print(f"Key {gpd_label} not found in cfg.GPD_LABEL_MAP - abort")
         return
     
-    check_particle_type(particle)
-    check_moment_type_label(moment_type,moment_label)
+    hp.check_particle_type(particle)
+    hp.check_moment_type_label(moment_type,moment_label)
 
     if write_to_file and read_from_file:
         raise ValueError("write_to_file and read_from_file can't simultaneously be True")
@@ -6998,7 +7323,7 @@ def plot_gpds(eta_array, t_array, mu_array, colors, Nf=3, particle="quark",gpd_t
         x_values = np.sort(x_values)
         if read_from_file:
                 x_values = None
-                x_values, results = load_gpd_data(eta,t,mu,particle,gpd_type,gpd_label)
+                x_values, results = hp.load_gpd_data(eta,t,mu,particle,gpd_type,gpd_label)
                 if x_values is None:
                     raise ValueError("No data found on system. Change write_to_file = True")
         else:
@@ -7007,8 +7332,8 @@ def plot_gpds(eta_array, t_array, mu_array, colors, Nf=3, particle="quark",gpd_t
         # Error bar computations
         if error_bars:
             if read_from_file:
-                x_plus, results_plus = load_gpd_data(eta,t,mu,particle,gpd_type,gpd_label,"plus")
-                x_minus,results_minus = load_gpd_data(eta,t,mu,particle,gpd_type,gpd_label,"minus")
+                x_plus, results_plus = hp.load_gpd_data(eta,t,mu,particle,gpd_type,gpd_label,"plus")
+                x_minus,results_minus = hp.load_gpd_data(eta,t,mu,particle,gpd_type,gpd_label,"minus")
             else:
                 results_plus = Parallel(n_jobs=-1)(delayed(compute_result)(x,eta,t,mu, error_type="plus") for x in x_values)
                 results_minus = Parallel(n_jobs=-1)(delayed(compute_result)(x,eta,t,mu, error_type="minus") for x in x_values)
@@ -7032,9 +7357,9 @@ def plot_gpds(eta_array, t_array, mu_array, colors, Nf=3, particle="quark",gpd_t
         ax.axvline(x=-eta, linestyle='--', color = color)
 
         if write_to_file:
-            save_gpd_data(x_values,eta,t,mu,results,particle,gpd_type,gpd_label)
-            save_gpd_data(x_values,eta,t,mu,results_plus,particle,gpd_type,gpd_label,"plus")
-            save_gpd_data(x_values,eta,t,mu,results_minus,particle,gpd_type,gpd_label,"minus")
+            hp.save_gpd_data(x_values,eta,t,mu,results,particle,gpd_type,gpd_label)
+            hp.save_gpd_data(x_values,eta,t,mu,results_plus,particle,gpd_type,gpd_label,"plus")
+            hp.save_gpd_data(x_values,eta,t,mu,results_minus,particle,gpd_type,gpd_label,"minus")
 
     ax.set_xlim(x_0, x_1)
     ax.set_ylim(y_0,y_1)
@@ -7050,7 +7375,7 @@ def plot_gpds(eta_array, t_array, mu_array, colors, Nf=3, particle="quark",gpd_t
         ax.legend(fontsize=10, markerscale=1.5)
     ax.grid(True)
     # Export
-    FILE_PATH = PLOT_PATH +  gpd_type + "_" + particle + "_GPD_" + gpd_label +".pdf"
+    FILE_PATH = cfg.PLOT_PATH /  gpd_type + "_" + particle + "_GPD_" + gpd_label +".pdf"
     fig.savefig(FILE_PATH,format="pdf",bbox_inches="tight",dpi=600)
     print(f"File saved to {FILE_PATH}")
 

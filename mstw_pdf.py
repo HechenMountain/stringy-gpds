@@ -9,20 +9,17 @@ pd.set_option('display.max_columns', None)  # Show all columns
 pd.set_option('display.width', 1000)        # Set width to avoid wrapping
 pd.set_option('display.max_colwidth', None) # Show full content of each column
 
-############################################
-############################################
-# Import MSTW PDF data
-# Base path to main data directory
-BASE_PATH = "/mnt/c/Users/flori/Documents/PostDoc/Data/PDFs/"
-# Define the file path to the .csv file and extract its content
-MSTW_PATH = f"{BASE_PATH}MSTW.csv"
+import config as cfg
+from helpers import check_evolution_order, check_error_type
 
+############################################
+############################################
 # Columns for the DataFrame
 columns = ["Parameter", "LO", "NLO", "NNLO"]
 
 # Read the CSV file and parse it
 data = []
-with open(MSTW_PATH, 'r',newline='') as file:
+with open(cfg.MSTW_PATH, 'r',newline='') as file:
     next(file) # Skip header
     reader = csv.reader(file)  # Standard CSV reader
     
@@ -56,13 +53,20 @@ MSTW_PDF_LO = MSTW_PDF[["LO"]]
 MSTW_PDF_NLO = MSTW_PDF[["NLO"]]
 MSTW_PDF_NNLO = MSTW_PDF[["NNLO"]]
 
-# Helpers:
-def check_error_type(error_type):
-    if error_type not in ["central","plus","minus"]:
-        raise ValueError("error_type must be central, plus or minus")
+############################################
+############################################
+def get_alpha_s(evolution_order="LO"):
+    """
+    Returns alpha_s at the input scale of 1 GeV from the MSTW PDF best fit.
+    Note that the MSTW best fit obtains alpha_S(mu=1 GeV**2)=0.68183, different from the world average
+    Parameters:
+    - evolution_order (str. optional): LO, NLO or NNLO
+    """
+    check_evolution_order(evolution_order)
+    index_alpha_s= MSTW_PDF[MSTW_PDF["Parameter"] == "alpha_S(Q0^2)"].index[0]
+    alpha_s_in = MSTW_PDF[[evolution_order]].iloc[index_alpha_s,0][0]
+    return alpha_s_in
 
-############################################
-############################################
 def pdf(x,A_pdf,eta_1,eta_2,epsilon,gamma_pdf):
     """
     PDF parametrization for uv, dv, S, g. Note that at NLO the gluon parametrization gets aditional

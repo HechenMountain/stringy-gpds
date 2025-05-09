@@ -18,21 +18,21 @@ from mstw_pdf import (
     Delta_pdf
 )
 
+import config as cfg
+
+from helpers import check_error_type
+
 # Set display options
 pd.set_option('display.max_columns', None)  # Show all columns
 pd.set_option('display.width', 1000)        # Set width to avoid wrapping
 pd.set_option('display.max_colwidth', None) # Show full content of each column
-
-BASE_PATH = "/mnt/c/Users/flori/Documents/PostDoc/Data/PDFs/"
-# Define the file path to the .csv file and extract its content
-AAC_PATH = f"{BASE_PATH}AAC.csv"
 
 # Columns for the DataFrame
 columns = ["Parameter", "LO", "NLO", "NNLO"]
 
 # Read the CSV file and parse it
 data = []
-with open(AAC_PATH, 'r',newline='') as file:
+with open(cfg.AAC_PATH, 'r',newline='') as file:
     next(file) # Skip header
     reader = csv.reader(file)  # Standard CSV reader
     
@@ -55,11 +55,6 @@ AAC_PDF = pd.DataFrame(data, columns=columns)
 AAC_PDF_LO = AAC_PDF[["LO"]]
 AAC_PDF_NLO = AAC_PDF[["NLO"]]
 AAC_PDF_NNLO = AAC_PDF[["NNLO"]]
-
-# Helpers:
-def check_error_type(error_type):
-    if error_type not in ["central","plus","minus"]:
-        raise ValueError("error_type must be central, plus or minus")
     
 # PDFs
 def polarized_pdf(x,delta_A_pdf,alpha_pdf,delta_lambda_pdf,delta_gamma_pdf,evolution_order):
