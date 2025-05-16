@@ -7,10 +7,10 @@ from joblib import Memory
 import mpmath as mp
 mp.dps = 16
 
-########################################
-#### Dictionaries and data handling ####
-####       Change as required       ####
-########################################
+####################################
+####   Define directories for   ####
+####    clear data handling     ####
+####################################
 
 # Parent directory for data
 BASE_PATH = Path("/mnt/c/Users/flori/Documents/PostDoc/Data/stringy-gpds")
@@ -27,6 +27,19 @@ ANOMALOUS_DIMENSIONS_PATH = BASE_PATH / "AnomalousDimensions"
 
 MSTW_PATH = PDF_PATH / "MSTW.csv"
 AAC_PATH = PDF_PATH / "AAC.csv"
+
+####################
+####   Cache    ####
+####################
+CACHE_PATH = Path("/mnt/c/Users/flori/Documents/PostDoc/Jupyter/Python/cache")
+memory = Memory(CACHE_PATH,verbose=0)
+# May be cleared using
+# memory.clear()
+
+########################################
+#### Dictionaries and data handling ####
+####       Change as required       ####
+########################################
 
 # Add some colors
 saturated_pink = (1.0, 0.1, 0.6)  
@@ -49,6 +62,12 @@ GPD_PUBLICATION_MAPPING = {
     ("2008.10573","non_singlet_isovector","E",0.00, -0.69, 2.00): ("mediumturquoise","000_069_200"),
     ("2008.10573","non_singlet_isovector","E",0.33, -0.69, 2.00): ("green","033_069_200"),
     ("2312.10829","non_singlet_isovector","E",0.10, -0.23, 2.00): ("orange","010_023_200"),
+    ("martha","non_singlet_isovector","E",0.00,-0.17,2.00): ("black","000_017_200"),
+    ("martha","non_singlet_isovector","Htilde",0.00,-0.17,2.00): ("black","000_017_200"),
+    ("martha","non_singlet_isovector","H",0.00,-0.17,2.00): ("black","000_017_200")
+    # ("martha","non_singlet_isovector","E",0.00,-0.65,2.00): ("black","000_065_200"),
+    # ("martha","non_singlet_isovector","Htilde",0.00,-0.65,2.00): ("black","000_065_200"),
+    # ("martha","non_singlet_isovector","H",0.00,-0.65,2.00): ("black","000_065_200")
     # No data:
     # ("","non_singlet_isoscalar","E",0.00, -0.00, 2.00): ("purple","000_000_200"),
     # ("","non_singlet_isoscalar","E",0.33, -0.69, 2.00): ("green","033_069_200"),
@@ -61,6 +80,10 @@ GPD_LABEL_MAP ={"H": "A",
                 "E": "B",
                 "Htilde": "Atilde"
                     }
+
+#######################
+####  Parameters  #####
+#######################
 
 REGGE_SLOPES = {
     "vector": {
@@ -173,10 +196,3 @@ MOMENT_NORMALIZATIONS = {
         }
     }
 }
-
-####################
-####   Cache    ####
-####################
-
-cache_dir = "/mnt/c/Users/flori/Documents/PostDoc/Jupyter/Python/cache"
-memory = Memory(cache_dir, verbose = 0)

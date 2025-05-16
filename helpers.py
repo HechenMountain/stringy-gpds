@@ -7,6 +7,7 @@ from scipy.interpolate import RegularGridInterpolator
 from joblib.parallel import BatchCompletionCallBack
 
 import config as cfg
+from config import mp
 
 ##########################
 #### Helper functions ####
@@ -92,9 +93,9 @@ def load_lattice_moment_data(particle,moment_type, moment_label, pub_id):
     Returns:
         tuple: A tuple containing the data and a dictionary mapping 'n' values to row indices.
     """
-    moment_path = cfg.MOMENTUM_SPACE_MOMENTS_PATH
+
     FILE_NAME = f"{moment_type}_{particle}_moments_{moment_label}_{pub_id}.csv"
-    FILE_PATH = f"{moment_path}{FILE_NAME}"
+    FILE_PATH = cfg.MOMENTUM_SPACE_MOMENTS_PATH / FILE_NAME
 
     # Check if the file exists
     if not os.path.exists(FILE_PATH):
@@ -272,8 +273,8 @@ def load_lattice_gpd_data(eta_in,t_in,mu_in,particle,gpd_type,gpd_label, pub_id,
     Returns:
         tuple: A tuple containing the data and a dictionary mapping 'n' values to row indices.
     """
-    if (pub_id,gpd_type,gpd_label,eta_in,t_in,mu_in) in cfg.GPD_cfg.PUBLICATION_MAPPING:
-        (color,parameter_set) = cfg.GPD_cfg.PUBLICATION_MAPPING[(pub_id,gpd_type,gpd_label,eta_in,t_in,mu_in)]
+    if (pub_id,gpd_type,gpd_label,eta_in,t_in,mu_in) in cfg.GPD_PUBLICATION_MAPPING:
+        (color,parameter_set) = cfg.GPD_PUBLICATION_MAPPING[(pub_id,gpd_type,gpd_label,eta_in,t_in,mu_in)]
     else:
         #print("No data found on filesystem")
         return None, None, None
@@ -337,7 +338,10 @@ def read_ft_from_csv(filename):
 ##########################
 ####   Interpolation  ####
 ##########################
-class HarmonicInterpolator:
+class ComplexInterpolator:
+    """
+    Wrapper to make complex non-global function pickleable for caching with joblib/diskcache.
+    """
     def __init__(self, re_interp, im_interp):
         self.re_interp = re_interp
         self.im_interp = im_interp
@@ -347,7 +351,7 @@ class HarmonicInterpolator:
         return complex(self.re_interp(pt).item(), self.im_interp(pt).item())
 
 # Cache interpolation
-@cfg.memory.cache
+# @cfg.memory.cache
 def harmonic_interpolator(indices):
     if isinstance(indices,int):
         m1 = indices
@@ -395,13 +399,59 @@ def harmonic_interpolator(indices):
     re_interp = RegularGridInterpolator((re_j_vals, im_j_vals), real_grid, bounds_error=False, fill_value=None)
     im_interp = RegularGridInterpolator((re_j_vals, im_j_vals), imag_grid, bounds_error=False, fill_value=None)
 
-    # def interpolator(j_complex):
-    #     # print(m1,m2,j_complex)
-    #     pt = [j_complex.real, j_complex.imag]
-    #     return complex(re_interp(pt).item(), im_interp(pt).item())
+    return ComplexInterpolator(re_interp, im_interp)
+
+# Cache interpolation
+# @cfg.memory.cache
+def gamma_interpolator(suffix,moment_type,evolve_type,evolution_order):
+    if evolution_order == "LO":
+        order = "lo"
+    elif evolution_order == "NLO":
+        order = "nlo"
+    else:
+        raise ValueError(f"Wrong evolution_order {evolution_order}")
+    
+    if moment_type != "singlet" and suffix == "qq":
+        filename = cfg.ANOMALOUS_DIMENSIONS_PATH / f"gamma_{suffix}_non_singlet_{evolve_type}_{order}.csv"
+    else:
+        filename = cfg.ANOMALOUS_DIMENSIONS_PATH / f"gamma_{suffix}_{evolve_type}_{order}.csv"
+
+    re_j_set = set()
+    im_j_set = set()
+    values = {}
+
+    with open(filename, newline='') as csvfile:
+        reader = csv.reader(csvfile)
+        next(reader)  # skip header
+        for row in reader:
+            re_j = float(row[0])
+            im_j = float(row[1])
+            val = complex(row[2].replace(" ", ""))
+
+            re_j_set.add(re_j)
+            im_j_set.add(im_j)
+            values[(re_j, im_j)] = val
+    
+    # Sort axes
+    re_j_vals = sorted(re_j_set)
+    im_j_vals = sorted(im_j_set)
+
+    # Create grid of complex values
+    real_grid = np.empty((len(re_j_vals), len(im_j_vals)))
+    imag_grid = np.empty((len(re_j_vals), len(im_j_vals)))
+        
+    for i, re in enumerate(re_j_vals):
+        for j, im in enumerate(im_j_vals):
+            val = values[(re, im)]
+            real_grid[i, j] = val.real
+            imag_grid[i, j] = val.imag
+
+    # Create interpolators for real and imaginary parts
+    re_interp = RegularGridInterpolator((re_j_vals, im_j_vals), real_grid, bounds_error=False, fill_value=None)
+    im_interp = RegularGridInterpolator((re_j_vals, im_j_vals), imag_grid, bounds_error=False, fill_value=None)
 
     # return interpolator
-    return HarmonicInterpolator(re_interp, im_interp)
+    return ComplexInterpolator(re_interp, im_interp)
 
 ##########################
 ####   Progress Bar   ####

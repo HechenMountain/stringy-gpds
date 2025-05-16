@@ -7,11 +7,11 @@ import time
 import os
 import csv
 
-from scipy.integrate import odeint, trapezoid
+from scipy.integrate import quad, odeint, trapezoid
 from scipy.interpolate import interp1d, RectBivariateSpline
 from scipy.optimize import curve_fit
 
-from joblib import Parallel, delayed, Memory
+from joblib import Parallel, delayed
 from tqdm import tqdm
 
 from mstw_pdf import MSTW_PDF, get_alpha_s
@@ -29,10 +29,11 @@ import helpers as hp
 # Delta_u_bar = Delta_s_bar = Delta_s  #
 ########################################
 
-
 #####################################
 ### Input for Evolution Equations ###
 #####################################
+# Cache evolved alpha_s values
+@cfg.memory.cache
 def evolve_alpha_s(mu, Nf = 3,evolution_order="LO"):
     """
     Evolve alpha_S=g**/(4pi) from some input scale mu_in to some other scale mu.
@@ -212,6 +213,7 @@ def integral_pdf_regge_error(A_pdf,delta_A_pdf,eta_1,delta_eta_1,eta_2,delta_eta
         0 if the central value of the input PDF is picked.
         +- error_pdf if error_type ="plus" or "minus".
         """
+
         hp.check_error_type(error_type)
         if error_type == "central":
                 return 0
@@ -223,8 +225,8 @@ def integral_pdf_regge_error(A_pdf,delta_A_pdf,eta_1,delta_eta_1,eta_2,delta_eta
 
         def dpdf_deta_1(A_pdf, epsilon, eta_1, eta_2, j, t, alpha_p, gamma_pdf):
                 term_1 = (epsilon * mp.gamma(eta_1 + j - t * alpha_p - 0.5) * 
-                mp.digamma(eta_1 + j - t * alpha_p - 0.5) / 
-                mp.gamma(eta_1 + eta_2 + j - t * alpha_p + 0.5))
+                        mp.digamma(eta_1 + j - t * alpha_p - 0.5) / 
+                        mp.gamma(eta_1 + eta_2 + j - t * alpha_p + 0.5))
 
                 term_2 = (epsilon * mp.gamma(eta_1 + j - t * alpha_p - 0.5) * 
                         mp.digamma(eta_1 + eta_2 + j - t * alpha_p + 0.5) / 
@@ -272,10 +274,12 @@ def integral_pdf_regge_error(A_pdf,delta_A_pdf,eta_1,delta_eta_1,eta_2,delta_eta
                 term1 = A_pdf * mp.gamma(eta_2 + 1) * mp.gamma(eta_1 + j - alpha_p * t - 0.5)
                 term2 = mp.gamma(eta_1 + eta_2 + j - alpha_p * t + 0.5)
                 return term1/term2
+        
         def dpdf_dgamma(A_pdf, epsilon, eta_1, eta_2, j, t, alpha_p, gamma_pdf):
                 term1 = A_pdf * mp.gamma(eta_2 + 1) * (eta_1 + j - alpha_p * t - 1) * mp.gamma(eta_1 + j - t * alpha_p - 1)
                 term2 = mp.gamma(eta_1 + eta_2 + j - t * alpha_p + 1)
                 return term1/term2
+        
         Delta_A_pdf = dpdf_dA_pdf(A_pdf, epsilon, eta_1, eta_2, j, t, alpha_p, gamma_pdf) * delta_A_pdf
         Delta_eta_1 = dpdf_deta_1(A_pdf, epsilon, eta_1, eta_2, j, t, alpha_p, gamma_pdf) * delta_eta_1
         Delta_eta_2 = dpdf_deta_2(A_pdf, epsilon, eta_1, eta_2, j, t, alpha_p, gamma_pdf) * delta_eta_2
@@ -283,7 +287,9 @@ def integral_pdf_regge_error(A_pdf,delta_A_pdf,eta_1,delta_eta_1,eta_2,delta_eta
         Delta_gamma_pdf = dpdf_dgamma(A_pdf, epsilon, eta_1, eta_2, j, t, alpha_p, gamma_pdf) * delta_gamma_pdf
         # Debug
         #print(Delta_A_pdf,Delta_eta_1,Delta_eta_2,Delta_epsilon,Delta_gamma_pdf)
-        result = mp.sqrt(Delta_A_pdf**2+Delta_eta_1**2+Delta_eta_2**2+Delta_epsilon**2+Delta_gamma_pdf**2)
+        # result = abs(mp.sqrt(Delta_A_pdf**2+Delta_eta_1**2+Delta_eta_2**2+Delta_epsilon**2+Delta_gamma_pdf**2))
+        sum_squared = Delta_A_pdf**2+Delta_eta_1**2+Delta_eta_2**2+Delta_epsilon**2+Delta_gamma_pdf**2
+        result = abs(mp.sqrt(sum_squared))
         return result
 
 
@@ -496,7 +502,9 @@ def integral_polarized_pdf_regge_error(A_pdf,eta_1,eta_2,epsilon,gamma_pdf,
         #                 j,alpha_p,t
         # ))
 
-        result = mp.sqrt(Delta_Delta_A_pdf**2+Delta_alpha**2+Delta_gamma_pol**2+Delta_lambda_pol**2)
+        # result = abs(mp.sqrt(Delta_Delta_A_pdf**2+Delta_alpha**2+Delta_gamma_pol**2+Delta_lambda_pol**2))
+        sum_squared = Delta_Delta_A_pdf**2+Delta_alpha**2+Delta_gamma_pol**2+Delta_lambda_pol**2
+        result = abs(mp.sqrt(sum_squared))
         return result
 
 def integral_uv_pdf_regge(j,eta,alpha_p,t, evolution_order = "LO", error_type="central"):
@@ -707,7 +715,7 @@ def integral_sv_pdf_regge(j,eta,alpha_p,t, evolution_order = "LO", error_type="c
         # print(dpdf_dA_m(A_m,delta_m,eta_m,x_0,j,alpha_p,t),dpdf_ddelta_m(A_m,delta_m,eta_m,x_0,j,alpha_p,t),dpdf_deta_m(A_m,delta_m,eta_m,x_0,j,alpha_p,t),dpdf_dx_0(A_m,delta_m,eta_m,x_0,j,alpha_p,t))
         # print(Delta_A_m,Delta_delta_m,Delta_eta_m,Delta_x_0)
 
-        result = mp.sqrt(Delta_A_m**2+Delta_delta_m**2+Delta_eta_m**2+Delta_x_0**2)
+        result = abs(mp.sqrt(Delta_A_m**2+Delta_delta_m**2+Delta_eta_m**2+Delta_x_0**2))
         return result
         
     # Check type
@@ -1069,7 +1077,9 @@ def integral_Delta_pdf_regge(j,eta,alpha_p,t, evolution_order = "LO", error_type
         Delta_gamma_Delta = dpdf_dgamma_Delta(A_Delta,eta_Delta,eta_S,gamma_Delta,delta_Delta,j,alpha_p,t) * delta_gamma_Delta
         Delta_delta_Delta = dpdf_ddelta_Delta(A_Delta,eta_Delta,eta_S,gamma_Delta,delta_Delta,j,alpha_p,t) * delta_delta_Delta
 
-        result = mp.sqrt(Delta_A_Delta**2+Delta_eta_Delta**2+Delta_eta_S**2+Delta_gamma_Delta**2+Delta_delta_Delta**2)
+        # result = abs(mp.sqrt(Delta_A_Delta**2+Delta_eta_Delta**2+Delta_eta_S**2+Delta_gamma_Delta**2+Delta_delta_Delta**2))
+        sum_squared = Delta_A_Delta**2+Delta_eta_Delta**2+Delta_eta_S**2+Delta_gamma_Delta**2+Delta_delta_Delta**2
+        result = abs(mp.sqrt(sum_squared))
         return result
     
     hp.check_error_type(error_type)
@@ -1205,7 +1215,10 @@ def integral_gluon_pdf_regge(j,eta,alpha_p,t, evolution_order = "LO", error_type
             Delta_A = dpdf_dA * delta_A_prime_pdf
             Delta_eta_1 = dpdf_deta_1 * delta_eta_1_prime
             Delta_eta_2 = dpdf_deta_2 * delta_eta_2_prime
-            pdf_error+= mp.sqrt(Delta_A**2+Delta_eta_1**2+Delta_eta_2**2)
+            sum_squared = Delta_A**2+Delta_eta_1**2+Delta_eta_2**2
+            result = abs(mp.sqrt(sum_squared))
+            pdf_error += result
+            # pdf_error+= abs(mp.sqrt(Delta_A**2+Delta_eta_1**2+Delta_eta_2**2))
         return pdf, pdf_error
     else:
         return pdf, 0
@@ -1560,7 +1573,10 @@ def integral_polarized_gluon_pdf_regge(j,eta,alpha_p,t, evolution_order = "LO", 
                 Delta_lambda_pol = dpdf_dlambda_pol * err_lambda_pol
                 # print(dpdf_dA,dpdf_dalpha,dpdf_dgamma_pol,dpdf_dlambda_pol)
                 # print(Delta_A_pdf,Delta_alpha,Delta_gamma_pol,Delta_lambda_pol)
-                pdf_error += mp.sqrt(Delta_A_pdf**2 + Delta_alpha**2 + Delta_gamma_pol**2 +Delta_lambda_pol**2)
+                sum_squared = Delta_A_pdf**2 + Delta_alpha**2 + Delta_gamma_pol**2 +Delta_lambda_pol**2
+                result = abs(mp.sqrt(sum_squared))
+                pdf_error += result
+                # pdf_error += abs(mp.sqrt(Delta_A_pdf**2 + Delta_alpha**2 + Delta_gamma_pol**2 +Delta_lambda_pol**2))
                 # Polarized gluon pdf extremely sensitive to parametrization
                 # Enforcing standard form combined with Gaussian error propagation
                 # gives a huge error that is not compatible with the results by AAC
@@ -1591,7 +1607,9 @@ def non_singlet_isovector_moment(j,eta,t, moment_label="A",evolve_type="vector",
        dv, dv_error = integral_polarized_dv_pdf_regge(j,eta,alpha_prime,t,evolution_order,error_type)
 
     norm = hp.get_moment_normalizations("non_singlet_isovector",moment_label,evolve_type,evolution_order)
-    error = hp.error_sign(mp.sqrt(uv_error**2+dv_error**2),error_type)
+    sum_squared = uv_error**2+dv_error**2
+    error = abs(mp.sqrt(sum_squared))
+    error = hp.error_sign(error,error_type)
     result = norm * ( uv - dv + error )
 
     return result
@@ -1626,7 +1644,9 @@ def non_singlet_isoscalar_moment(j,eta,t, moment_label="A",evolve_type="vector",
         dv, dv_error = integral_polarized_dv_pdf_regge(j,eta,alpha_prime,t,evolution_order,error_type)
 
     norm = hp.get_moment_normalizations("non_singlet_isoscalar",moment_label,evolve_type,evolution_order)
-    error = hp.error_sign(mp.sqrt(uv_error**2+dv_error**2),error_type)
+    sum_squared = uv_error**2+dv_error**2
+    error = abs(mp.sqrt(sum_squared))
+    error = hp.error_sign(error,error_type)
     result = norm * ( uv + dv + error )
 
     return result
@@ -1658,9 +1678,12 @@ def d_hat(j,eta,t):
     if eta == 0:
         result = 1
     else :
-        if mp.im(j) <= 0:
+        if mp.im(j) < 0:
             j = mp.conj(j)
-        result = mp.hyp2f1(-j/2, -(j-1)/2, 1/2 - j, - 4 * m_N**2/t * eta**2)
+            result = mp.hyp2f1(-j/2, -(j-1)/2, 1/2 - j, - 4 * m_N**2/t * eta**2)
+            result = mp.conj(result)
+        else:
+            result = mp.hyp2f1(-j/2, -(j-1)/2, 1/2 - j, - 4 * m_N**2/t * eta**2)
     return result
     
 def quark_singlet_regge_A(j,eta,t, Nf=3, alpha_prime_ud=0.891, moment_label="A", evolution_order ="LO", error_type="central"):
@@ -1682,16 +1705,17 @@ def quark_singlet_regge_A(j,eta,t, Nf=3, alpha_prime_ud=0.891, moment_label="A",
     else:
         raise ValueError(f"Unsupported moment label {moment_label}")
     if Nf == 3 or Nf == 4:
-        error = mp.sqrt(uv_error**2+dv_error**2+Spdf_error**2)
+        sum_squared = uv_error**2+dv_error**2+Spdf_error**2
         result = uv + dv + Spdf
     elif Nf == 2:
-        error = mp.sqrt(uv_error**2+dv_error**2+Spdf_error**2+s_plus_error**2)
+        sum_squared = uv_error**2+dv_error**2+Spdf_error**2+s_plus_error**2
         result = uv + dv + Spdf - s_plus
     elif Nf == 1:
-        error = .5*mp.sqrt(4*uv_error**2+Spdf_error**2+s_plus_error**2+4*Delta_error**2)
+        sum_squared = .5*(4*uv_error**2+Spdf_error**2+s_plus_error**2+4*Delta_error**2)
         result = .5*(Spdf-s_plus+2*uv-2*Delta)
     else :
         raise ValueError("Currently only (integer) 1 <= Nf <= 3 supported")
+    error = abs(mp.sqrt(sum_squared))
     return result, error
     
 def quark_singlet_regge_D(j,eta,t, Nf=3, alpha_prime_ud=0.891,alpha_prime_s=1.828, moment_label="A",evolution_order="LO", error_type="central"):
@@ -1729,22 +1753,24 @@ def quark_singlet_regge_D(j,eta,t, Nf=3, alpha_prime_ud=0.891,alpha_prime_s=1.82
 
     if Nf == 3 or Nf == 4:
         term_1 = uv + dv + Sv
-        error_1 = mp.sqrt(uv_error**2+dv_error**2+Sv_error**2) 
+        sum_squared_1 = uv_error**2+dv_error**2+Sv_error**2
         term_2 = uv_s + dv_s + Sv_s 
-        error_2 = mp.sqrt(uv_s_error**2+dv_s_error**2+Sv_s_error**2) 
+        sum_squared_2 = uv_s_error**2+dv_s_error**2+Sv_s_error**2
     elif Nf == 2:
         term_1 = uv + dv + Sv - s_plus
-        error_1 = mp.sqrt(uv_error**2+dv_error**2+Sv_error**2+s_plus_error**2)
+        sum_squared_1 = uv_error**2+dv_error**2+Sv_error**2+s_plus_error**2
         term_2 = uv_s + dv_s + Sv_s - s_plus_s
-        error_2 = mp.sqrt(uv_s_error**2+dv_s_error**2+Sv_s_error**2+s_plus_s_error**2) 
+        sum_squared_2 = uv_s_error**2+dv_s_error**2+Sv_s_error**2+s_plus_s_error**2
     elif Nf == 1:
         term_1 = .5*(Sv-s_plus+2*uv-2*Delta)
-        error_1 = .5*mp.sqrt(4*uv_error**2+Sv_error**2+s_plus_error**2+4*Delta_error**2)
+        sum_squared_1 = .5*(4*uv_error**2+Sv_error**2+s_plus_error**2+4*Delta_error**2)
         term_2 = .5*(Sv_s-s_plus_s+2*uv_s-2*Delta_s)
-        error_2 = .5*mp.sqrt(4*uv_s_error**2+Sv_s_error**2+s_plus_s_error**2+4*Delta_s_error**2)
+        sum_squared_2 = .5*(4*uv_s_error**2+Sv_s_error**2+s_plus_s_error**2+4*Delta_s_error**2)
     else :
         raise ValueError("Currently only (integer) 1 <= Nf <= 3 supported")
-    error = (d_hat(j,eta,t)-1)*mp.sqrt(error_1**2+error_2**2)
+    sum_squared = mp.sqrt(sum_squared_1**2 + sum_squared_2**2)
+    error = np.frompyfunc(abs,1,1)(mp.sqrt(sum_squared))
+    error = (d_hat(j,eta,t)-1)*error
     result = (d_hat(j,eta,t)-1)*(term_1-term_2)
     return result, error
 
@@ -1765,8 +1791,7 @@ def quark_singlet_regge(j,eta,t,Nf=3,moment_label="A",evolve_type="vector",evolu
     term_1, error_1 = quark_singlet_regge_A(j,eta,t,Nf,alpha_prime_ud,moment_label,evolution_order,error_type)
     term_2, error_2 = quark_singlet_regge_D(j,eta,t,Nf,alpha_prime_ud,alpha_prime_s,moment_label,evolution_order,error_type)
     sum_squared = norm_A**2 * error_1**2 + norm_D**2 * error_2**2
-
-    error = np.frompyfunc(mp.sqrt, 1, 1)(sum_squared)
+    error = np.frompyfunc(abs, 1, 1)(mp.sqrt(sum_squared))
     result = norm_A * term_1 + norm_D * prf * term_2
 
     return result, error
@@ -1795,7 +1820,9 @@ def gluon_singlet_regge_D(j,eta,t, alpha_prime_T = 0.627, alpha_prime_S = 4.277,
             term_3, error_3 = integral_polarized_gluon_pdf_regge(j,eta,t,alpha_prime_S,evolution_order,error_type)
         else:
             raise ValueError(f"Unsupported moment label {moment_label}")
-        error = term_1 * mp.sqrt(error_2**2+error_3**2)
+        sum_squared = error_2**2+error_3**2
+        error = np.frompyfunc(abs, 1, 1)(mp.sqrt(sum_squared))
+        error = term_1 * error
         result = term_1 * (term_2-term_3)
         return result, error
     
@@ -1820,7 +1847,7 @@ def gluon_singlet_regge(j,eta,t,moment_label="A",evolve_type="vector", evolution
     else :
         term_2, error_2 = gluon_singlet_regge_D(j,eta,t,alpha_prime_T,alpha_prime_S,moment_label,evolution_order,error_type)
         sum_squared = norm_A**2 * error_1**2 + norm_D**2 * error_2**2
-        error = np.frompyfunc(mp.sqrt, 1, 1)(sum_squared)
+        error = np.frompyfunc(abs, 1, 1)(mp.sqrt(sum_squared))
         result = norm_A * term_1 + norm_D * prf * term_2
     return result, error
 
@@ -1844,17 +1871,18 @@ def singlet_moment(j,eta,t,Nf=3,moment_label="A",evolve_type="vector",solution="
         solution = "+"
     else:
         raise ValueError("Invalid solution type. Use '+' or '-'.")
-    
+
     quark_prf = .5 
     quark_in, quark_in_error = quark_singlet_regge(j,eta,t,Nf,moment_label,evolve_type,evolution_order,error_type)
     # Note: j/6 already included in gamma_qg and gamma_gg definitions
-    gluon_prf = .5 * (gamma_qg(j-1,Nf,evolve_type,"LO")/
-                    (gamma_qq(j-1,Nf,"singlet",evolve_type,"LO")-gamma_pm(j-1,Nf,evolve_type,solution)))
+    gluon_prf = .5 * (gamma_qg(j-1,Nf,evolve_type,"LO",interpolation=False)/
+                    (gamma_qq(j-1,Nf,"singlet",evolve_type,"LO",interpolation=False)-gamma_pm(j-1,Nf,evolve_type,solution)))
     gluon_in, gluon_in_error = gluon_singlet_regge(j,eta,t,moment_label,evolve_type,evolution_order,error_type)
     # print(solution,gluon_prf)
     sum_squared = quark_prf**1 * quark_in_error**2 + gluon_prf**2*gluon_in_error**2
-
-    error = np.frompyfunc(mp.sqrt, 1, 1)(sum_squared)
+    # print("->",quark_in,quark_in_error,quark_prf)
+    # print("->",gluon_in,gluon_in_error,gluon_prf)
+    error = np.frompyfunc(abs, 1, 1)(mp.sqrt(sum_squared))
     result = quark_prf * quark_in + gluon_prf * gluon_in
     return result, error
 
@@ -1903,28 +1931,30 @@ def sommerfeld_watson_trapezoid(func,k_0=1,k_1=False,epsilon=.2,k_range=10,n_k=1
     integral = integral_real + 1j * integral_imag
     return integral
 
-def fractional_finite_sum(func,k_0=1,k_1=1,epsilon=.2,k_range=10,n_k=300,alternating_sum=False, n_tuple = 1, plot_integrand = False,trap=False):
+def fractional_finite_sum(func,k_0=1,k_1=1,epsilon=.2,k_range=10,n_k=300,alternating_sum=False, n_tuple = 1, plot_integrand = False,trap=False,n_jobs=1):
     """
     Computes the fractional finite sume of a one-parameter function by either using mpmath quad (trap = False) or a trapezoidal rule (trap = True).
     Can handle tuples of functions as input.
     """
     if not trap and not plot_integrand:
-        def integrand_quad(k):
-            if abs(k) < 1e-6:
-                return 0
-            k = mp.re(k_0) - epsilon + 1j * (k - mp.im(k_0))
-            if alternating_sum:
-                trig_term = mp.csc(mp.pi * k)
-                alt_sign = power_minus_1(k_1)
-            else:
-                trig_term = mp.cot(mp.pi * k )
-                alt_sign = 1
-            res = -.5 * trig_term * (func(k) - alt_sign * func(k+k_1))
-            return res
         # start_time = time.time()
         integral = [0] * n_tuple
         for i in range(n_tuple):
-            int_tmp, err_tmp = mp.quad(integrand_quad,[-mp.inf,mp.inf], maxdegree=10, error=True)
+            def integrand_quad(k):
+                k = mp.re(k_0) - epsilon + 1j * (k - mp.im(k_0))
+                if alternating_sum:
+                    trig_term = mp.csc(mp.pi * k)
+                    # alt_sign = power_minus_1(k_1)
+                    alt_sign = power_minus_1(k_1+1-mp.re(k_0))
+                else:
+                    trig_term = mp.cot(mp.pi * k )
+                    alt_sign = 1
+                f1 = func(k)[i]
+                f2 = func(k+k_1+1-mp.re(k_0))[i]
+                res = -.5 * trig_term * (f1 - alt_sign * f2)
+                return res
+            # int_tmp, err_tmp = mp.quad(integrand_quad,[-mp.inf,mp.inf], maxdegree=10, error=True)
+            int_tmp, err_tmp = mp.quad(integrand_quad,[-k_range,k_range], maxdegree=10, error=True)
             if err_tmp > 1e-4:
                 print(f"Warning: large error={err_tmp} detected in fractional_finite_sum")
             integral[i] += int_tmp
@@ -1938,15 +1968,17 @@ def fractional_finite_sum(func,k_0=1,k_1=1,epsilon=.2,k_range=10,n_k=300,alterna
         k_vals = k_vals - mp.im(k_0)
         k_vals_trig = mp.re(k_0) - epsilon + 1j * k_vals
         # k_vals_shift = k_1 + 1 - epsilon + 1j * k_vals
-        k_vals_shift = k_vals_trig + k_1
+        k_vals_shift = k_vals_trig + k_1 + 1 - mp.re(k_0)
 
         if alternating_sum:
             trig_term = np.array([mp.csc(mp.pi * k) for k in k_vals_trig])
         else:
             trig_term = np.array([mp.cot(mp.pi * k ) for k in k_vals_trig])
 
-        f_vals = np.array([func(k) for k in k_vals_trig])
-        f_vals_shift = np.array([func(k) for k in k_vals_shift])
+        if plot_integrand:
+            n_jobs = -1
+        f_vals = np.array(Parallel(n_jobs=n_jobs)(delayed(func)(k) for k in k_vals_trig))
+        f_vals_shift = np.array(Parallel(n_jobs=n_jobs)(delayed(func)(k) for k in k_vals_shift))
 
         if n_tuple == 1:
             f_vals = f_vals.reshape(-1, 1)
@@ -1956,7 +1988,7 @@ def fractional_finite_sum(func,k_0=1,k_1=1,epsilon=.2,k_range=10,n_k=300,alterna
             # Perform index shift on (-1)^k
             # alt_sign = (-1)**(mp.re(k_0) + mp.re(k_1) + 1)
             # alt_sign = (-1)**(k_1)
-            alt_sign = power_minus_1(k_1)
+            alt_sign = power_minus_1(k_1 + 1 - mp.re(k_0))
             f_vals_shift = np.array([x * alt_sign for x in f_vals_shift], dtype=object)
 
         # Compute the difference
@@ -1974,8 +2006,20 @@ def fractional_finite_sum(func,k_0=1,k_1=1,epsilon=.2,k_range=10,n_k=300,alterna
 
             if plot_integrand:
                 print("integrands at k_max:",integrand_real[-1],integrand_imag[-1])
-                plt.plot(k_vals,integrand_real,label=f"real_{i}")
-                plt.plot(k_vals,integrand_imag,label=f"imag_{i}")
+                if n_tuple == 1:
+                    plt.plot(k_vals,integrand_real,label=f"Re")
+                    plt.plot(k_vals,integrand_imag,label=f"Im")
+                else:
+                    plt.plot(k_vals,integrand_real,label=f"real_{i}")
+                    plt.plot(k_vals,integrand_imag,label=f"imag_{i}")
+                plt.grid(True)
+                plt.legend()
+                plt.show()
+                if n_tuple == 1:
+                    # Return a scalar for n_tuple = 1
+                    return integral[0]
+                else:
+                    return integral
             else:
                 integral_real = trapezoid(integrand_real, k_vals)
                 integral_imag = trapezoid(integrand_imag, k_vals)
@@ -1984,12 +2028,6 @@ def fractional_finite_sum(func,k_0=1,k_1=1,epsilon=.2,k_range=10,n_k=300,alterna
                 integral[i] += integral_real + 1j * integral_imag
                 # end_time = time.time()
                 # print("trapezoidal with alternating_sum =",alternating_sum,integral[i],end_time - start_time)
-
-        if plot_integrand:
-            plt.grid(True)
-            plt.legend()
-            plt.show()
-            integral = [0]
 
     if n_tuple == 1:
         # Return a scalar for n_tuple = 1
@@ -2018,18 +2056,16 @@ def polygamma_asymptotic(n, z, terms=5):
         result += term
     return sign * result
 
-def harmonic_number(l,j,k_range=3,n_k=300,plot_integrand=False,trap=False,interpolation=True):
-    if interpolation:
-        interp = hp.harmonic_interpolator(l)
-        return interp(j)
-    if isinstance(j, (int, np.integer)):
-        if j >= 1:
-            result= harmonic_sum(l,j)
-        elif j == 0:
+def harmonic_number(l,j,k_range=3,n_k=300,plot_integrand=False,trap=False):
+    
+    if j.imag == 0 and j.real == int(j.real):
+        j_int = int(j.real)
+        if j_int >= 1:
+            result = harmonic_sum(l, j_int)
+        elif j_int == 0:
             result = 0
         else:
-            result = harmonic_sum(l,-(j+1))
-        return mp.mpc(result)
+            result = harmonic_sum(l, -(j_int + 1))
     elif l == 1:
         euler_gamma = 0.5772156649
         if abs(j) < 25:
@@ -2051,7 +2087,6 @@ def harmonic_number(l,j,k_range=3,n_k=300,plot_integrand=False,trap=False,interp
         # Lerch transcendent [-1,1,j+1]
             lerch_phi = .5 * (polygamma_asymptotic(0,1+.5*j,terms=1) - polygamma_asymptotic(0,.5*(1+j),terms=1))
             result = power_minus_1(j) * lerch_phi - mp.log(2)
-        return result
     elif l < -1:
         m = abs(l)
         if abs(j) < 25:
@@ -2065,7 +2100,6 @@ def harmonic_number(l,j,k_range=3,n_k=300,plot_integrand=False,trap=False,interp
             result = mp.polylog(m,-1) + power_minus_1(j) * 2**(-m) * (-1)**m / mp.factorial(m-1)* (
                 zeta_1 - zeta_2
             )
-        return result
     else:
         def func(i):
             return (1 / i**abs(l))
@@ -2095,6 +2129,7 @@ def harmonic_number_tilde(j,k_range=10,n_k=500,epsilon=.2):
         result = fractional_finite_sum(stilde,k_0=1,k_1=j,alternating_sum=True,k_range=k_range,n_k=n_k,epsilon=epsilon)
     return result
 
+@cfg.memory.cache
 def nested_harmonic_number(indices, j,interpolation=True,n_k=100,k_range=10,epsilon=1e-1,trap=False):
     """
     Nested harmonic sum for j over indices. If interpolation is true, tabulated values are being used.
@@ -2104,34 +2139,34 @@ def nested_harmonic_number(indices, j,interpolation=True,n_k=100,k_range=10,epsi
     """
     # Convert to tuple such that the checks always compare the same type
     indices = tuple(int(i) for i in indices)
-    # Use interpolated tables for complex values
-    if interpolation:
-        interp = hp.harmonic_interpolator(indices)
-        return interp(j)
-    # interpolation=interpolation for independent generation of tables
-    # with generate_harmonic_table
+    
+    # Analytical results are faster when not interpolated
     # (92)
     if indices == (1,1):
-        result = harmonic_number(1,j,interpolation=interpolation)**2 + harmonic_number(2,j,interpolation=interpolation)
+        result = harmonic_number(1,j)**2 + harmonic_number(2,j)
         result /= 2
-        return result
     # (93)
-    if indices == (1,1,1):
-        result = (harmonic_number(1,j,interpolation=interpolation)**3 + 3 * harmonic_number(1,j,interpolation=interpolation) * harmonic_number(2,j,interpolation=interpolation)
-                   + 2 * harmonic_number(3,j,interpolation=interpolation))
+    elif indices == (1,1,1):
+        result = (harmonic_number(1,j)**3 + 3 * harmonic_number(1,j) * harmonic_number(2,j)
+                   + 2 * harmonic_number(3,j))
         result /= 6
         return result
     # Return harmonic number for single index
-    if len(indices) == 1:
-        return harmonic_number(indices[0], j,n_k=n_k,k_range=k_range,trap=trap)
+    elif len(indices) == 1:
+        result = harmonic_number(indices[0], j,n_k=n_k,k_range=k_range,trap=trap)
+    # Use interpolated tables when no analytical solutions are available
+    elif interpolation:
+        interp = hp.harmonic_interpolator(indices)
+        result = interp(j)
     # Explicitly compute result
-    if isinstance(j, (int, np.integer)):
+    elif isinstance(j, (int, np.integer)):
         m, *rest = indices
         total = 0.0
         for i in range(1, j + 1):
             factor = (1 / i**abs(m)) * ((-1)**i if m < 0 else 1)
             inner_sum = nested_harmonic_number(rest, i,interpolation=False,k_range=k_range,n_k=n_k,epsilon=epsilon,trap=trap)
             total += factor * inner_sum
+        result = total
         return total
     else:
         m, *rest = indices
@@ -2139,28 +2174,27 @@ def nested_harmonic_number(indices, j,interpolation=True,n_k=100,k_range=10,epsi
             alternating_sum = True
         else:
             alternating_sum = False
-
         def func(i):
             factor = (1 / i**abs(m)) 
             inner_sum = nested_harmonic_number(rest,i,interpolation=False,k_range=k_range,n_k=n_k,epsilon=epsilon,trap=trap)
             return factor * inner_sum
-        total = fractional_finite_sum(func,k_1=j,alternating_sum=alternating_sum, n_k=n_k,k_range=k_range,epsilon=epsilon,trap=trap)
-        return total
+        result = fractional_finite_sum(func,k_1=j,alternating_sum=alternating_sum, n_k=n_k,k_range=k_range,epsilon=epsilon,trap=trap)
+    return result
     
-def generate_harmonic_table(indices,re_j_min=0, re_j_max=10, im_j_min=0, im_j_max=110,step=0.1, n_jobs=-1):
-    def compute_values(re_j, im_j):
-        j = complex(re_j, im_j)
+def generate_harmonic_table(indices,j_re_min=0, j_re_max=10, j_im_min=0, j_im_max=110,step=0.1, n_jobs=-1):
+    def compute_values(j_re, j_im):
+        j = complex(j_re, j_im)
         if isinstance(indices,int):
-            val = harmonic_number(indices, j, interpolation=False)
+            val = harmonic_number(indices, j)
         else:
             val = nested_harmonic_number(indices, j, interpolation=False)
-        row = [[re_j, im_j, val]]
-        if im_j > 0:
-            row.append([re_j, -im_j, np.conj(val)])
+        row = [[j_re, j_im, val]]
+        if j_im > 0:
+            row.append([j_re, -j_im, np.conj(val)])
         return row
 
-    re_vals = np.arange(re_j_min, re_j_max + step, step)
-    im_vals = np.arange(im_j_min, im_j_max + step, step)
+    re_vals = np.arange(j_re_min, j_re_max + step, step)
+    im_vals = np.arange(j_im_min, j_im_max + step, step)
 
     if isinstance(indices,int):
         m1 = indices
@@ -2175,12 +2209,12 @@ def generate_harmonic_table(indices,re_j_min=0, re_j_max=10, im_j_min=0, im_j_ma
         raise ValueError("Table generation currently only supports 3 nested harmonics")
 
     # Generate grid points
-    grid = [(re_j, im_j) for re_j in re_vals for im_j in im_vals]
+    grid = [(j_re, j_im) for j_re in re_vals for j_im in im_vals]
     with hp.tqdm_joblib(tqdm(total=len(grid))) as progress_bar:
-        # Parallel computation over (re_j, im_j) pairs
+        # Parallel computation over (j_re, j_im) pairs
         results = Parallel(n_jobs=n_jobs)(
-            delayed(compute_values)(re_j, im_j)
-            for re_j, im_j in grid
+            delayed(compute_values)(j_re, j_im)
+            for j_re, j_im in grid
         )
 
     # Flatten the list of lists
@@ -2196,28 +2230,28 @@ def generate_harmonic_table(indices,re_j_min=0, re_j_max=10, im_j_min=0, im_j_ma
     print(f"Successfully wrote table to {filename}")
     
 def generate_nested_harmonic_table(m1, m2,
-                                            re_j_min=1e-4, re_j_max=3, im_j_min=0, im_j_max=110,
+                                            j_re_min=1e-4, j_re_max=3, j_im_min=0, j_im_max=110,
                                             step=0.1, n_jobs=-1):
-    def compute_values(re_j, im_j, m1, m2):
-        j = complex(re_j, im_j)
+    def compute_values(j_re, j_im, m1, m2):
+        j = complex(j_re, j_im)
         val = nested_harmonic_number([m1, m2], j, interpolation=False)
-        row = [[re_j, im_j, val]]
-        if im_j > 0:
-            row.append([re_j, -im_j, np.conj(val)])
+        row = [[j_re, j_im, val]]
+        if j_im > 0:
+            row.append([j_re, -j_im, np.conj(val)])
         return row
 
-    re_vals = np.arange(re_j_min, re_j_max + step, step)
-    im_vals = np.arange(im_j_min, im_j_max + step, step)
+    re_vals = np.arange(j_re_min, j_re_max + step, step)
+    im_vals = np.arange(j_im_min, j_im_max + step, step)
 
     filename = cfg.ANOMALOUS_DIMENSIONS_PATH / f"nested_harmonic_m1_{m1}_m2_{m2}.csv"
 
     # Generate grid points
-    grid = [(re_j, im_j) for re_j in re_vals for im_j in im_vals]
+    grid = [(j_re, j_im) for j_re in re_vals for j_im in im_vals]
     with hp.tqdm_joblib(tqdm(total=len(grid))) as progress_bar:
-        # Parallel computation over (re_j, im_j) pairs
+        # Parallel computation over (j_re, j_im) pairs
         results = Parallel(n_jobs=n_jobs)(
-            delayed(compute_values)(re_j, im_j, m1, m2)
-            for re_j, im_j in grid
+            delayed(compute_values)(j_re, j_im, m1, m2)
+            for j_re, j_im in grid
         )
 
     # Flatten the list of lists
@@ -2232,44 +2266,49 @@ def generate_nested_harmonic_table(m1, m2,
 
     print(f"Successfully wrote table to {filename}")
 
-def generate_anomalous_dimension_table(suffix,moment_type,evolve_type,Nf=3,
-                                            re_j_min=1e-4, re_j_max=6, im_j_min=0, im_j_max=110,
+def generate_anomalous_dimension_table(suffix,moment_type,evolve_type,Nf=3,evolution_order="NLO",
+                                            j_re_min=1e-4, j_re_max=6, j_im_min=0, j_im_max=110,
                                             step=0.1, n_jobs=-1):
-    def compute_values(re_j, im_j):
-        if im_j == 0:
-            j = int(re_j) if float(re_j).is_integer() else float(re_j)
-        else:
-            j = complex(re_j, im_j)
+    def compute_values(j_re, j_im):
+        j = mp.mpc(j_re,j_im)
         if suffix == "qq":
-            val = gamma_qq(j,Nf,moment_type,evolve_type,evolution_order="NLO")
+            val = gamma_qq(j,Nf,moment_type,evolve_type,evolution_order,interpolation=False)
         elif suffix == "qg":
-            val = gamma_qg(j,Nf,evolve_type,evolution_order="NLO")
+            val = gamma_qg(j,Nf,evolve_type,evolution_order,interpolation=False)
         elif suffix == "gq":
-            val = gamma_gq(j,Nf,evolve_type,evolution_order="NLO")
+            val = gamma_gq(j,Nf,evolve_type,evolution_order,interpolation=False)
         elif suffix == "gg":
-            val = gamma_gg(j,Nf,evolve_type,evolution_order="NLO")
+            val = gamma_gg(j,Nf,evolve_type,evolution_order,interpolation=False)
         else:
             raise ValueError(f"Wrong suffix {suffix}")
         val = complex(val)
-        row = [[re_j, im_j, val]]
-        if im_j > 0:
-            row.append([re_j, -im_j, np.conj(val)])
+        row = [[j_re, j_im, val]]
+        if j_im > 0:
+            row.append([j_re, -j_im, np.conj(val)])
         return row
 
-    re_vals = np.arange(re_j_min, re_j_max + step, step)
-    im_vals = np.arange(im_j_min, im_j_max + step, step)
-    if moment_type != "singlet" and suffix == "qq":
-        filename = cfg.ANOMALOUS_DIMENSIONS_PATH / f"gamma_{suffix}_non_singlet_{evolve_type}_nlo.csv"
+    if evolution_order == "LO":
+        order = "lo"
+    elif evolution_order == "NLO":
+        order = "nlo"
     else:
-        filename = cfg.ANOMALOUS_DIMENSIONS_PATH / f"gamma_{suffix}_{evolve_type}_nlo.csv"
+        raise ValueError(f"Wrong evolution_order {evolution_order}")
+
+    re_vals = np.arange(j_re_min, j_re_max + step, step)
+    im_vals = np.arange(j_im_min, j_im_max + step, step)
+    
+    if moment_type != "singlet" and suffix == "qq":
+        filename = cfg.ANOMALOUS_DIMENSIONS_PATH / f"gamma_{suffix}_non_singlet_{evolve_type}_{order}.csv"
+    else:
+        filename = cfg.ANOMALOUS_DIMENSIONS_PATH / f"gamma_{suffix}_{evolve_type}_{order}.csv"
 
     # Generate grid points
-    grid = [(re_j, im_j) for re_j in re_vals for im_j in im_vals]
+    grid = [(j_re, j_im) for j_re in re_vals for j_im in im_vals]
     with hp.tqdm_joblib(tqdm(total=len(grid))) as progress_bar:
-        # Parallel computation over (re_j, im_j) pairs
+        # Parallel computation over (j_re, j_im) pairs
         results = Parallel(n_jobs=n_jobs)(
-            delayed(compute_values)(re_j, im_j)
-            for re_j, im_j in grid
+            delayed(compute_values)(j_re, j_im)
+            for j_re, j_im in grid
         )
 
     # Flatten the list of lists
@@ -2292,787 +2331,531 @@ def d_weight(m,k,n):
     result = 1/(n+k)**m
     return result 
 
-def gamma_qq(j,Nf=3,moment_type="non_singlet_isovector",evolve_type="vector",evolution_order="LO"):
+
+# def gamma_qq(j,Nf=3,moment_type="non_singlet_isovector",evolve_type="vector",evolution_order="LO",interpolation=True):
+#     if evolution_order != "LO":
+#         return _cached_gamma_qq(j, Nf=Nf, moment_type=moment_type,
+#                                 evolve_type=evolve_type,
+#                                 evolution_order=evolution_order,
+#                                 interpolation=interpolation)
+#     else:
+
+def gamma_qq_lo(j):
+    Nc = 3
+    c_f = (Nc**2-1)/(2*Nc)
+    t_f = .5
+    # Belitsky (4.152)
+    result = - c_f * (-4*mp.digamma(j+2)+4*mp.digamma(1)+2/((j+1)*(j+2))+3)
+    return result
+
+@cfg.memory.cache
+def gamma_qq_nlo(j,Nf=3,moment_type="non_singlet_isovector",evolve_type="vector",interpolation=True):
+    if interpolation:
+        interp = hp.gamma_interpolator("qq",moment_type,evolve_type,evolution_order="NLO")
+        result = interp(j)
+        return result
+    Nc = 3
+    c_f = (Nc**2-1)/(2*Nc)
+    t_f = .5
+    c_a = Nc
+
+    # Nucl.Phys.B 691 (2004) 129-181
+    # Note that N there is j + 1 here
+    # p is +: N -> N + 1 -> j + 2
+    # m is -: N -> N - 1 -> j
+    s_1 = harmonic_number(1,j+1)
+    s_2 = harmonic_number(2,j+1)
+    s_3_p = harmonic_number(3,j+2)
+    s_3_m = harmonic_number(3,j)
+    s_m3 = harmonic_number(-3,j+1)
+    s_1_p = harmonic_number(1,j+2)
+    s_1_m = harmonic_number(1,j)
+    s_2_p = harmonic_number(2,j+2)
+    s_2_pp = harmonic_number(2,j+3)
+    s_2_m = harmonic_number(2,j)
+    s_1_m2_p = nested_harmonic_number([1,-2],j+2)
+    s_1_m2_m = nested_harmonic_number([1,-2],j)
+    s_1_2_p = nested_harmonic_number([1,2],j+2)
+    s_1_2_m = nested_harmonic_number([1,2],j)
+    s_2_1_p = nested_harmonic_number([2,1],j+2)
+    s_2_1_m = nested_harmonic_number([2,1],j)
+
+    if moment_type == "singlet":
+        s_1_mm = harmonic_number(1,j-1)
+        s_1_pp = harmonic_number(1,j+3)
+
+    # Nucl.Phys.B 688 (2004) 101-134
+    # Note different beta function convention
+    # so we reverse the sign
+    # (3.5)
+    term1 = - 4 * c_a * c_f * (2 * s_3_p - 17/24 - 2 * s_m3 - 28/3 * s_1
+                            + 151/18 * (s_1_m + s_1_p) + 2 * (s_1_m2_m + s_1_m2_p) - 11/6 * (s_2_m + s_2_p)
+                            )
+    term2 = - 8 * c_f * t_f * Nf * (1/12 + 4/3 * s_1 - (11/9 * (s_1_m + s_1_p) - 1/3*(s_2_m + s_2_p)) )
+    term3 = - 4 * c_f**2 * (4*s_m3 + 2*s_1 + 2 * s_2 -3/8 + (s_2_m + 2 * s_3_m)
+                            - ((s_1_m + s_1_p) + 4 * (s_1_m2_m +s_1_m2_p) + 2 * (s_1_2_m + s_1_2_p) + 2 * (s_2_1_m + s_2_1_p) + (s_3_m + s_3_p))
+    )
+    # enforce conservation
+    if moment_type != "singlet":
+        if evolve_type == "vector":
+            term1+= (7 * c_a *c_f - 14 * c_f**2)
+        elif evolve_type == "axial":
+            term1 += - 16 * c_f * (c_f - .5 * c_a) * (
+                (s_2_m - s_2_p) - (s_3_m - s_3_p)
+                - 2 * (s_1_m + s_1_p - 2 * s_1)
+            )
+        else:
+            raise ValueError(f"Wrong evolve_type {evolve_type}")
+
+    elif moment_type == "singlet":
+        if evolve_type == "vector":
+            # Nucl.Phys.B 691 (2004) 129-181
+            # Note different beta function convention
+            # so we reverse the sign
+            term1 += - 8 * c_f * t_f * Nf * (
+                20/9 * (s_1_mm - s_1_m) - (56/9*(s_1_p - s_1_pp) + 8/3 * ((s_2_p - s_2_pp)) )
+                + (8*(s_1 - s_1_p)-4 * (s_2 - s_2_p)) - (2 * (s_1_m - s_1_p) + (s_2_m - s_2_p) + 2 * (s_3_m - s_3_p))
+            )
+            # Belitsky K.6
+            # term2 = -(
+            #             4*c_f*t_f*Nf * (5 * j**5 + 57 * j**4 + 227 * j**3 + 427 * j**2 + 404 * j + 160)/
+            #             (j * (j + 1)**3 * (j + 2)**3 * (j + 3)**2)
+            # )
+        if evolve_type == "axial":
+            # Nucl.Phys.B 889 (2014) 351-400
+            # Note different beta function convention
+            # so we reverse the sign
+            # (4.4)
+            eta = 1/((j+1)*(j+2))
+            d02 = d_weight(2,0,j + 1)
+            d03 = d_weight(3,0,j + 1)
+            term1 += - 4 * c_f * Nf * (-5 * eta + 3 * eta**2 + 2 * eta**3 + 4 * d02 - 4 * d03)
+    else:
+        raise ValueError(f"Wrong moment_type {moment_type}")
+    
+    result = term1 + term2 + term3
+    # Nucl.Phys.B 688 (2004) 101-134 and 
+    # Nucl.Phys.B 889 (2014) 351-400 
+    # defines Mellin moment without factor 1/2
+    result*=2
+
+    return result
+
+def gamma_qq(j,Nf=3,moment_type="non_singlet_isovector",evolve_type="vector",evolution_order="LO",interpolation=True):
     """
-    Return conformal qq singlet anomalous dimension for conformal spin-j
+    Returns conformal qq singlet or non-singlet anomalous dimension for conformal spin-j
 
     Arguments:
     - j (float): conformal spin
     - moment_type (str. optional): non_singlet_isovector, non_singlet_isoscalar, singlet
     - evolve_type (str. optional): vector or axial
     - evolution_order (str. optional): LO, NLO or NNLO
+    - interpolation (bool, optional): Use tabulated values for interpolation (only beyond LO)
     """
-    hp.check_evolution_order(evolution_order)
-    Nc = 3
-    c_f = (Nc**2-1)/(2*Nc)
-    t_f = .5
-
-    if evolution_order == "NLO":
-        # Nucl.Phys.B 691 (2004) 129-181
-        # Note that N there is j + 1 here
-        # p is +: N -> N + 1 -> j + 2
-        # m is -: N -> N - 1 -> j
-        s_1 = harmonic_number(1,j+1)
-        s_2 = harmonic_number(2,j+1)
-        s_3_p = harmonic_number(3,j+2)
-        s_3_m = harmonic_number(3,j)
-        s_m3 = harmonic_number(-3,j+1)
-        s_1_p = harmonic_number(1,j+2)
-        s_1_m = harmonic_number(1,j)
-        s_2_p = harmonic_number(2,j+2)
-        s_2_pp = harmonic_number(2,j+3)
-        s_2_m = harmonic_number(2,j)
-        s_1_m2_p = nested_harmonic_number([1,-2],j+2)
-        s_1_m2_m = nested_harmonic_number([1,-2],j)
-        s_1_2_p = nested_harmonic_number([1,2],j+2)
-        s_1_2_m = nested_harmonic_number([1,2],j)
-        s_2_1_p = nested_harmonic_number([2,1],j+2)
-        s_2_1_m = nested_harmonic_number([2,1],j)
-
-        if moment_type == "singlet":
-            s_1_mm = harmonic_number(1,j-1)
-            s_1_pp = harmonic_number(1,j+3)
-
-    def gamma_qq_lo(j):
-        # Belitsky (4.152)
-        result = - c_f * (-4*mp.digamma(j+2)+4*mp.digamma(1)+2/((j+1)*(j+2))+3)
-        return result
-    
-    def gamma_qq_nlo(j):
-        # Belitsky K.5 has sign error
-        # Check (2.5) in Nucl.Phys.B 153 (1979) 161-186
-        # if moment_type == "singlet":
-        #     sigma = 1
-        # else:
-        #     sigma = (-1)**(mp.nint(mp.re(j))+1)
-        c_a = Nc
-        # s_0 = harmonic_number(0,j+1)
-        # s_2_prime = harmonic_number_prime(2,j+1)
-        # s_tilde = harmonic_number_tilde(j+1)
-        # s_3_prime = harmonic_number_prime(3,j+1)
-        # Nucl.Phys.B 688 (2004) 101-134
-        # Note different beta function convention
-        # so we reverse the sign
-        term1 = - 4 * c_a * c_f * (2 * s_3_p - 17/24 - 2 * s_m3 - 28/3 * s_1
-                                 + 151/18 * (s_1_m + s_1_p) + 2 * (s_1_m2_m + s_1_m2_p) - 11/6 * (s_2_m + s_2_p)
-                                 )
-        # 2025
-        term2 = - 8 * c_f * t_f * Nf * (1/12 + 4/3 * s_1 - (11/9 * (s_1_m + s_1_p) - 1/3*(s_2_m + s_2_p)) )
-        term3 = - 4 * c_f**2 * (4*s_m3 + 2*s_1 + 2 * s_2 -3/8 + (s_2_m + 2 * s_3_m)
-                                - ((s_1_m + s_1_p) + 4 * (s_1_m2_m +s_1_m2_p) + 2 * (s_1_2_m + s_1_2_p) + 2 * (s_2_1_m + s_2_1_p) + (s_3_m + s_3_p))
-        )
-        # print(term3,term1,term2)
-        # enforce conservation
-        if moment_type != "singlet" and evolve_type == "vector":
-            term1+= (7 * c_a *c_f - 14 * c_f**2)
-        # print(term2,term3,term1)
-        # Belistky differs by a factor of 4 and sign in front of (-1)**(j+1)
-        # term1 = (c_f**2 - .5 * c_f * c_a)*(
-        #             4 * (2 * j + 3)/((j + 1 )**2 * (j + 2)**2)*s_0
-        #             - 2 * (3 * j**3 +10 * j**2 + 11*j +3)/((j + 1 )**3 * (j + 2)**3)
-        #             + 4 * (2 * s_1 - 1/((j + 1)*(j + 2))) * (s_2 - s_2_prime)
-        #             + 16 * s_tilde + 6 * s_2 - .75 - 2 * s_3_prime
-        #             + 4 * sigma * (2 * j**2 + 6 * j + 5)/((j + 1 )**3 * (j + 2)**3)
-        #         )
-        # term1 = (c_f**2 - .5 * c_f * c_a)*(
-        #             4 * (2 * j + 3)/((j + 1 )**2 * (j + 2)**2)*s_0
-        #             - 2 * (3 * j**3 +10 * j**2 + 11*j +3)/((j + 1 )**3 * (j + 2)**3)
-        #             + 4 * (2 * s_1 - 1/((j + 1)*(j + 2))) * (s_2 - s_2_prime)
-        #             + 16 * s_tilde + 6 * s_2 - .75 - 2 * s_3_prime
-        #             - 4 * sigma * (2 * j**2 + 6 * j + 5)/((j + 1 )**3 * (j + 2)**3)
-        #         )
-        # term2 = c_f * c_a *( s_1 * (134/9 + 2 * (2*j +3 )/((j+1)**2*(j+2)**2) )
-        #                     - 4 * s_1 * s_2 + s_2 *(-13/3 +2/((j+1)*(j+2)))
-        #                     -43/24 - 1/9 * (151*j**4 + 867 * j**3 +1792*j**2 + 1590*j + 523)/\
-        #                     ((j+1)**3*(j+2)**3)
-        #                     )
-        # separate c_f**2 and c_f * c_a terms
-        # term1 = (c_f**2)*(
-        #             4 * (2 * j + 3)/((j + 1 )**2 * (j + 2)**2)*s_0
-        #             - 2 * (3 * j**3 +10 * j**2 + 11*j +3)/((j + 1 )**3 * (j + 2)**3)
-        #             + 4 * (2 * s_1 - 1/((j + 1)*(j + 2))) * (s_2 - s_2_prime)
-        #             + 16 * s_tilde + 6 * s_2 - .75 - 2 * s_3_prime
-        #             - 4 * sigma * (2 * j**2 + 6 * j + 5)/((j + 1 )**3 * (j + 2)**3)
-        #         )
-        # term2 = c_f * c_a *( s_1 * (134/9 + 2 * (2*j +3 )/((j+1)**2*(j+2)**2) )
-        #                     - 4 * s_1 * s_2 + s_2 *(-13/3 +2/((j+1)*(j+2)))
-        #                     -43/24 - 1/9 * (151*j**4 + 867 * j**3 +1792*j**2 + 1590*j + 523)/\
-        #                     ((j+1)**3*(j+2)**3)
-        #                 )
-        # term2-= .5 * c_f * c_a*(
-        #             4 * (2 * j + 3)/((j + 1 )**2 * (j + 2)**2)*s_0
-        #             - 2 * (3 * j**3 +10 * j**2 + 11*j +3)/((j + 1 )**3 * (j + 2)**3)
-        #             + 4 * (2 * s_1 - 1/((j + 1)*(j + 2))) * (s_2 - s_2_prime)
-        #             + 16 * s_tilde + 6 * s_2 - .75 - 2 * s_3_prime
-        #             + 4 * sigma * (2 * j**2 + 6 * j + 5)/((j + 1 )**3 * (j + 2)**3)
-        #         )
-        # (B.18) in Nucl.Phys.B 192 (1981) 417-462
-        # term1 = c_f**2 * (4 * s_1 * (2*j + 3)/((j+1)**2*(j+2)**2) + 4 * (2*s_1 - 1/((j+1)*(j+2)) * (s_2-s_2_prime))
-        #                   + 6 * s_2 + 16 * s_tilde - 2 * s_3_prime - .75 - 2 * (3 * j**3 + 10 * j**2 + 11*j + 3)/(((j+1)**3 * (j+2)**3))
-        #                   -4 * sigma * (2*j**2 + 6*j + 5)/(((j+1)**3*(j+2)**3))
-        #                   ) 
-        # term2 = c_f * c_a *(134/9 * s_1 - 2 * (2*s_1-1/((j+1)*(j+2))) * (2*s_2 - s_2_prime) 
-        #                     - 22/3 * s_2 - 8 * s_tilde + s_3_prime - 17/12
-        #                     - 1/9 * (151*j**4 + 840*j**3 + 1702 * j**2 + 1491 * j + 496)/((j+1)**3*(j+2)**3)
-        #                     + 2 * sigma * (2*j**2 + 6*j + 5 )/((j+1)**3*(j+2)**3)
-        #                     )
-        # term3 = c_f * t_f * Nf * (-40/9*s_1 +8/3*s_2 +1/3 +4/9 * (11*j**2 +27*j+13)/((j+1)**2*(j+2)**2))
-        # Belistky differs by a sign in front of (-1)**(j+1)
-        # print(term3,term1,term2)
-        nlo_term = term1 + term2 + term3
-        # if moment_type != "singlet":
-        #     ga_j0 = - 5 * (c_f**2 - .5 * c_f * c_a)
-        #     nlo_term-= ga_j0
-        result = nlo_term
-        if evolve_type == "axial":
-            term4 = - 16 * c_f * (c_f - .5 * c_a) * (
-                (s_2_m - s_2_p) - (s_3_m - s_3_p)
-                - 2 * (s_1_m + s_1_p - 2 * s_1)
-            )
-            # print(term4)
-            result += term4
-        # Nucl.Phys.B 688 (2004) 101-134 defines Mellin moment
-        # without factor 1/2
-        result*=2
-        return result
-    
     if evolution_order == "LO":
-        result = gamma_qq_lo(j)
-        return result
-
-    if moment_type in ["non_singlet_isovector","non_singlet_isoscalar"]:
-        if evolution_order == "NLO":
-            result = gamma_qq_nlo(j)
-            return result
-        else:
-            raise ValueError(f"Currently unsupported evolution order {evolution_order}")
-    
-    elif moment_type == "singlet":
-        if evolution_order == "NLO":
-            term1 = gamma_qq_nlo(j)
-            if evolve_type == "vector":
-                # Nucl.Phys.B 691 (2004) 129-181
-                # Note different beta function convention
-                # so we reverse the sign
-                # 2025
-                term2 = - 8 * c_f * t_f * Nf * (
-                    20/9 * (s_1_mm - s_1_m) - (56/9*(s_1_p - s_1_pp) + 8/3 * ((s_2_p - s_2_pp)) )
-                    + (8*(s_1 - s_1_p)-4 * (s_2 - s_2_p)) - (2 * (s_1_m - s_1_p) + (s_2_m - s_2_p) + 2 * (s_3_m - s_3_p))
-                )
-                # Belitsky K.6
-                # term2 = -(
-                #             4*c_f*t_f*Nf * (5 * j**5 + 57 * j**4 + 227 * j**3 + 427 * j**2 + 404 * j + 160)/
-                #             (j * (j + 1)**3 * (j + 2)**3 * (j + 3)**2)
-                # )
-            if evolve_type == "axial":
-                # Nucl.Phys.B 889 (2014) 351-400
-                # Note different beta function convention
-                # so we reverse the sign
-                eta = 1/((j+1)*(j+2))
-                d02 = d_weight(2,0,j + 1)
-                d03 = d_weight(3,0,j + 1)
-                term2 = - 4 * c_f * Nf * (-5 * eta + 3 * eta**2 + 2 * eta**3 + 4 * d02 - 4 * d03)
-                # print(term2)
-                # Belistky differs by t_f
-                # term2 = + 4 * c_f * t_f * Nf * ((j + 3) * (4 + 5 * j + 3 * j**2 + j**3)) / ((j + 1)**3 * (j + 2)**3)
-            # Nucl.Phys.B 889 (2014) 351-400 defines Mellin moment
-            # without factor 1/2
-            term2*=2
-            result = term1 + term2
-            return result
-        else:
-            raise ValueError(f"Currently unsupported evolution order {evolution_order}")
-    else:
-        raise ValueError(f"Wrong moment type {moment_type}")
-    
-def gamma_qg(j, Nf=3, evolve_type = "vector",evolution_order="LO"):
-    """
-    Compute off-diagonal qg anomalous dimension
-    Parameters:
-    j -- conformal spin
-    Nf -- Number of active flavors (default Nf = 3 )
-    evolve_type -- "vector" or "axial"
-    evolution_order : LO, NLO, NNLO
-    Returns:
-    Value of anomalous dimension
-    """
-    # Note addition factor of j/6 (see (K.1) in 0504030)
-    Nc = 3
-    c_a = Nc
-    c_f = (Nc**2-1)/(2*Nc)
-    t_f = .5
-   
-    if evolution_order == "LO":
-        if j == 0:
-            j = 1e-12
-        if evolve_type == "vector":
-            result = -24*Nf*t_f*(j**2+3*j+4)/(j*(j+1)*(j+2)*(j+3))
-        elif evolve_type == "axial":
-            result = -24*Nf*t_f/((j+1)*(j+2))
-        else:
-            raise ValueError("evolve_type must be axial or vector")
-        # Match forward to Wilson anomalous dimension
-        result*=j/6
-
+        return gamma_qq_lo(j)
     elif evolution_order == "NLO":
-        s_1 = harmonic_number(1,j+1)
-        s_2 = harmonic_number(2,j+1)
-        s_1_1_1 = nested_harmonic_number([1,1,1],j+1)
-        s_1_1_1_m = nested_harmonic_number([1,1,1],j)
-        s_1_1_1_p = nested_harmonic_number([1,1,1],j+2)
-        s_1_m2 = nested_harmonic_number([1,-2],j+1)
-        s_1_m2_m = nested_harmonic_number([1,-2],j)
-        s_1_m2_p = nested_harmonic_number([1,-2],j+2)
-        s_1_2 = nested_harmonic_number([1,2],j+1)
-        s_1_2_m = nested_harmonic_number([1,2],j)
-        s_1_2_p = nested_harmonic_number([1,2],j+2)
-        s_2_1 = nested_harmonic_number([2,1],j+1)
-        s_2_1_m = nested_harmonic_number([2,1],j)
-        s_2_1_p = nested_harmonic_number([2,1],j+2)
-        s_1_m = harmonic_number(1,j)
-        s_1_mm = harmonic_number(1,j-1)
-        s_1_p = harmonic_number(1,j+2)
-        s_1_pp = harmonic_number(1,j+3)
-        s_2 = harmonic_number(2,j+1)
-        s_2_m = harmonic_number(2,j)
-        s_2_p = harmonic_number(2,j+2)
-        s_2_pp = harmonic_number(2,j+3)
-        s_1_1 = nested_harmonic_number([1,1],j+1)
-        s_1_1_p = nested_harmonic_number([1,1],j+2)
-        s_3 = harmonic_number(3,j+1)
-        s_3_m = harmonic_number(3,j)
-        s_3_p = harmonic_number(3,j+2)
-
-        s_1_1_pp =nested_harmonic_number([1,1],j+3)
-        s_1_m2_pp = nested_harmonic_number([1,-2],j+3)
-        s_1_1_1_pp = nested_harmonic_number([1,1,1],j+3)
-        s_1_2_pp = nested_harmonic_number([1,2],j+3)
-        s_2_1_pp = nested_harmonic_number([2,1],j+3)
-        s_3_pp = harmonic_number(3,j+3)
-
-        # s_2_prime = harmonic_number_prime(2,j+1)
-
-        if evolve_type == "vector":
-            # Nucl.Phys.B 691 (2004) 129-181
-            # Note different beta function convention
-            # so we reverse the sign
-            term1 = - 4 * c_a * Nf * (
-                20/9 * (s_1_mm - s_1_m) - (2* (s_1_m - s_1_p) + (s_2_m - s_2_p) + 2 * (s_3_m - s_3_p))
-                - (218/9*(s_1_p-s_1_pp) + 4 * (s_1_1_p-s_1_1_pp) + 44/3 * (s_2_p - s_2_pp))
-                + (27*(s_1-s_1_p) + 4 * (s_1_1 - s_1_1_p) - 7 * (s_2 - s_2_p) - 2 * (s_3 - s_3_p))
-                - 2 * ((s_1_m2_m + 4 * s_1_m2_p - 2 * s_1_m2_pp - 3 * s_1_m2) + (s_1_1_1_m + 4 * s_1_1_1_p - 2 * s_1_1_1_pp - 3 * s_1_1_1))
-            )
-            # 2025
-            term2 = - 8 * c_f * t_f * Nf * (
-                2 * (5*(s_1_p - s_1_pp ) + 2 * (s_1_1_p - s_1_1_pp) - 2 * (s_2_p - s_2_pp) + (s_3_p - s_3_pp))
-                - (43/2 * (s_1-s_1_p) + 4 * (s_1_1 - s_1_1_p) - 7/2 * (s_2 - s_2_p))
-                + (7 * (s_1_m - s_1_p) - 1.5 * (s_2_m - s_2_p))
-                + 2 * ((s_1_1_1_m + 4 * s_1_1_1_p -2 * s_1_1_1_pp - 3 * s_1_1_1)
-                       -(s_1_2_m + 4 * s_1_2_p -2 * s_1_2_pp - 3 * s_1_2)
-                       -(s_2_1_m + 4 * s_2_1_p -2 * s_2_1_pp - 3 * s_2_1)
-                       +.5 * (s_3_m + 4 * s_3_p -2 * s_3_pp - 3 * s_3))
-            )
-            # print(term2,term1)
-            #  Belitsky K.7
-            # term1 = -2 * c_a * t_f * Nf * (
-            #     (-2 * s_1**2 + 2 * s_2 - 2 * s_2_prime) * ((j**2 + 3 * j + 4) / ((j + 1) * (j + 2) * (j + 3))) +
-            #     (960 + 2835 * j + 4057 * j**2 + 3983 * j**3 + 3046 * j**4 + 1777 * j**5 +
-            #     731 * j**6 + 195 * j**7 + 30 * j**8 + 2 * j**9) / (j * (j + 1)**3 * (j + 2)**3 * (j + 3)**3) +
-            #     (-1)**(j + 1) * (141 + 165 * j + 92 * j**2 + 27 * j**3 + 3 * j**4) /
-            #     ((j + 1) * (j + 2)**3 * (j + 3)**3) +
-            #     8 * (2 * j + 5) / ((j + 2)**2 * (j + 3)**2) * s_1
-            # )
-            # (B.20) in Nucl.Phys.B 192 (1981) 417-462, but seems to agree at least for j = 1
-            # term1 = - 2 * c_a * t_f * Nf * (
-            #     (-2 * s_1**2 + 2 * s_2 - 2 * s_2_prime) * ((j**2 + 3 * j + 4) / ((j + 1) * (j + 2) * (j + 3))) +
-            #     (2 * (480 + 1488*j + 2252*j**2 + 2273*j**3 + 1711*j**4 + 963*j**5 + 382*j**6 + 99*j**7 +
-            #     15*j**8 + j**9)) / (j * (1 + j)**3 * (2 + j)**3 * (3 + j)**3) +
-            #     8 * (2 * j + 5) / ((j + 2)**2 * (j + 3)**2) * s_1
-            # ) 
-            # term2 = -2 * c_f * t_f * Nf * (
-            #     (2 * s_1**2 - 2 * s_2 + 5) * ((j**2 + 3 * j + 4) / ((j + 1) * (j + 2) * (j + 3))) -
-            #     4 * s_1 / ((j + 1)**2) +
-            #     (11 * j**4 + 70 * j**3 + 159 * j**2 + 160 * j + 64) /
-            #     ((j + 1)**3 * (j + 2)**3 * (j + 3))
-            # )
-            # print(term2,term1)
-        elif evolve_type == "axial":
-            # Nucl.Phys.B 889 (2014) 351-400
-            # Note different beta function convention
-            # so we reverse the sign
-            d1 = d_weight(1,1,j+1)
-            d0 = d_weight(1,0,j+1)
-            d02 = d_weight(2,0,j+1)
-            d03 = d_weight(3,0,j+1)
-            d12 = d_weight(2,1,j+1)
-            d13 = d_weight(3,1,j+1)
-            Delta_pqg = (2 * d1 - d0)
-            s_m2 = harmonic_number(-2,j+1)
-            #2025
-            term1 = - 8 * c_f * t_f * Nf * (
-                2 * Delta_pqg * (s_1_1 - s_2) - 2 * (2 * d0 - d02 - 2 * d1) * s_1
-                - 11 * d0 + 9/2 * d02 - d03 + 27/2 * d1 + 4 * d12 - 2 * d13
-            )
-            term2 = - 4 * c_a * Nf * (
-                - 2 * Delta_pqg * (s_m2 + s_1_1) + 4 * (d0 - d1 - d12) * s_1
-                + 12 * d0 - d02 - 2 * d03 - 11 * d1 - 12 * d12 - 12 * d13
-            )
-            # Belitsky K.11
-            # term1 = 2 * c_f * t_f * Nf * (
-            #     - (j * (16 + 49 * j + 60 * j**2 + 30 * j**3 + 5 * j**4)) / ((j + 1)**3 * (j + 2)**3) +
-            #     (4 * j / ((j + 1)**2 * (j + 2))) * s_1 -
-            #     (2 * j / ((j + 1) * (j + 2))) * (s_1**2 - s_2)
-            # )
-
-            # term2 = 4 * c_a * t_f * Nf * (
-            #     (8 + 4 * j - 7 * j**2 - 10 * j**3 - 6 * j**4 - j**5) / ((j + 1)**3 * (j + 2)**3) -
-            #     (4 * s_1 / ((j + 1) * (j + 2)**2)) +
-            #     (j / ((j + 1) * (j + 2))) * (s_1**2 - s_2 + s_2_prime)
-            # )
-            # print(term1,term2)
-        else:
-            raise ValueError("evolve_type must be axial or vector")
-        result = term1 + term2
-        # Nucl.Phys.B 889 (2014) 351-400 defines Mellin moment
-        # without factor 1/2
-        result*=2
+        return gamma_qq_nlo(j,Nf,moment_type,evolve_type,interpolation)
     else:
-        raise ValueError(f"Currently unsupported evolution order {evolution_order}")
+        raise ValueError(f"Wrong evolution_order {evolution_order}")
 
+def gamma_qg_lo(j, Nf=3, evolve_type = "vector"):
+    t_f = .5
+    # Note additional factor of j/6 at LO (see (K.1) in 0504030)
+    if j == 0:
+        j = 1e-12
+    if evolve_type == "vector":
+        result = -24*Nf*t_f*(j**2+3*j+4)/(j*(j+1)*(j+2)*(j+3))
+    elif evolve_type == "axial":
+        result = -24*Nf*t_f/((j+1)*(j+2))
+    else:
+        raise ValueError("evolve_type must be axial or vector")
+    # Match forward to Wilson anomalous dimension
+    result*=j/6
     return result
 
-def gamma_gq(j, Nf=3,evolve_type = "vector",evolution_order="LO"):
-    """
-    Compute off-diagonal gq anomalous dimension
-    Parameters:
-    j -- conformal spin
-    evolve_type -- "vector" or "axial"
-    Returns:
-    Value of anomalous dimension
-    """
-    # Check evolve_type
-    hp.check_evolve_type(evolve_type)
-
+@cfg.memory.cache
+def gamma_qg_nlo(j, Nf=3, evolve_type = "vector",interpolation=True):
+    if interpolation:
+        interp = hp.gamma_interpolator("qg","singlet",evolve_type,"NLO")
+        result = interp(j)
+        return result
     Nc = 3
     c_a = Nc
     c_f = (Nc**2-1)/(2*Nc)
     t_f = .5
-    
-    if evolution_order == "LO":
-        if j == 0:
-            j = 1e-12
-        if evolve_type == "vector":
-            result = -c_f*(j**2+3*j+4)/(3*(j+1)*(j+2))
-        elif evolve_type == "axial":
-            result = -c_f*j*(j+3)/(3*(j+1)*(j+2))
-        else:
-            raise ValueError("Type must be axial or vector")
-        # Match forward to Wilson anomalous dimension
-        result*=6/j
-    
-    elif evolution_order == "NLO":
-        s_1 = harmonic_number(1,j+1)
-        s_2 = harmonic_number(2,j+1)
-        # s_2_prime = harmonic_number_prime(2,j+1)
-
-        s_1_1_1 = nested_harmonic_number([1,1,1],j+1)
-        s_1_1_1_m = nested_harmonic_number([1,1,1],j)
-        s_1_1_1_mm = nested_harmonic_number([1,1,1],j-1)
-        s_1_1_1_p = nested_harmonic_number([1,1,1],j+2)
-        s_1_m2 = nested_harmonic_number([1,-2],j+1)
-        s_1_m2_m = nested_harmonic_number([1,-2],j)
-        s_1_m2_mm = nested_harmonic_number([1,-2],j-1)
-        s_1_m2_p = nested_harmonic_number([1,-2],j+2)
-        s_1_2 = nested_harmonic_number([1,2],j+1)
-        s_1_2_m = nested_harmonic_number([1,2],j)
-        s_1_2_mm = nested_harmonic_number([1,2],j-1)
-        s_1_2_p = nested_harmonic_number([1,2],j+2)
-        s_2_1 = nested_harmonic_number([2,1],j+1)
-        s_2_1_m = nested_harmonic_number([2,1],j)
-        s_2_1_mm = nested_harmonic_number([2,1],j-1)
-        s_2_1_p = nested_harmonic_number([2,1],j+2)
-        s_1_m = harmonic_number(1,j)
-        s_1_mm = harmonic_number(1,j-1)
-        s_1_p = harmonic_number(1,j+2)
-        s_1_pp = harmonic_number(1,j+3)
-        s_2 = harmonic_number(2,j+1)
-        s_2_m = harmonic_number(2,j)
-        s_2_p = harmonic_number(2,j+2)
-        s_2_pp = harmonic_number(2,j+3)
-        s_1_1 = nested_harmonic_number([1,1],j+1)
-        s_1_1_m = nested_harmonic_number([1,1],j)
-        s_1_1_mm = nested_harmonic_number([1,1],j-1)
-        s_1_1_p = nested_harmonic_number([1,1],j+2)
-        s_3 = harmonic_number(3,j+1)
-        s_3_m = harmonic_number(3,j)
-        s_3_p = harmonic_number(3,j+2)
-
-        if evolve_type == "vector":
-            # Nucl.Phys.B 691 (2004) 129-181
-            # Note different beta function convention
-            # so we reverse the sign
-            term1 = - 4 * c_a * c_f * (
-                2* ((2 * s_1_1_1_mm - 4 * s_1_1_1_m - s_1_1_1_p + 3 *s_1_1_1)
-                    - (2 * s_1_m2_mm - 4 * s_1_m2_m - s_1_m2_p + 3 *s_1_m2) 
-                    - (2 * s_1_2_mm - 4 * s_1_2_m - s_1_2_p + 3 *s_1_2)
-                    - (2 * s_2_1_mm - 4 * s_2_1_m - s_2_1_p + 3 *s_2_1))
-                + (2 * (s_1 - s_1_p) - 13 * (s_1_1 - s_1_1_p) - 7 * (s_2 - s_2_p) - 2 * (s_3 - s_3_p))
-                + (s_1_mm - 2 * s_1_m + s_1_p) - 22/3 * (s_1_1_mm - 2 * s_1_1_m + s_1_1_p)
-                + 4 * (7/9 * (s_1_m - s_1_p) + 3 * (s_2_m - s_2_p) + (s_3_m - s_3_p))
-                + (44/9 * (s_1_p - s_1_pp) + 8/3 * (s_2_p - s_2_pp)) 
-            )
-            # 2025
-            term2 = - 8 * c_f * t_f * Nf * (
-                (4/3 * (s_1_1_mm - 2 * s_1_1_m + s_1_1_p) -20/9 * (s_1_mm - 2 * s_1_m + s_1_p) )
-                - (4 * (s_1 - s_1_p) - 2 * (s_1_1 - s_1_1_p))
-            )
-            term3 = - 4 * c_f**2 *(
-                3 * (2 * s_1_1_mm - 4 * s_1_1_m - s_1_1_p + 3 * s_1_1) - 2 * (2 * s_1_1_1_mm - 4 * s_1_1_1_m - s_1_1_1_p + 3 * s_1_1_1)
-                - ((s_1 - s_1_p) - 2 * (s_1_1 - s_1_1_p) + 1.5 * (s_2 - s_2_p) - 3 * (s_3 - s_3_p))
-                - (5/2 * (s_1_m - s_1_p) + 2 * (s_2_m - s_2_p) + 2 * (s_3_m - s_3_p))
-            )
-            # print(term2,term3,term1)
-            
-            # Belitsky K.8
-            # term1 = - c_f**2 * (
-            #     (-2 * s_1**2 + 10 * s_1 - 2 * s_2) * ((j**2 + 3 * j + 4) / (j * (j + 1) * (j + 2))) -
-            #     4 * s_1 / ((j + 2)**2) -
-            #     (12 * j**6 + 102 * j**5 + 373 * j**4 + 740 * j**3 + 821 * j**2 + 464 * j + 96) /
-            #     (j * (j + 1)**3 * (j + 2)**3)
-            # )
-            # term2 = -2 * c_a * c_f * (
-            #     (s_1**2 + s_2 - s_2_prime) * ((j**2 + 3 * j + 4) / (j * (j + 1) * (j + 2))) +
-            #     (1296 + 10044 * j + 30945 * j**2 + 47954 * j**3 + 42491 * j**4 + 22902 * j**5 + 7515 * j**6 +
-            #     1384 * j**7 + 109 * j**8) / (9 * j**2 * (j + 1)**3 * (j + 2)**2 * (j + 3)**2) +
-            #     (-1)**(j + 1) * (8 + 9 * j + 4 * j**2 + j**3) / ((j + 1)**3 * (j + 2)**3) -
-            #     (17 * j**4 + 68 * j**3 + 143 * j**2 + 128 * j + 24) / (3 * j**2 * (j + 1)**2 * (j + 2)) * s_1
-            # )
-            # (A.7) hep-ph/9810275
-            # term2 = -2 * c_a * c_f * (
-            #     (s_1**2 + s_2 - s_2_prime) * ((j**2 + 3 * j + 4) / (j * (j + 1) * (j + 2))) +
-            #     (2592+ 21384 * j + 72582 * j**2 + 128014 * j**3 + 133818 * j**4 + 88673 * j**5 + 38022* j**6 +
-            #     10292 * j**7 + 1602 * j**8 + 109 * j**9) / (9 * j**2 * (j + 1)**3 * (j + 2)**2 * (j + 3)**2) -
-            #     (17 * j**4 + 68 * j**3 + 143 * j**2 + 128 * j + 24) / (3 * j**2 * (j + 1)**2 * (j + 2)) * s_1
-            # )
-            # term3 = -(8 / 3) * c_f * t_f * Nf * (
-            #     (s_1 - 8 / 3) * ((j**2 + 3 * j + 4) / (j * (j + 1) * (j + 2))) + 1 / ((j + 2)**2)
-            # )
-            # (B.21) in Nucl.Phys.B 192 (1981) 417-462
-            # term1 = - 4 * c_f**2 * (
-            #     (-2 * s_1**2 + 10 * s_1 - 2 * s_2) * ((j**2 + 3 * j + 4) / (j * (j + 1) * (j + 2))) -
-            #     4 * s_1 / ((j + 2)**2) -
-            #     (12 * j**6 + 102 * j**5 + 373 * j**4 + 740 * j**3 + 821 * j**2 + 464 * j + 96) /
-            #     (j * (j + 1)**3 * (j + 2)**3)
-            # )
-            # term2 = -8 * c_a * c_f * (
-            #     (s_1**2 + s_2 - s_2_prime) * ((j**2 + 3 * j + 4) / (j * (j + 1) * (j + 2))) +
-            #     (2592 + 21384*j + 72582*j**2 + 128014*j**3 + 133818*j**4 + 88673*j**5 + 38022*j**6 +
-            #     10292*j**7 + 1602*j**8 + 109*j**9) / (9 * j**2 * (j + 1)**3 * (j + 2)**3 * (j + 3)**2) -
-            #     (17 * j**4 + 68 * j**3 + 143 * j**2 + 128 * j + 24) / (3 * j**2 * (j + 1)**2 * (j + 2)) * s_1
-            # )
-            # term3 = -(32 / 3) * c_f * t_f * (
-            #     (s_1 - 8 / 3) * ((j**2 + 3 * j + 4) / (j * (j + 1) * (j + 2))) + 1 / ((j + 2)**2)
-            # )
-            # print(term2,term1,term3)
-        elif evolve_type == "axial": 
-            # Nucl.Phys.B 889 (2014) 351-400
-            # Note different beta function convention
-            # so we reverse the sign
-            d1 = d_weight(1,1,j+1)
-            d0 = d_weight(1,0,j+1)
-            d02 = d_weight(2,0,j+1)
-            d03 = d_weight(3,0,j+1)
-            d12 = d_weight(2,1,j+1)
-            d13 = d_weight(3,1,j+1)
-            s_m2 = harmonic_number(-2,j+1)
-            Delta_pgq = (2 * d0 - d1)
-            # 2025
-            term1 = - 16/9 * c_f * t_f * Nf * (
-                3 * Delta_pgq * s_1 - 4 * d0 - d1 - 3 * d12
-            )
-            term2 = - 4 * c_f**2 * (
-                - Delta_pgq * (2* s_1_1 - s_1) + 2 *(d1 + d12) * s_1
-                -17/2 * d0 + 2 * d02 + 2 * d03 + 4 * d1 + .5 * d12 + d13
-            )
-            term3 = - 4 * c_a * c_f *(
-                2* Delta_pgq * (s_1_1 - s_m2 - s_2) - (10/3 * d0 + 4 * d02 + 1/3 * d1) * s_1
-                + 41/9 * d0 - 4 * d02 + 4 * d03 + 35/9 * d1 + 38/3 * d12 + 6 * d13
-            )
-            # print(term1,term2,term3)
-            # print(term1+term2+term3)
-            # hep-ph/9508347
-            # n = j + 1
-            # term1 = 32 * c_f * t_f * Nf * (
-            #     - (n+2)/(3*n*(n+1))*s_1 + (5*n**2 + 12*n +4)/(9*n*(n+1)**2)
-            # )
-            # term2 = 4 * c_f**2 *(
-            #     2 * (n+2)/(n*(n+1))*(s_2 + s_1**2) - 2 * (3*n**2 + 7 * n + 2)/(n*(n+1)**2)*s_1
-            #     + (9*n**5 + 30 * n**4 + 24 * n**3 - 7 * n**2 - 16 * n - 4)/(n**3*(n+1)**3)
-            # )
-            # term3 = 8 * c_a * c_f * (
-            #     (n+2)/(n*(n+1))*(-s_2 + s_2_prime - s_1**2) + (11 * n**2 + 22 * n + 12)/(3*n**2*(n+1)) * s_1
-            #     -(76*n**5 + 271 * n**4 + 254 * n**3 + 41 * n**2 + 72 * n + 36)/(9*n**3*(n+1)**3)
-            # )
-            # print(term1,term2,term3)
-            # print("cf nf, cf**2, ca cf")
-            # print(term1/(c_f * Nf),term2/c_f**2,term3/(c_a * c_f))
-            # Belitsky K.12
-            # term1 = 8 * c_f * t_f * Nf * (
-            #     ((j + 3) * (5 * j + 7)) / (9 * (j + 1) * (j + 2)**2) -
-            #     ((j + 3) / (3 * (j + 1) * (j + 2))) * s_1
-            # )
-            # term2 = c_f**2 * (
-            #     ((j + 3) * (3 * j + 4) * (3 + 14 * j + 12 * j**2 + 3 * j**3)) / ((j + 1)**3 * (j + 2)**3) -
-            #     (2 * (j + 3) * (3 * j + 4)) / ((j + 1) * (j + 2)**2) * s_1 +
-            #     (2 * (j + 3) / ((j + 1) * (j + 2))) * (s_1**2 + s_2)
-            # )
-            # term3 = 2 * c_a * c_f * (
-            #     - (750 + 2380 * j + 3189 * j**2 + 2098 * j**3 + 651 * j**4 + 76 * j**5) / (9 * (j + 1)**3 * (j + 2)**3) +
-            #     ((45 + 44 * j + 11 * j**2) / (3 * (j + 1)**2 * (j + 2))) * s_1 +
-            #     ((j + 3) / ((j + 1) * (j + 2))) * (-s_1**2 - s_2 + s_2_prime)
-            # )
-            # print(term1,term2,term3)
-        else:
-            raise ValueError("Type must be axial or vector")
-        result = term1 + term2 + term3
-        # Nucl.Phys.B 889 (2014) 351-400 defines Mellin moment
-        # without factor 1/2
-        result*=2
-    else:
-        raise ValueError(f"Currently unsupported evolution order {evolution_order}")
-
-    return result
-
-def gamma_gg(j, Nf = 3, evolve_type = "vector",evolution_order="LO"):
-    """
-    Compute diagonal gg anomalous dimension
-    Parameters:
-    j -- conformal spin
-    evolve_type -- "vector" or "axial"
-    Nf -- Number of active flavors (default Nf = 3 )
-    Returns:
-    Value of anomalous dimension
-    """
-    # Check evolve_type
-    hp.check_evolve_type(evolve_type)
-
-    Nc = 3
-    c_a = Nc
-    c_f = (Nc**2-1)/(2*Nc)
-    
-    t_f = .5
-    beta_0 = 2/3* Nf - 11/3 * Nc
-
-    if evolution_order == "LO":
-        if j == 0:
-            j = 1e-12
-        if evolve_type == "vector":
-            result = -c_a*(-4*mp.digamma(j+2)+4*mp.digamma(1)+8*(j**2+3*j+3)/(j*(j+1)*(j+2)*(j+3))-beta_0/c_a)
-        elif evolve_type == "axial":
-            result = -c_a*(-4*mp.digamma(j+2)+4*mp.digamma(1)+8/((j+1)*(j+2))-beta_0/c_a)
-        else:
-            raise ValueError("Type must be axial or vector")
-        
-    elif evolution_order == "NLO":
-        s_1 = harmonic_number(1,j+1)
-        s_1_m2 = nested_harmonic_number([1,-2],j+1)
-        s_1_m2_m = nested_harmonic_number([1,-2],j)
-        s_1_m2_mm = nested_harmonic_number([1,-2],j-1)
-        s_1_m2_p = nested_harmonic_number([1,-2],j+2)
-        s_1_2 = nested_harmonic_number([1,2],j+1)
-        s_1_2_m = nested_harmonic_number([1,2],j)
-        s_1_2_mm = nested_harmonic_number([1,2],j-1)
-        s_1_2_p = nested_harmonic_number([1,2],j+2)
-        s_2_1 = nested_harmonic_number([2,1],j+1)
-        s_2_1_m = nested_harmonic_number([2,1],j)
-        s_2_1_mm = nested_harmonic_number([2,1],j-1)
-        s_2_1_p = nested_harmonic_number([2,1],j+2)
-        s_1_m = harmonic_number(1,j)
-        s_1_mm = harmonic_number(1,j-1)
-        s_1_p = harmonic_number(1,j+2)
-        s_1_pp = harmonic_number(1,j+3)
-        s_2 = harmonic_number(2,j+1)
-        s_2_m = harmonic_number(2,j)
-        s_2_p = harmonic_number(2,j+2)
-        s_2_pp = harmonic_number(2,j+3)
-        s_3 = harmonic_number(3,j+1)
-        s_3_m = harmonic_number(3,j)
-        s_3_p = harmonic_number(3,j+2)
-        s_1_m2_pp = nested_harmonic_number([1,-2],j+3)
-        s_1_2_pp = nested_harmonic_number([1,2],j+3)
-        s_2_1_pp = nested_harmonic_number([2,1],j+3)
-        s_m3 = harmonic_number(-3,j+1)
-        s_3_pp = harmonic_number(3,j+3)
-
-        # s_2_prime = harmonic_number_prime(2,j+1)
-        # s_3_prime = harmonic_number_prime(3,j+1)
-        # s_tilde = harmonic_number_tilde(j+1)
-
-        if evolve_type == "vector":
-            # Nucl.Phys.B 691 (2004) 129-181
-            # Note different beta function convention
-            # so we reverse the sign
-            term1 = - 4 * c_a * Nf * (
-                2/3 - 16/3 * s_1 -23/9 * (s_1_mm + s_1_pp) + 14/3 * (s_1_m + s_1_p) + 2/3 * (s_2_m - s_2_p)
-            )
-            term2 = - 4 * c_a**2 * (
-                + 2 * s_m3 - 8/3  - 14/3 * s_1 + 2 * s_3 
-                - 4 * ((s_1_m2_mm - 2 * s_1_m2_m - 2 * s_1_m2_p + s_1_m2_pp + 3 * s_1_m2)
-                       + (s_1_2_mm - 2 * s_1_2_m - 2 * s_1_2_p + s_1_2_pp + 3 * s_1_2)
-                       + (s_2_1_mm - 2 * s_2_1_m - 2 * s_2_1_p + s_2_1_pp + 3 * s_2_1)
-                   )
-                + 8/3 * (s_2_p - s_2_pp) - 4  * (3 * (s_2_m - 3 * s_2_p + s_2_pp + s_2) -  (s_3_m - 3 * s_3_p + s_3_pp + s_3)) 
-                + 109/18 * (s_1_m + s_1_p) + 61/3 * (s_2_m - s_2_p)
-            )
-            # 2025
-            term3 = - 8 * c_f * t_f * Nf * (
-                .5 + 2/3 * (s_1_mm - 13 * s_1_m - s_1_p - 5 * s_1_pp + 18 * s_1)
-                + (3 * s_2_m - 5 * s_2_p + 2 * s_2) - 2 * (s_3_m - s_3_p)
-            )
-            # print(term2,term3,term1)
-            # Draft
-            # term1 = c_a * t_f * Nf * (
-            #     (-40 / 9) * s_1 + (8 / 3) + (8 / 9) * (19 * j**4 + 114 * j**3 + 275 * j**2 + 312 * j + 138) /
-            #     (j * (j + 1)**2 * (j + 2)**2 * (j + 3))
-            # )
-            # term2 = c_f * t_f * Nf * (
-            #     2 + 4 * (2 * j**6 + 16 * j**5 + 51 * j**4 + 74 * j**3 + 41 * j**2 - 8 * j - 16) /
-            #     (j * (j + 1)**3 * (j + 2)**3 * (j + 3))
-            # )
-            # term3 = c_a**2 * (
-            #     (134 / 9) * s_1 + 16 * s_1 * (2 * j**5 + 15 * j**4 + 48 * j**3 + 81 * j**2 + 66 * j + 18) /
-            #     (j**2 * (j + 1)**2 * (j + 2)**2 * (j + 3)**2) -
-            #     (16 / 3) + 8 * s_2_prime * (j**2 + 3 * j + 3) / (j * (j + 1) * (j + 2) * (j + 3)) -
-            #     4 * s_1 * s_2_prime - s_3_prime + 8 * s_tilde    
-            # # )
-            #     # Belitsky additional terms
-            #     - (1 / 9) * (457 * j**9 + 6855 * j**8 + 44428 * j**7 + 163542 * j**6) /
-            #     (j**2 * (j + 1)**3 * (j + 2)**3 * (j + 3)**3) -
-            #     (1 / 9) * (376129 * j**5 + 557883 * j**4 + 529962 * j**3 + 308808 * j**2 + 101088 * j + 15552) /
-            #     (j**2 * (j + 1)**3 * (j + 2)**3 * (j + 3)**3)
-            # )
-            # (B.22) in Nucl.Phys.B 192 (1981) 417-462
-            # term1 = c_a * t_f * Nf * (
-            #     (-40 / 9) * s_1 + (8 / 3) + (8/ 9) * (19 * j**4 + 114 * j**3 + 275 * j**2 + 312 * j + 138) /
-            #     (j * (j + 1)**2 * (j + 2)**2 * (j + 3))
-            # )
-            # term2 = c_f * t_f * Nf * (
-            #     2 + 4 * (2 * j**6 + 16 * j**5 + 51 * j**4 + 74 * j**3 + 41 * j**2 - 8 * j - 16) /
-            #     (j * (j + 1)**3 * (j + 2)**3 * (j + 3))
-            # )
-            # term3 = c_a**2 * Nf * (
-            #     (134 / 9) * s_1 + 16 * s_1 * (2 * j**5 + 15 * j**4 + 48 * j**3 + 81 * j**2 + 66 * j + 18) /
-            #     (j**2 * (j + 1)**2 * (j + 2)**2 * (j + 3)**2) -
-            #     (16 / 3) + 8 * s_2_prime * (j**2 + 3 * j + 3) / (j * (j + 1) * (j + 2) * (j + 3)) -
-            #     4 * s_1 * s_2_prime +
-            #     8 * s_tilde - s_3_prime -
-            #     (1 / 9) * (457 * j**9 + 6855 * j**8 + 44428 * j**7 + 163542 * j**6 +
-            #     376129 * j**5 + 557883 * j**4 + 529962 * j**3 + 308808 * j**2 + 101088 * j + 15552) /
-            #     (j**2 * (j + 1)**3 * (j + 2)**3 * (j + 3)**3)
-            # )
-            # print(term3,term2,term1)
-        elif evolve_type == "axial":
-            # Nucl.Phys.B 889 (2014) 351-400
-            # Note different beta function convention
-            # so we reverse the sign
-            d02 = d_weight(2,0,j+1)
-            d03 = d_weight(3,0,j+1)
-            s_m2 = harmonic_number(-2,j+1)
-            eta = 1/((j+1)*(j+2))
-            # 2025
-            term1 = - 8 * c_f * t_f * Nf * (
-                -.5 - 7 * eta + 5 * eta**2 + 2 * eta**3 + 6 * d02 - 4 * d03
-            )
-            term2 = - 4/3 * c_a * Nf *(
-                10/3 * s_1 - 2 - 26/3 * eta + 2 * eta**2
-            )
-            term3 = -  4 * c_a**2 * (
-                4 * (s_1_m2 + s_1_2 + s_2_1) - 2 * (s_3 +s_m3) - 67/9 * s_1 + 8/3
-                - 8 * eta * (s_2 + s_m2) + 8 * (2 * eta + eta**2 - 2 * d02) * s_1
-                + 901/18 * eta - 149/3 * eta**2 -24 * eta**3 - 32 * (d02 - d03)
-            )
-            # print("cf nf,ca nf, ca^2")
-            # print(term1,term2,term3)
-            # Belistky differs by t_f
-            # term1 = 2 * c_f * t_f * Nf * (
-            #     (8 + 30 * j + 70 * j**2 + 71 * j**3 + 35 * j**4 + 9 * j**5 + j**6) /
-            #     ((j + 1)**3 * (j + 2)**3)
-            # )
-            # term2 = 8 * c_a * t_f * Nf * (
-            #     (35 + 75 * j + 52 * j**2 + 18 * j**3 + 3 * j**4) / (9 * (j + 1)**2 * (j + 2)**2) -
-            #     (5 / 9) * s_1
-            # )
-            # term3 = c_a**2 * (
-            #     - (1768 + 5250 * j + 7075 * j**2 + 4974 * j**3 + 1909 * j**4 + 432 * j**5 + 48 * j**6) /
-            #     (9 * (j + 1)**3 * (j + 2)**3) +
-            #     (2 / 9) * (484 + 948 * j + 871 * j**2 + 402 * j**3 + 67 * j**4) / ((j + 1)**2 * (j + 2)**2) * s_1 +
-            #     (8 / ((j + 1) * (j + 2))) * s_2_prime -
-            #     4 * s_1 * s_2_prime - s_3_prime +
-            #     8 * s_tilde
-            # )
-            # print(term1,term2,term3)
-        else:
-            raise ValueError("Type must be axial or vector")
-        result = term1 + term2 + term3
-        # Nucl.Phys.B 889 (2014) 351-400 defines Mellin moment
-        # without factor 1/2
-        result*=2
-    else:
-        raise ValueError(f"Currently unsupported evolution order {evolution_order}")
-
-    return result
-
-def gamma_qq_axial(j,Nf=3,blah=False):
-    Nc = 3
-    c_a = Nc
-    c_f = (Nc**2-1)/(2*Nc)
-    t_f = .5
-    beta_0 = 2/3* Nf - 11/3 * Nc
-    beta_1 = 10/3 * c_a * Nf + 2 * c_f * Nf -34/3 * c_a**2
 
     s_1 = harmonic_number(1,j+1)
     s_2 = harmonic_number(2,j+1)
-    s_3 = harmonic_number(3,j+1)
-    s_1_2 = nested_harmonic_number([1,2],j+1)
+    s_1_1_1 = nested_harmonic_number([1,1,1],j+1)
+    s_1_1_1_m = nested_harmonic_number([1,1,1],j)
+    s_1_1_1_p = nested_harmonic_number([1,1,1],j+2)
     s_1_m2 = nested_harmonic_number([1,-2],j+1)
+    s_1_m2_m = nested_harmonic_number([1,-2],j)
+    s_1_m2_p = nested_harmonic_number([1,-2],j+2)
+    s_1_2 = nested_harmonic_number([1,2],j+1)
+    s_1_2_m = nested_harmonic_number([1,2],j)
+    s_1_2_p = nested_harmonic_number([1,2],j+2)
     s_2_1 = nested_harmonic_number([2,1],j+1)
-    d1 = d_weight(1,1,j+1)
-    d0 = d_weight(1,0,j+1)
-    d02 = d_weight(2,0,j+1)
-    d03 = d_weight(3,0,j+1)
-    s_m2 = harmonic_number(-2,j+1)
-    s_m3 = harmonic_number(-3,j+1)
+    s_2_1_m = nested_harmonic_number([2,1],j)
+    s_2_1_p = nested_harmonic_number([2,1],j+2)
+    s_1_m = harmonic_number(1,j)
+    s_1_mm = harmonic_number(1,j-1)
+    s_1_p = harmonic_number(1,j+2)
+    s_1_pp = harmonic_number(1,j+3)
+    s_2 = harmonic_number(2,j+1)
+    s_2_m = harmonic_number(2,j)
+    s_2_p = harmonic_number(2,j+2)
+    s_2_pp = harmonic_number(2,j+3)
+    s_1_1 = nested_harmonic_number([1,1],j+1)
+    s_1_1_p = nested_harmonic_number([1,1],j+2)
+    s_3 = harmonic_number(3,j+1)
+    s_3_m = harmonic_number(3,j)
+    s_3_p = harmonic_number(3,j+2)
 
-    eta = 1/((j+1) * (j+2))
+    s_1_1_pp =nested_harmonic_number([1,1],j+3)
+    s_1_m2_pp = nested_harmonic_number([1,-2],j+3)
+    s_1_1_1_pp = nested_harmonic_number([1,1,1],j+3)
+    s_1_2_pp = nested_harmonic_number([1,2],j+3)
+    s_2_1_pp = nested_harmonic_number([2,1],j+3)
+    s_3_pp = harmonic_number(3,j+3)
 
-    term1 = 4 * c_f**2 * (
-        - 4 * (s_m3 - 2 * s_1_m2 - s_1_2 - s_2_1) - 3 * s_2 + 3/8 - 4 * eta * s_m2
-        - 2 * eta * s_2 + 2 * (2 * eta + eta**2 - 2 * d02) * s_1 - eta - 11 * eta**2 - 5 * eta**3 + d02 + 2 * d03
-    )
-    term2 = 4 * c_a * c_f * (
-        2 * (s_m3 - s_3) - 4 * s_1_m2 + 11/3 * s_2 - 67/9 * s_1 + 17/24 
-        + 2 * eta * s_m2 + 217/18 * eta + 35/6 * eta**2 + 2 * eta**3 - 11/3 * d02
-    )
-    # print(2 * (s_m3 - s_3),4 * s_1_m2,11/3 * s_2,- 67/9 * s_1,2 * eta * s_m2, 217/18 * eta,35/6 * eta**2 ,2 * eta**3 ,-11/3 * d02)
-    term3 = 4/9 * c_f * Nf * (
-        - 6 * s_2 + 10 * s_1 - .75 - 17 * eta - 3 * eta**2 + 6 * d02
-    )
-    result = term1 + term2 + term3 
-    # print(term1,term2,term3)
-    if blah:
-        Delta_pqg = - (2 * d1 - d0)
-        Delta_pgq = - (2 * d0 - d1)
-        ns = c_f * (- 4 *s_1 + 2 * eta + 3)
-        print("non_singlet:",ns)
-        qg = 2 * Nf * Delta_pqg
-        print("qg",qg)
-        gq = 2 * c_f * Delta_pgq 
-        print("gq",gq)
-        gg = c_a * (- 4 * s_1 + 8 * eta + 11/3 ) -2/3 * Nf
-        print("gg",gg)
-        print("beta_0",beta_0)
-        print("beta_1",beta_1)
+
+    if evolve_type == "vector":
+        # Nucl.Phys.B 691 (2004) 129-181
+        # Note different beta function convention
+        # so we reverse the sign
+        term1 = - 4 * c_a * Nf * (
+            20/9 * (s_1_mm - s_1_m) - (2* (s_1_m - s_1_p) + (s_2_m - s_2_p) + 2 * (s_3_m - s_3_p))
+            - (218/9*(s_1_p-s_1_pp) + 4 * (s_1_1_p-s_1_1_pp) + 44/3 * (s_2_p - s_2_pp))
+            + (27*(s_1-s_1_p) + 4 * (s_1_1 - s_1_1_p) - 7 * (s_2 - s_2_p) - 2 * (s_3 - s_3_p))
+            - 2 * ((s_1_m2_m + 4 * s_1_m2_p - 2 * s_1_m2_pp - 3 * s_1_m2) + (s_1_1_1_m + 4 * s_1_1_1_p - 2 * s_1_1_1_pp - 3 * s_1_1_1))
+        )
+        term2 = - 8 * c_f * t_f * Nf * (
+            2 * (5*(s_1_p - s_1_pp ) + 2 * (s_1_1_p - s_1_1_pp) - 2 * (s_2_p - s_2_pp) + (s_3_p - s_3_pp))
+            - (43/2 * (s_1-s_1_p) + 4 * (s_1_1 - s_1_1_p) - 7/2 * (s_2 - s_2_p))
+            + (7 * (s_1_m - s_1_p) - 1.5 * (s_2_m - s_2_p))
+            + 2 * ((s_1_1_1_m + 4 * s_1_1_1_p -2 * s_1_1_1_pp - 3 * s_1_1_1)
+                    -(s_1_2_m + 4 * s_1_2_p -2 * s_1_2_pp - 3 * s_1_2)
+                    -(s_2_1_m + 4 * s_2_1_p -2 * s_2_1_pp - 3 * s_2_1)
+                    +.5 * (s_3_m + 4 * s_3_p -2 * s_3_pp - 3 * s_3))
+        )
+    elif evolve_type == "axial":
+        # Nucl.Phys.B 889 (2014) 351-400
+        # Note different beta function convention
+        # so we reverse the sign
+        d1 = d_weight(1,1,j+1)
+        d0 = d_weight(1,0,j+1)
+        d02 = d_weight(2,0,j+1)
+        d03 = d_weight(3,0,j+1)
+        d12 = d_weight(2,1,j+1)
+        d13 = d_weight(3,1,j+1)
+        Delta_pqg = (2 * d1 - d0)
+        s_m2 = harmonic_number(-2,j+1)
+        # (4.5)
+        term1 = - 8 * c_f * t_f * Nf * (
+            2 * Delta_pqg * (s_1_1 - s_2) - 2 * (2 * d0 - d02 - 2 * d1) * s_1
+            - 11 * d0 + 9/2 * d02 - d03 + 27/2 * d1 + 4 * d12 - 2 * d13
+        )
+        term2 = - 4 * c_a * Nf * (
+            - 2 * Delta_pqg * (s_m2 + s_1_1) + 4 * (d0 - d1 - d12) * s_1
+            + 12 * d0 - d02 - 2 * d03 - 11 * d1 - 12 * d12 - 12 * d13
+        )
+    else:
+        raise ValueError("evolve_type must be axial or vector")
+    result = term1 + term2
+    # Nucl.Phys.B 889 (2014) 351-400 defines Mellin moment
+    # without factor 1/2
+    result*=2
     return result
+
+def run_gamma_qg_nlo_parallel():
+    complex_inputs = [mp.mpc(2,z) for z in range(16)]
+
+    start = time.time()
+    results = Parallel(n_jobs=-1)(
+        delayed(gamma_qg)(z,evolution_order="NLO",interpolation=True) for z in complex_inputs
+    )
+    end = time.time()
+
+    print(f"Elapsed time: {end - start:.2f} seconds")
+    print("Results:", results)
+    return results
+
+def gamma_qg(j,Nf=3,evolve_type="vector",evolution_order="LO",interpolation=True):
+    """
+    Returns conformal qg singlet anomalous dimension for conformal spin-j
+
+    Arguments:
+    - j (float): conformal spin
+    - Nf (int,. optional): Number of active flavors
+    - evolve_type (str. optional): vector or axial
+    - evolution_order (str. optional): LO, NLO or NNLO
+    - interpolation (bool, optional): Use tabulated values for interpolation (only beyond LO)
+    """
+    if evolution_order == "LO":
+        return gamma_qg_lo(j,Nf,evolve_type)
+    elif evolution_order == "NLO":
+        return gamma_qg_nlo(j,Nf,evolve_type,interpolation)
+    else:
+        raise ValueError(f"Wrong evolution_order {evolution_order}")
+
+def gamma_gq_lo(j,evolve_type="vector"):
+    Nc = 3
+    c_f = (Nc**2-1)/(2*Nc)
+    if j == 0:
+        j = 1e-12
+    if evolve_type == "vector":
+        result = -c_f*(j**2+3*j+4)/(3*(j+1)*(j+2))
+    elif evolve_type == "axial":
+        result = -c_f*j*(j+3)/(3*(j+1)*(j+2))
+    else:
+        raise ValueError("Type must be axial or vector")
+    # Match forward to Wilson anomalous dimension
+    result*=6/j
+    return result
+
+@cfg.memory.cache
+def gamma_gq_nlo(j, Nf=3,evolve_type = "vector",interpolation=True):
+    if interpolation:
+        interp = hp.gamma_interpolator("gq","singlet",evolve_type,evolution_order="NLO")
+        result = interp(j)
+        return result
+
+    Nc = 3
+    c_a = Nc
+    c_f = (Nc**2-1)/(2*Nc)
+    t_f = .5
+
+    s_1 = harmonic_number(1,j+1)
+    s_2 = harmonic_number(2,j+1)
+
+    s_1_1_1 = nested_harmonic_number([1,1,1],j+1)
+    s_1_1_1_m = nested_harmonic_number([1,1,1],j)
+    s_1_1_1_mm = nested_harmonic_number([1,1,1],j-1)
+    s_1_1_1_p = nested_harmonic_number([1,1,1],j+2)
+    s_1_m2 = nested_harmonic_number([1,-2],j+1)
+    s_1_m2_m = nested_harmonic_number([1,-2],j)
+    s_1_m2_mm = nested_harmonic_number([1,-2],j-1)
+    s_1_m2_p = nested_harmonic_number([1,-2],j+2)
+    s_1_2 = nested_harmonic_number([1,2],j+1)
+    s_1_2_m = nested_harmonic_number([1,2],j)
+    s_1_2_mm = nested_harmonic_number([1,2],j-1)
+    s_1_2_p = nested_harmonic_number([1,2],j+2)
+    s_2_1 = nested_harmonic_number([2,1],j+1)
+    s_2_1_m = nested_harmonic_number([2,1],j)
+    s_2_1_mm = nested_harmonic_number([2,1],j-1)
+    s_2_1_p = nested_harmonic_number([2,1],j+2)
+    s_1_m = harmonic_number(1,j)
+    s_1_mm = harmonic_number(1,j-1)
+    s_1_p = harmonic_number(1,j+2)
+    s_1_pp = harmonic_number(1,j+3)
+    s_2 = harmonic_number(2,j+1)
+    s_2_m = harmonic_number(2,j)
+    s_2_p = harmonic_number(2,j+2)
+    s_2_pp = harmonic_number(2,j+3)
+    s_1_1 = nested_harmonic_number([1,1],j+1)
+    s_1_1_m = nested_harmonic_number([1,1],j)
+    s_1_1_mm = nested_harmonic_number([1,1],j-1)
+    s_1_1_p = nested_harmonic_number([1,1],j+2)
+    s_3 = harmonic_number(3,j+1)
+    s_3_m = harmonic_number(3,j)
+    s_3_p = harmonic_number(3,j+2)
+
+    if evolve_type == "vector":
+        # Nucl.Phys.B 691 (2004) 129-181
+        # Note different beta function convention
+        # so we reverse the sign
+        term1 = - 4 * c_a * c_f * (
+            2* ((2 * s_1_1_1_mm - 4 * s_1_1_1_m - s_1_1_1_p + 3 *s_1_1_1)
+                - (2 * s_1_m2_mm - 4 * s_1_m2_m - s_1_m2_p + 3 *s_1_m2) 
+                - (2 * s_1_2_mm - 4 * s_1_2_m - s_1_2_p + 3 *s_1_2)
+                - (2 * s_2_1_mm - 4 * s_2_1_m - s_2_1_p + 3 *s_2_1))
+            + (2 * (s_1 - s_1_p) - 13 * (s_1_1 - s_1_1_p) - 7 * (s_2 - s_2_p) - 2 * (s_3 - s_3_p))
+            + (s_1_mm - 2 * s_1_m + s_1_p) - 22/3 * (s_1_1_mm - 2 * s_1_1_m + s_1_1_p)
+            + 4 * (7/9 * (s_1_m - s_1_p) + 3 * (s_2_m - s_2_p) + (s_3_m - s_3_p))
+            + (44/9 * (s_1_p - s_1_pp) + 8/3 * (s_2_p - s_2_pp)) 
+        )
+        term2 = - 8 * c_f * t_f * Nf * (
+            (4/3 * (s_1_1_mm - 2 * s_1_1_m + s_1_1_p) -20/9 * (s_1_mm - 2 * s_1_m + s_1_p) )
+            - (4 * (s_1 - s_1_p) - 2 * (s_1_1 - s_1_1_p))
+        )
+        term3 = - 4 * c_f**2 *(
+            3 * (2 * s_1_1_mm - 4 * s_1_1_m - s_1_1_p + 3 * s_1_1) - 2 * (2 * s_1_1_1_mm - 4 * s_1_1_1_m - s_1_1_1_p + 3 * s_1_1_1)
+            - ((s_1 - s_1_p) - 2 * (s_1_1 - s_1_1_p) + 1.5 * (s_2 - s_2_p) - 3 * (s_3 - s_3_p))
+            - (5/2 * (s_1_m - s_1_p) + 2 * (s_2_m - s_2_p) + 2 * (s_3_m - s_3_p))
+        )
+    elif evolve_type == "axial": 
+        # Nucl.Phys.B 889 (2014) 351-400
+        # Note different beta function convention
+        # so we reverse the sign
+        d1 = d_weight(1,1,j+1)
+        d0 = d_weight(1,0,j+1)
+        d02 = d_weight(2,0,j+1)
+        d03 = d_weight(3,0,j+1)
+        d12 = d_weight(2,1,j+1)
+        d13 = d_weight(3,1,j+1)
+        s_m2 = harmonic_number(-2,j+1)
+        Delta_pgq = (2 * d0 - d1)
+        # (4.6)
+        term1 = - 16/9 * c_f * t_f * Nf * (
+            3 * Delta_pgq * s_1 - 4 * d0 - d1 - 3 * d12
+        )
+        term2 = - 4 * c_f**2 * (
+            - Delta_pgq * (2* s_1_1 - s_1) + 2 *(d1 + d12) * s_1
+            -17/2 * d0 + 2 * d02 + 2 * d03 + 4 * d1 + .5 * d12 + d13
+        )
+        term3 = - 4 * c_a * c_f *(
+            2* Delta_pgq * (s_1_1 - s_m2 - s_2) - (10/3 * d0 + 4 * d02 + 1/3 * d1) * s_1
+            + 41/9 * d0 - 4 * d02 + 4 * d03 + 35/9 * d1 + 38/3 * d12 + 6 * d13
+        )
+    else:
+        raise ValueError("Type must be axial or vector")
+    result = term1 + term2 + term3
+    # Nucl.Phys.B 889 (2014) 351-400 defines Mellin moment
+    # without factor 1/2
+    result*=2
+    return result
+
+def gamma_gq(j,Nf=3,evolve_type="vector",evolution_order="LO",interpolation=True):
+    """
+    Returns conformal gq singlet anomalous dimension for conformal spin-j
+
+    Arguments:
+    - j (float): conformal spin
+    - Nf (int,. optional): Number of active flavors
+    - evolve_type (str. optional): vector or axial
+    - evolution_order (str. optional): LO, NLO or NNLO
+    - interpolation (bool, optional): Use tabulated values for interpolation (only beyond LO)
+    """
+    if evolution_order == "LO":
+        return gamma_gq_lo(j,evolve_type)
+    elif evolution_order == "NLO":
+        return gamma_gq_nlo(j,Nf,evolve_type,interpolation)
+    else:
+        raise ValueError(f"Wrong evolution_order {evolution_order}")
+
+def gamma_gg_lo(j,Nf=3,evolve_type="vector"):
+    Nc = 3
+    c_a = Nc
+    beta_0 = 2/3* Nf - 11/3 * Nc
+    if j == 0:
+        j = 1e-12
+    if evolve_type == "vector":
+        result = -c_a*(-4*mp.digamma(j+2)+4*mp.digamma(1)+8*(j**2+3*j+3)/(j*(j+1)*(j+2)*(j+3))-beta_0/c_a)
+    elif evolve_type == "axial":
+        result = -c_a*(-4*mp.digamma(j+2)+4*mp.digamma(1)+8/((j+1)*(j+2))-beta_0/c_a)
+    else:
+        raise ValueError("Type must be axial or vector")
+    return result
+
+@cfg.memory.cache
+def gamma_gg_nlo(j, Nf = 3, evolve_type = "vector",interpolation=True):
+    if interpolation:
+        interp = hp.gamma_interpolator("gg","singlet",evolve_type,evolution_order="NLO")
+        result = interp(j)
+        return result
+    
+    Nc = 3
+    c_a = Nc
+    c_f = (Nc**2-1)/(2*Nc)
+    t_f = .5
+
+    s_1 = harmonic_number(1,j+1)
+    s_1_m2 = nested_harmonic_number([1,-2],j+1)
+    s_1_m2_m = nested_harmonic_number([1,-2],j)
+    s_1_m2_mm = nested_harmonic_number([1,-2],j-1)
+    s_1_m2_p = nested_harmonic_number([1,-2],j+2)
+    s_1_2 = nested_harmonic_number([1,2],j+1)
+    s_1_2_m = nested_harmonic_number([1,2],j)
+    s_1_2_mm = nested_harmonic_number([1,2],j-1)
+    s_1_2_p = nested_harmonic_number([1,2],j+2)
+    s_2_1 = nested_harmonic_number([2,1],j+1)
+    s_2_1_m = nested_harmonic_number([2,1],j)
+    s_2_1_mm = nested_harmonic_number([2,1],j-1)
+    s_2_1_p = nested_harmonic_number([2,1],j+2)
+    s_1_m = harmonic_number(1,j)
+    s_1_mm = harmonic_number(1,j-1)
+    s_1_p = harmonic_number(1,j+2)
+    s_1_pp = harmonic_number(1,j+3)
+    s_2 = harmonic_number(2,j+1)
+    s_2_m = harmonic_number(2,j)
+    s_2_p = harmonic_number(2,j+2)
+    s_2_pp = harmonic_number(2,j+3)
+    s_3 = harmonic_number(3,j+1)
+    s_3_m = harmonic_number(3,j)
+    s_3_p = harmonic_number(3,j+2)
+    s_1_m2_pp = nested_harmonic_number([1,-2],j+3)
+    s_1_2_pp = nested_harmonic_number([1,2],j+3)
+    s_2_1_pp = nested_harmonic_number([2,1],j+3)
+    s_m3 = harmonic_number(-3,j+1)
+    s_3_pp = harmonic_number(3,j+3)
+
+    if evolve_type == "vector":
+        # Nucl.Phys.B 691 (2004) 129-181
+        # Note different beta function convention
+        # so we reverse the sign
+        term1 = - 4 * c_a * Nf * (
+            2/3 - 16/3 * s_1 -23/9 * (s_1_mm + s_1_pp) + 14/3 * (s_1_m + s_1_p) + 2/3 * (s_2_m - s_2_p)
+        )
+        term2 = - 4 * c_a**2 * (
+            + 2 * s_m3 - 8/3  - 14/3 * s_1 + 2 * s_3 
+            - 4 * ((s_1_m2_mm - 2 * s_1_m2_m - 2 * s_1_m2_p + s_1_m2_pp + 3 * s_1_m2)
+                    + (s_1_2_mm - 2 * s_1_2_m - 2 * s_1_2_p + s_1_2_pp + 3 * s_1_2)
+                    + (s_2_1_mm - 2 * s_2_1_m - 2 * s_2_1_p + s_2_1_pp + 3 * s_2_1)
+                )
+            + 8/3 * (s_2_p - s_2_pp) - 4  * (3 * (s_2_m - 3 * s_2_p + s_2_pp + s_2) -  (s_3_m - 3 * s_3_p + s_3_pp + s_3)) 
+            + 109/18 * (s_1_m + s_1_p) + 61/3 * (s_2_m - s_2_p)
+        )
+        term3 = - 8 * c_f * t_f * Nf * (
+            .5 + 2/3 * (s_1_mm - 13 * s_1_m - s_1_p - 5 * s_1_pp + 18 * s_1)
+            + (3 * s_2_m - 5 * s_2_p + 2 * s_2) - 2 * (s_3_m - s_3_p)
+        )
+    elif evolve_type == "axial":
+        # Nucl.Phys.B 889 (2014) 351-400
+        # Note different beta function convention
+        # so we reverse the sign
+        d02 = d_weight(2,0,j+1)
+        d03 = d_weight(3,0,j+1)
+        s_m2 = harmonic_number(-2,j+1)
+        eta = 1/((j+1)*(j+2))
+        # (4.7)
+        term1 = - 8 * c_f * t_f * Nf * (
+            -.5 - 7 * eta + 5 * eta**2 + 2 * eta**3 + 6 * d02 - 4 * d03
+        )
+        term2 = - 4/3 * c_a * Nf *(
+            10/3 * s_1 - 2 - 26/3 * eta + 2 * eta**2
+        )
+        term3 = -  4 * c_a**2 * (
+            4 * (s_1_m2 + s_1_2 + s_2_1) - 2 * (s_3 +s_m3) - 67/9 * s_1 + 8/3
+            - 8 * eta * (s_2 + s_m2) + 8 * (2 * eta + eta**2 - 2 * d02) * s_1
+            + 901/18 * eta - 149/3 * eta**2 -24 * eta**3 - 32 * (d02 - d03)
+        )
+    else:
+        raise ValueError("Type must be axial or vector")
+    result = term1 + term2 + term3
+    # Nucl.Phys.B 889 (2014) 351-400 defines Mellin moment
+    # without factor 1/2
+    result*=2
+    return result
+
+def gamma_gg(j,Nf=3,evolve_type="vector",evolution_order="LO",interpolation=True):
+    """
+    Returns conformal gg singlet anomalous dimension for conformal spin-j
+
+    Arguments:
+    - j (float): conformal spin
+    - Nf (int,. optional): Number of active flavors
+    - evolve_type (str. optional): vector or axial
+    - evolution_order (str. optional): LO, NLO or NNLO
+    - interpolation (bool, optional): Use tabulated values for interpolation (only beyond LO)
+    """
+    if evolution_order == "LO":
+        return gamma_gg_lo(j,Nf,evolve_type)
+    elif evolution_order == "NLO":
+        return gamma_gg_nlo(j,Nf,evolve_type,interpolation)
+    else:
+        raise ValueError(f"Wrong evolution_order {evolution_order}")
 
 def power_minus_1(j):
     if mp.im(j) < 0:
@@ -3159,11 +2942,14 @@ def gamma_qq_nd(j,k, Nf=3, evolve_type = "vector",evolution_order="LO"):
         return 0
     Nc = 3
     beta_0 = 2/3* Nf - 11/3 * Nc
+
+    
     if evolution_order == "NLO":
-        term1 = (gamma_qq(j,evolution_order="LO")-gamma_qq(k,evolution_order="LO"))* \
-                (d_element(j,k) * (beta_0 - gamma_qq(k,evolution_order="LO")) + conformal_anomaly_qq(j,k))
-        term2 = - (gamma_qg(j,Nf,evolve_type,"LO") - gamma_qg(k,Nf,evolve_type,"LO")) * d_element(j,k) * gamma_gq(j,Nf,evolve_type,"LO")
-        term3 = gamma_qg(j,Nf,evolve_type,"LO") * conformal_anomaly_gq(j,k)
+        term1 = (gamma_qq(j,evolution_order="LO",interpolation=False)-gamma_qq(k,evolution_order="LO",interpolation=False))* \
+                (d_element(j,k) * (beta_0 - gamma_qq(k,evolution_order="LO",interpolation=False)) + conformal_anomaly_qq(j,k))
+        term2 = - (gamma_qg(j,Nf,evolve_type,"LO",interpolation=False) - 
+                   gamma_qg(k,Nf,evolve_type,evolution_order="LO",interpolation=False)) * d_element(j,k) * gamma_gq(j,Nf,evolve_type,evolution_order="LO",interpolation=False)
+        term3 = gamma_qg(j,Nf,evolve_type,"LO",interpolation=False) * conformal_anomaly_gq(j,k)
         result = term1 + term2 + term3
     else:
         raise ValueError(f"Currently unsupported evolution order {evolution_order}")
@@ -3177,13 +2963,15 @@ def gamma_qg_nd(j,k, Nf=3, evolve_type = "vector",evolution_order="LO"):
         return 0
     Nc = 3
     beta_0 = 2/3* Nf - 11/3 * Nc
+
+    
     if evolution_order == "NLO":
-        term1 = (gamma_qg(j, Nf, evolve_type, "LO") - gamma_qg(k, Nf, evolve_type, "LO")) * \
-                d_element(j, k) * (beta_0 - gamma_gg(k, Nf, evolve_type, "LO"))
-        term2 = - (gamma_qq(j, evolution_order="LO") - gamma_qq(k, evolution_order="LO")) * \
-                d_element(j, k) * gamma_qg(k, Nf, evolve_type, "LO")
-        term3 = gamma_qg(j, Nf, evolve_type, "LO") * conformal_anomaly_gg(j, k)
-        term4 = - conformal_anomaly_qq(j, k) * gamma_qg(k, Nf, evolve_type, "LO")
+        term1 = (gamma_qg(j, Nf, evolve_type, "LO",interpolation=False) - gamma_qg(k, Nf, evolve_type, "LO",interpolation=False)) * \
+                d_element(j, k) * (beta_0 - gamma_gg(k, Nf, evolve_type, "LO",interpolation=False))
+        term2 = - (gamma_qq(j, evolution_order="LO",interpolation=False) - gamma_qq(k, evolution_order="LO",interpolation=False)) * \
+                d_element(j, k) * gamma_qg(k, Nf, evolve_type, "LO",interpolation=False)
+        term3 = gamma_qg(j, Nf, evolve_type, evolution_order="LO") * conformal_anomaly_gg(j, k)
+        term4 = - conformal_anomaly_qq(j, k) * gamma_qg(k, Nf, evolve_type, evolution_order="LO",interpolation=False)
         result = term1 + term2 + term3 + term4
     else:
         raise ValueError(f"Currently unsupported evolution order {evolution_order}")
@@ -3197,14 +2985,16 @@ def gamma_gq_nd(j,k, Nf=3, evolve_type = "vector",evolution_order="LO"):
         return 0
     Nc = 3
     beta_0 = 2/3* Nf - 11/3 * Nc
+
+    
     if evolution_order == "NLO":
-        term1 = (gamma_gq(j, Nf, evolve_type, "LO") - gamma_gq(k, Nf, evolve_type, "LO")) * \
-                d_element(j, k) * (beta_0 - gamma_qq(k, evolution_order="LO"))
-        term2 = - (gamma_gg(j, Nf, evolve_type, "LO") - gamma_gg(k, Nf, evolve_type, "LO")) * \
-                d_element(j, k) * gamma_gq(k, Nf, evolve_type, "LO")
-        term3 = gamma_gq(j, Nf, evolve_type, "LO") * conformal_anomaly_qq(j, k)
-        term4 = - conformal_anomaly_gg(j, k) * gamma_gq(k, Nf, evolve_type, "LO")
-        term5 = (gamma_gg(j, Nf, evolve_type, "LO") - gamma_qq(k,evolution_order="LO")) * conformal_anomaly_gq(j, k)
+        term1 = (gamma_gq(j, Nf, evolve_type, evolution_order="LO",interpolation=False) - gamma_gq(k, Nf, evolve_type, evolution_order="LO",interpolation=False)) * \
+                d_element(j, k) * (beta_0 - gamma_qq(k, evolution_order="LO",interpolation=False))
+        term2 = - (gamma_gg(j, Nf, evolve_type, evolution_order="LO",interpolation=False) - gamma_gg(k, Nf, evolve_type, evolution_order="LO",interpolation=False)) * \
+                d_element(j, k) * gamma_gq(k, Nf, evolve_type, evolution_order="LO",interpolation=False)
+        term3 = gamma_gq(j, Nf, evolve_type, evolution_order="LO") * conformal_anomaly_qq(j, k)
+        term4 = - conformal_anomaly_gg(j, k) * gamma_gq(k, Nf, evolve_type, evolution_order="LO",interpolation=False)
+        term5 = (gamma_gg(j, Nf, evolve_type, evolution_order="LO",interpolation=False) - gamma_qq(k,evolution_order="LO",interpolation=False)) * conformal_anomaly_gq(j, k)
 
         result = term1 + term2 + term3 + term4 + term5
     else:
@@ -3219,12 +3009,14 @@ def gamma_gg_nd(j,k, Nf=3, evolve_type = "vector",evolution_order="LO"):
         return 0
     Nc = 3
     beta_0 = 2/3* Nf - 11/3 * Nc
+
+    
     if evolution_order == "NLO":
-        term1 = (gamma_gg(j, Nf, evolve_type, "LO") - gamma_gg(k, Nf, evolve_type, "LO")) * \
-                (d_element(j, k) * (beta_0 - gamma_gg(k, Nf, evolve_type, "LO")) + conformal_anomaly_gg(j, k))
-        term2 = - (gamma_gq(j, Nf, evolve_type, "LO") - gamma_gq(k, Nf, evolve_type, "LO")) * \
-                d_element(j, k) * gamma_qg(k, Nf, evolve_type, "LO")
-        term3 = - conformal_anomaly_gq(j, k) * gamma_qg(k, Nf, evolve_type, "LO")
+        term1 = (gamma_gg(j, Nf, evolve_type, evolution_order="LO",interpolation=False) - gamma_gg(k, Nf, evolve_type, evolution_order="LO",interpolation=False)) * \
+                (d_element(j, k) * (beta_0 - gamma_gg(k, Nf, evolve_type, "LO",interpolation=False)) + conformal_anomaly_gg(j, k))
+        term2 = - (gamma_gq(j, Nf, evolve_type, evolution_order="LO",interpolation=False) - gamma_gq(k, Nf, evolve_type, evolution_order="LO",interpolation=False)) * \
+                d_element(j, k) * gamma_qg(k, Nf, evolve_type, evolution_order="LO",interpolation=False)
+        term3 = - conformal_anomaly_gq(j, k) * gamma_qg(k, Nf, evolve_type, evolution_order="LO",interpolation=False)
         result = term1 + term2 + term3
     else:
         raise ValueError(f"Currently unsupported evolution order {evolution_order}")
@@ -3233,17 +3025,19 @@ def gamma_gg_nd(j,k, Nf=3, evolve_type = "vector",evolution_order="LO"):
 def gamma_pm(j, Nf = 3, evolve_type = "vector",solution="+"):
     """ Compute the (+) and (-) eigenvalues of the LO evolution equation of the coupled singlet quark and gluon GPD
     Arguments:
-    j -- conformal spin,
-    evolve_type -- "vector" or "axial"
-    Nf -- Number of active flavors (default Nf = 3 )
+    - j: conformal spin,
+    - evolve_type: "vector" or "axial"
+    - Nf: Number of active flavors (default Nf = 3 )
+    - interpolation (bool, optional): Use interpolated values
     Returns:
     The eigenvalues (+) and (-) in terms of an array
     """
     # Check evolve_type
     hp.check_evolve_type(evolve_type)
-    
-    base = gamma_qq(j,evolution_order="LO")+gamma_gg(j,Nf,evolve_type,evolution_order="LO")
-    root = mp.sqrt((gamma_qq(j,evolution_order="LO")-gamma_gg(j,Nf,evolve_type,evolution_order="LO"))**2+4*gamma_gq(j,Nf,evolve_type,evolution_order="LO")*gamma_qg(j,Nf,evolve_type,evolution_order="LO"))
+
+    base = gamma_qq(j,evolution_order="LO",interpolation=False)+gamma_gg(j,Nf,evolve_type,evolution_order="LO",interpolation=False)
+    root = mp.sqrt((gamma_qq(j,evolution_order="LO",interpolation=False)-gamma_gg(j,Nf,evolve_type,evolution_order="LO",interpolation=False))**2
+                   +4*gamma_gq(j,Nf,evolve_type,evolution_order="LO",interpolation=False)*gamma_qg(j,Nf,evolve_type,evolution_order="LO",interpolation=False))
     if solution == "+":
         return (base + root)/2
     elif solution == "-":
@@ -3251,52 +3045,55 @@ def gamma_pm(j, Nf = 3, evolve_type = "vector",solution="+"):
     else:
         raise ValueError("Invalid solution evolve_type. Use '+' or '-'.")
 
-def R_qq(j,Nf=3,evolve_type="vector"):
+def R_qq(j,Nf=3,evolve_type="vector",interpolation=True):
     Nc = 3
     c_a = Nc
     c_f = (Nc**2-1)/(2*Nc)
     beta_0 = 2/3* Nf - 11/3 * Nc
     beta_1 = 10/3 * c_a * Nf + 2 * c_f * Nf -34/3 * c_a**2
-    term1 = gamma_qq(j,Nf,"singlet",evolve_type,evolution_order="NLO")
-    term2 = - .5 * beta_1/beta_0 * gamma_qq(j,Nf,"singlet",evolve_type,evolution_order="LO")
+    term1 = gamma_qq(j,Nf,"singlet",evolve_type,evolution_order="NLO",interpolation=interpolation)
+    term2 = - .5 * beta_1/beta_0 * gamma_qq(j,Nf,"singlet",evolve_type,evolution_order="LO",interpolation=False)
     result = term1 + term2
     return result
 
-def R_qg(j,Nf=3,evolve_type="vector"):
+def R_qg(j,Nf=3,evolve_type="vector",interpolation=True):
+
     Nc = 3
     c_a = Nc
     c_f = (Nc**2-1)/(2*Nc)
     beta_0 = 2/3* Nf - 11/3 * Nc
     beta_1 = 10/3 * c_a * Nf + 2 * c_f * Nf -34/3 * c_a**2
-    term1 = gamma_qg(j,Nf,evolve_type,"NLO")
-    term2 = - .5 * beta_1/beta_0 * gamma_qg(j,Nf,evolve_type,"LO")
+    term1 = gamma_qg(j,Nf,evolve_type,"NLO",interpolation=interpolation)
+    term2 = - .5 * beta_1/beta_0 * gamma_qg(j,Nf,evolve_type,"LO",interpolation=False)
     result = term1 + term2
     return result
 
-def R_gq(j,Nf=3,evolve_type="vector"):
+def R_gq(j,Nf=3,evolve_type="vector",interpolation=True):
+
     Nc = 3
     c_a = Nc
     c_f = (Nc**2-1)/(2*Nc)
     beta_0 = 2/3* Nf - 11/3 * Nc
     beta_1 = 10/3 * c_a * Nf + 2 * c_f * Nf -34/3 * c_a**2
-    term1 = gamma_gq(j,Nf,evolve_type,"NLO")
-    term2 = - .5 * beta_1/beta_0 * gamma_gq(j,Nf,evolve_type,"LO")
+    term1 = gamma_gq(j,Nf,evolve_type,"NLO",interpolation=interpolation)
+    term2 = - .5 * beta_1/beta_0 * gamma_gq(j,Nf,evolve_type,"LO",interpolation=False)
     result = term1 + term2
     return result
 
-def R_gg(j,Nf=3,evolve_type="vector"):
+def R_gg(j,Nf=3,evolve_type="vector",interpolation=True):
+
     Nc = 3
     c_a = Nc
     c_f = (Nc**2-1)/(2*Nc)
     beta_0 = 2/3* Nf - 11/3 * Nc
     beta_1 = 10/3 * c_a * Nf + 2 * c_f * Nf -34/3 * c_a**2
-    term1 = gamma_gg(j,Nf,evolve_type,"NLO")
-    term2 = - .5 * beta_1/beta_0 * gamma_gg(j,Nf,evolve_type,"LO")
+    term1 = gamma_gg(j,Nf,evolve_type,"NLO",interpolation=interpolation)
+    term2 = - .5 * beta_1/beta_0 * gamma_gg(j,Nf,evolve_type,"LO",interpolation=False)
     result = term1 + term2
     return result
 
-def evolve_conformal_moment(j,eta,t,mu,Nf=3,A0=1,particle="quark",moment_type="non_singlet_isovector",moment_label ="A", evolution_order = "LO", error_type = "central",
-                            n_k=100,k_range=10,trap=False,plot_integrand=False):
+def evolve_conformal_moment(j,eta,t,mu,Nf=3,A0=1,particle="quark",moment_type="non_singlet_isovector",moment_label ="A", evolution_order = "LO", error_type = "central",interpolation=True,
+                            n_k=100,k_range=10,trap=False,plot_integrand=False,n_jobs=1):
     """
     Evolve the conformal moment F_{j}^{+-} from some input scale mu_in to some other scale mu. 
 
@@ -3312,6 +3109,7 @@ def evolve_conformal_moment(j,eta,t,mu,Nf=3,A0=1,particle="quark",moment_type="n
     - moment_label (str. optional): A(Tilde) B(Tilde) depending on H(Tilde) or E(Tilde) GPD etc.
     - evolution_order (str. optional): LO, NLO
     - error_type (str. optional): Choose central, upper or lower value for input PDF parameters
+    - interpolation (bool, optional): Use interpolated values for anomalous dimensions
 
     Returns:
     The value of the evolved conformal moment at scale mu
@@ -3346,7 +3144,7 @@ def evolve_conformal_moment(j,eta,t,mu,Nf=3,A0=1,particle="quark",moment_type="n
 
     # moment_in, evolve_type = MOMENT_TO_FUNCTION.get((moment_type, moment_label))
 
-    ga_qq = gamma_qq(j-1,Nf,moment_type,evolve_type,evolution_order="LO")
+    ga_qq = gamma_qq(j-1,Nf,moment_type,evolve_type,evolution_order="LO",interpolation=False)
 
     if moment_type == "singlet":
         # Roots  of LO anomalous dimensions
@@ -3354,14 +3152,14 @@ def evolve_conformal_moment(j,eta,t,mu,Nf=3,A0=1,particle="quark",moment_type="n
         ga_m = gamma_pm(j-1,Nf,evolve_type,"-")
         moment_in_p, error_p = singlet_moment(j,eta,t, Nf, moment_label, evolve_type,"+",evolution_order,error_type)
         moment_in_m, error_m = singlet_moment(j,eta,t, Nf, moment_label, evolve_type,"-",evolution_order,error_type)
-        ga_gq = gamma_gq(j-1,Nf, evolve_type,"LO")
-        ga_qg = gamma_qg(j-1,Nf, evolve_type,"LO")
+        ga_gq = gamma_gq(j-1,Nf, evolve_type,"LO",interpolation=False)
+        ga_qg = gamma_qg(j-1,Nf, evolve_type,"LO",interpolation=False)
         if evolution_order != "LO":
-            ga_gg = gamma_gg(j-1,Nf,evolve_type,"LO")
-            r_qq = R_qq(j-1,Nf,evolve_type)
-            r_qg = R_qg(j-1,Nf,evolve_type)
-            r_gq = R_gq(j-1,Nf,evolve_type)
-            r_gg = R_gg(j-1,Nf,evolve_type) 
+            ga_gg = gamma_gg(j-1,Nf,evolve_type,"LO",interpolation=False)
+            r_qq = R_qq(j-1,Nf,evolve_type,interpolation=interpolation)
+            r_qg = R_qg(j-1,Nf,evolve_type,interpolation=interpolation)
+            r_gq = R_gq(j-1,Nf,evolve_type,interpolation=interpolation)
+            r_gg = R_gg(j-1,Nf,evolve_type,interpolation=interpolation) 
 
     # Precompute alpha_s fraction:
     alpha_frac  = (alpha_s_in/alpha_s_evolved)    
@@ -3380,9 +3178,10 @@ def evolve_conformal_moment(j,eta,t,mu,Nf=3,A0=1,particle="quark",moment_type="n
         return alpha_frac**(ga_qq/beta_0)
 
     def E_non_singlet_nlo(j):
-        ga_qq = gamma_qq(j,Nf,moment_type,evolve_type,"LO")
+    
+        ga_qq = gamma_qq(j,Nf,moment_type,evolve_type,"LO",interpolation=False)
         # print("lo",j,ga_qq)
-        ga_qq_nlo = gamma_qq(j,Nf,moment_type,evolve_type,"NLO")
+        ga_qq_nlo = gamma_qq(j,Nf,moment_type,evolve_type,"NLO",interpolation=interpolation)
         # print("nlo",j,ga_qq_nlo)
         result = alpha_frac**(ga_qq/beta_0) * (1 + (.5 * beta_1/beta_0**2 *  ga_qq - ga_qq_nlo/beta_0) * \
                                       (alpha_s_evolved - alpha_s_in)/(2*np.pi)
@@ -3390,25 +3189,26 @@ def evolve_conformal_moment(j,eta,t,mu,Nf=3,A0=1,particle="quark",moment_type="n
         # print("res",j,result)
         return result
     def B_non_singlet_nlo(k):
-        gamma_term = (ga_qq - gamma_qq(k,Nf,moment_type,evolve_type,"LO") + beta_0)
-        ga_nd = gamma_qq_nd(j-1,k,Nf,evolve_type,evolution_order)
+        
+        gamma_term = (ga_qq - gamma_qq(k,Nf,moment_type,evolve_type,"LO",interpolation=False) + beta_0)
+        ga_nd = gamma_qq_nd(j-1,k,Nf,evolve_type,evolution_order,interpolation=False)
         result = alpha_s_evolved/(2*np.pi) * ga_nd/gamma_term * (
             1 - alpha_frac**(gamma_term/beta_0)
         )
         if j - 1 == k:
-            result+= 1
+            result += 1
         return result
 
     def EB_non_singlet_nlo(k):
         # Combinede function to call in fractional_finite_sum
         if moment_type == "non_singlet_isovector":
-            moment_k  = non_singlet_isovector_moment(j,eta,t,moment_label,evolve_type,evolution_order,error_type)
+            moment_k  = non_singlet_isovector_moment(k,eta,t,moment_label,evolve_type,evolution_order,error_type)
         else:
-            moment_k  = non_singlet_isoscalar_moment(j,eta,t,moment_label,evolve_type,evolution_order,error_type)
+            moment_k  = non_singlet_isoscalar_moment(k,eta,t,moment_label,evolve_type,evolution_order,error_type)
         non_diagonal_terms = eta**(j - k) * B_non_singlet_nlo(k-1) * E_non_singlet_nlo(k-1) * moment_k
         # print(j,k,non_diagonal_terms)
         return non_diagonal_terms
-    # "+" goes with "+" moment
+    
     def A_lo_quark(solution):
         # The switch also takes care of the relative minus sign
         ga_p, ga_m = get_gammas(solution)
@@ -3473,15 +3273,16 @@ def evolve_conformal_moment(j,eta,t,mu,Nf=3,A0=1,particle="quark",moment_type="n
 
         return prf_T_1, prf_T_2, prf_T_3, prf_T_4
 
-    # T1 and T3 go with "+" solution and T2 and T4 go with "-" solution
+    # T1 and T3 go with "+" solution, T2 and T4 go with "-" solution
     def T_quark_nlo(k):
         # Note T = 0 for j=k
         ga_j_p, ga_j_m = ga_p, ga_m
-   
+        
+        # Only depends on "LO" anomalous dimensions so we do not interpolate
         ga_k_p, ga_k_m = gamma_pm(k-1,Nf,evolve_type,"+"), gamma_pm(k-1,Nf,evolve_type,"-")
-        ga_qq_k = gamma_qq(k-1,evolution_order="LO")
-        ga_gq_k = gamma_gq(k-1,Nf, evolve_type,"LO")
-        # ga_qg_k = gamma_qg(k-1,Nf, evolve_type,"LO")
+        ga_qq_k = gamma_qq(k-1,evolution_order="LO",interpolation=False)
+        ga_gq_k = gamma_gq(k-1,Nf, evolve_type,"LO",interpolation=False)
+        # ga_qg_k = gamma_qg(k-1,Nf, evolve_type,"LO",interpolation=False)
         ga_qq_nd = gamma_qq_nd(j-1,k-1,Nf,evolve_type,"NLO")
         ga_qg_nd = gamma_qg_nd(j-1,k-1,Nf,evolve_type,"NLO")
         ga_gq_nd = gamma_gq_nd(j-1,k-1,Nf,evolve_type,"NLO")
@@ -3513,16 +3314,17 @@ def evolve_conformal_moment(j,eta,t,mu,Nf=3,A0=1,particle="quark",moment_type="n
 
         quark_non_diagonal_part = eta**(j-k) * (plus_terms * moment_k_p + minus_terms * moment_k_m)
         sum_squared = (eta**(j-k) * plus_terms * error_k_p)**2 + (eta**(j-k) * minus_terms * error_k_m)**2
-        quark_non_diagonal_errors = np.frompyfunc(mp.sqrt, 1, 1)(sum_squared)
+        quark_non_diagonal_errors = np.frompyfunc(abs, 1, 1)(mp.sqrt(sum_squared))
 
         return quark_non_diagonal_part, quark_non_diagonal_errors
 
     def T_gluon_nlo(k):
         # Note T = 0 for j=k
+        # Only depends on "LO" anomalous dimensions so we do not interpolate
         ga_j_p, ga_j_m = ga_p, ga_m
         ga_k_p, ga_k_m = gamma_pm(k-1,Nf,evolve_type,"+"), gamma_pm(k-1,Nf,evolve_type,"-")
-        ga_qq_k = gamma_qq(k-1,evolution_order="LO")
-        ga_gq_k = gamma_gq(k-1,Nf, evolve_type,"LO")
+        ga_qq_k = gamma_qq(k-1,evolution_order="LO",interpolation=False)
+        ga_gq_k = gamma_gq(k-1,Nf, evolve_type,"LO",interpolation=False)
         # ga_qg_k = gamma_qg(k-1,Nf, evolve_type,"LO")
         ga_qq_nd = gamma_qq_nd(j-1,k-1,Nf,evolve_type,"NLO")
         ga_qg_nd = gamma_qg_nd(j-1,k-1,Nf,evolve_type,"NLO")
@@ -3555,7 +3357,7 @@ def evolve_conformal_moment(j,eta,t,mu,Nf=3,A0=1,particle="quark",moment_type="n
 
         gluon_non_diagonal_part = eta**(j-k) * (plus_terms * moment_k_p + minus_terms * moment_k_m)
         sum_squared = (eta**(j-k) * plus_terms * error_k_p)**2 + (eta**(j-k) * minus_terms * error_k_m)**2
-        gluon_non_diagonal_errors = np.frompyfunc(mp.sqrt, 1, 1)(sum_squared)
+        gluon_non_diagonal_errors = np.frompyfunc(abs, 1, 1)(mp.sqrt(sum_squared))
 
         return gluon_non_diagonal_part, gluon_non_diagonal_errors
     # print("check")
@@ -3580,13 +3382,28 @@ def evolve_conformal_moment(j,eta,t,mu,Nf=3,A0=1,particle="quark",moment_type="n
     #     print("A_g_+",A_lo_gluon("+"))
     #     print("A_g_-",A_lo_gluon("-"))
     #     print("------")
-    #     print("nlo")
-    #     print("A_q_+",A_quark_nlo("+"))
-    #     print("A_q_-",A_quark_nlo("-"))
+        # print("nlo")
+        # start_time = time.time()
+        # res = A_quark_nlo("+")
+        # end_time = time.time()
+        # print("A_q_+",res, end_time-start_time)
+
+        # start_time = time.time()
+        # res = A_quark_nlo("-")
+        # end_time = time.time()
+        # print("A_q_-",res, end_time-start_time)
+
     #     print("A_g_+",A_gluon_nlo("+"))
     #     print("A_g_-",A_gluon_nlo("-"))
-    #     print("B_q",B_quark_nlo("+"))
-    #     print("C_q",B_quark_nlo("-"))
+        # start_time = time.time()
+        # res = B_quark_nlo("+")
+        # end_time = time.time()
+        # print("B_q",res, end_time-start_time)
+
+        # start_time = time.time()
+        # res = B_quark_nlo("-")
+        # end_time = time.time()
+        # print("C_q",res, end_time-start_time)
     #     print("B_g",B_gluon_nlo("+"))
     #     print("C_g",B_gluon_nlo("-"))
     #     print("------")
@@ -3595,49 +3412,48 @@ def evolve_conformal_moment(j,eta,t,mu,Nf=3,A0=1,particle="quark",moment_type="n
         if particle == "quark":
             result = A_lo_quark("+") * moment_in_p + A_lo_quark("-") * moment_in_m
             sum_squared =  (A_lo_quark("+") * error_p)**2 + (A_lo_quark("-") * error_m)**2
-            error = np.frompyfunc(mp.sqrt, 1, 1)(sum_squared)
+            error = np.frompyfunc(abs, 1, 1)(mp.sqrt(sum_squared))
             result += hp.error_sign(error,error_type)
             if evolution_order == "NLO":
                 plus_terms = A_quark_nlo("+") + B_quark_nlo("+")
                 minus_terms = A_quark_nlo("-") + B_quark_nlo("-")
                 diagonal_terms = plus_terms * moment_in_p + minus_terms * moment_in_m
                 sum_squared = plus_terms**2 * error_p**2 + minus_terms**2 * error_m**2
-                diagonal_errors = np.frompyfunc(mp.sqrt, 1, 1)(sum_squared)
-
+                diagonal_errors = np.frompyfunc(abs, 1, 1)(mp.sqrt(sum_squared))
                 non_diagonal_terms = 0
                 non_diagonal_errors = 0
-                if isinstance(j, (int, np.integer)):
+                if isinstance(j, (int, np.integer)) and eta != 0:
                     for k in range(2,j - 2 + 1):
                         non_diagonal_terms += T_quark_nlo(k)[0]
                         non_diagonal_errors += T_quark_nlo(k)[1]
-                else:
-                    print("To do: vary parameters of fractional_finite_sum to check convergence")
-                    non_diagonal_terms, non_diagonal_errors = fractional_finite_sum(T_quark_nlo,k_0=2,k_1=j - 2 + 1,n_tuple=2,k_range=k_range,plot_integrand=plot_integrand,trap=trap)
-        
+                elif eta != 0:
+                    # print("To do: vary parameters of fractional_finite_sum to check convergence")
+                    non_diagonal_terms, non_diagonal_errors = fractional_finite_sum(T_quark_nlo,k_0=2,k_1=j - 2 + 1,n_tuple=2,k_range=k_range,plot_integrand=plot_integrand,trap=trap,n_jobs=n_jobs)
+                    # non_diagonal_terms, non_diagonal_errors = 0, 0
                 error = diagonal_errors + non_diagonal_errors
                 result += diagonal_terms + non_diagonal_terms + hp.error_sign(error,error_type)
         if particle == "gluon":
             result = A_lo_gluon("+") * moment_in_p + A_lo_gluon("-") * moment_in_m
             sum_squared =  (A_lo_gluon("+") * error_p)**2 + (A_lo_gluon("-") * error_m)**2
-            error = np.frompyfunc(mp.sqrt, 1, 1)(sum_squared)
+            error = np.frompyfunc(abs, 1, 1)(mp.sqrt(sum_squared))
             result += hp.error_sign(error,error_type)
             if evolution_order == "NLO":
                 plus_terms = A_gluon_nlo("+") + B_gluon_nlo("+")
                 minus_terms = A_gluon_nlo("-")  + B_gluon_nlo("-")
                 diagonal_terms =  plus_terms * moment_in_p + minus_terms * moment_in_m
                 sum_squared = plus_terms**2 * error_p**2 + minus_terms**2 * error_m**2
-                diagonal_errors = np.frompyfunc(mp.sqrt, 1, 1)(sum_squared)
+                diagonal_errors = np.frompyfunc(abs, 1, 1)(mp.sqrt(sum_squared))
 
                 non_diagonal_terms = 0
                 non_diagonal_errors = 0
-                if isinstance(j, (int, np.integer)):
+                if isinstance(j, (int, np.integer)) and eta != 0:
                     for k in range(2,j - 2 + 1):
                         non_diagonal_terms += T_gluon_nlo(k)[0]
                         non_diagonal_errors += T_gluon_nlo(k)[1]
-                else:
+                elif eta != 0:
                     print("To do: vary parameters of fractional_finite_sum to check convergence")
-                    non_diagonal_terms, non_diagonal_errors = fractional_finite_sum(T_gluon_nlo,k_0=2,k_1=j - 2 + 1,n_tuple=2,k_range=k_range,plot_integrand=plot_integrand,trap=trap)
-
+                    non_diagonal_terms, non_diagonal_errors = fractional_finite_sum(T_gluon_nlo,k_0=2,k_1=j - 2 + 1,n_tuple=2,k_range=k_range,plot_integrand=plot_integrand,trap=trap,n_jobs=n_jobs)
+                    # non_diagonal_terms, non_diagonal_errors = 0, 0
                 error = diagonal_errors + non_diagonal_errors
                 result += diagonal_terms + non_diagonal_terms + hp.error_sign(error,error_type)
 
@@ -3647,12 +3463,13 @@ def evolve_conformal_moment(j,eta,t,mu,Nf=3,A0=1,particle="quark",moment_type="n
         elif evolution_order == "NLO":
             result = moment_in * E_non_singlet_nlo(j-1)
             non_diagonal_terms = 0
-            if isinstance(j, (int, np.integer)):
-                for k in range(2,j - 2 + 1):
+            if isinstance(j, (int, np.integer)) and eta != 0:
+                for k in range(1,j - 2 + 1):
                     non_diagonal_terms += EB_non_singlet_nlo(k)
-            else:
+            elif eta != 0:
                 # print("To do: vary parameters of fractional_finite_sum to check convergence")
-                non_diagonal_terms = fractional_finite_sum(EB_non_singlet_nlo,k_0=2,k_1=j - 2 + 1,n_k=n_k,k_range=k_range,plot_integrand=plot_integrand,trap=trap)
+                non_diagonal_terms = fractional_finite_sum(EB_non_singlet_nlo,k_0=1,k_1=j - 2 + 1,n_k=n_k,k_range=k_range,plot_integrand=plot_integrand,trap=trap,n_jobs=n_jobs)
+                # non_diagonal_terms = 0
             result += non_diagonal_terms
 
     result *= A0
@@ -4264,11 +4081,10 @@ def conformal_partial_wave(j, x, eta, particle = "quark", parity="none"):
     if particle == "quark":
         gamma_term = lambda j: 2.0**j * mp.gamma(1.5 + j) / (mp.gamma(0.5) * mp.gamma(j))
         sin_term = lambda j: mp.sin(mp.pi * j) / mp.pi
-        eta_prf = 1 / eta**j 
         def cal_P(x):
             arg = (1 + x / eta)
             hyp = mp.hyp2f1(-j, j + 1, 2, 0.5 * arg)
-            result = eta_prf * arg * hyp * gamma_term(j)
+            result = 1 / eta**j  * arg * hyp * gamma_term(j)
             return result
         def cal_Q(x): 
             hyp = mp.hyp2f1(0.5 * j, 0.5 * (j + 1), 1.5 + j, (eta / x)**2) 
@@ -4277,11 +4093,10 @@ def conformal_partial_wave(j, x, eta, particle = "quark", parity="none"):
     else:   
         gamma_term = lambda j: 2.0**(j-1) * mp.gamma(1.5 + j) / (mp.gamma(0.5) * mp.gamma(j-1))
         sin_term =lambda j: mp.sin(mp.pi * (j+1))  / mp.pi 
-        eta_prf = 1 / eta**(j-1)
         def cal_P(x):
             arg = (1. + x / eta)
             hyp = mp.hyp2f1(-j, j + 1, 3, 0.5 * arg)
-            result = eta_prf * arg**2 * hyp * gamma_term(j)
+            result = 1 / eta**(j-1) * arg**2 * hyp * gamma_term(j)
             return result
         def cal_Q(x): 
             hyp = mp.hyp2f1(0.5 * (j-1), 0.5 * j, 1.5 + j, (eta / x)**2) 
@@ -4316,8 +4131,8 @@ def get_j_base(particle="quark",moment_type="non_singlet_isovector", moment_labe
 
     if moment_label in ["A","B"]:
         if particle == "quark" and moment_type in ["non_singlet_isovector","non_singlet_isoscalar"]:
-            # j_base, parity = .95, "none"
-            j_base, parity = 1.2, "none"
+            j_base, parity = .95, "none"
+            # j_base, parity = 1.2, "none"
         elif particle == "quark" and moment_type == "singlet":
             # j_base, parity = 1.7, "odd"
             j_base, parity = 2.7, "odd"
@@ -4477,16 +4292,16 @@ def mellin_barnes_gpd(x, eta, t, mu, Nf=3, A0=1 ,particle = "quark", moment_type
         k_max = k_values[-1]
 
         if real_imag == 'real':
-            integral, error = np.quad(lambda k: integrand(k, 'real'), k_min, k_max, limit = 200)
+            integral, error = quad(lambda k: integrand(k, 'real'), k_min, k_max, limit = 200)
             # Use symmetry of the real part of the integrand
             integral *= 2
             error *= 2
             return integral, error
         elif real_imag == 'imag':
-            integral, error = np.quad(lambda k: integrand(k, 'imag'), k_min, k_max, limit = 200)
+            integral, error = quad(lambda k: integrand(k, 'imag'), k_min, k_max, limit = 200)
             return integral, error
         elif real_imag == 'both':
-            integral, error = mp.quad(lambda k: integrand(k, 'both'), k_min, k_max, error=True)
+            integral, error = mp.quad(lambda k: integrand(k, 'both'), -k_max, k_max, error=True)
             real_integral, imag_integral = np.float64(mp.re(integral)), np.float64(mp.im(integral))
             real_error, imag_error = np.float64(mp.re(error)), np.float64(mp.im(error))
             # real_integral, real_error = quad(lambda k: integrand(k, 'real'), k_min, k_max, limit = 200)
@@ -5099,7 +4914,7 @@ def plot_spin_orbit_correlation(particle="quark",evolution_order="LO",n_t = 50):
     #plt.xscale('log') # set x axis to log scale
     plt.tight_layout()
 
-    FILE_PATH = cfg.PLOT_PATH / "Cz_over_t" +".pdf"
+    FILE_PATH = cfg.PLOT_PATH / "Cz_over_t.pdf"
     plt.savefig(FILE_PATH,format="pdf",bbox_inches="tight",dpi=600)
 
     plt.show()
@@ -5184,7 +4999,7 @@ def plot_fourier_transform_transverse_moments(j,eta,mu,Nf=3,particle="quark",mom
     if write_to_file and read_from_file:
         raise ValueError("write_to_file and read_from_file can't simultaneously be True")
 
-    FILE_PATH = cfg.PLOT_PATH / "imp_param_transv_pol_moment_j_" + str(j) + "_" + moment_type  +".pdf"
+    FILE_PATH = cfg.PLOT_PATH / f"imp_param_transv_pol_moment_j_{j}_{moment_type}.pdf"
 
     # Define the grid for b_vec
     b_x = np.linspace(-b_max, b_max, n_b)
@@ -5356,7 +5171,8 @@ def plot_fourier_transform_quark_spin_orbit_correlation(eta, mu, Nf=3, moment_ty
     if moment_type not in ["non_singlet_isovector", "non_singlet_isoscalar", "u", "d", "all"]:
         raise ValueError(f"Wrong moment_type {moment_type}")
 
-    FILE_PATH = cfg.PLOT_PATH + "imp_param_spin_orbit_" + moment_type  +".pdf"
+    FILE_PATH = cfg.PLOT_PATH / f"imp_param_spin_orbit_{moment_type}.pdf"
+
 
     # Define the grid for b_vec
     b_x = np.linspace(-b_max, b_max, n_b)
@@ -5587,7 +5403,7 @@ def plot_fourier_transform_quark_helicity(eta, mu, Nf=3, moment_type="non_single
     if moment_type not in ["non_singlet_isovector", "non_singlet_isoscalar", "u", "d", "all"]:
         raise ValueError(f"Wrong moment_type {moment_type}")
 
-    FILE_PATH = cfg.PLOT_PATH / "imp_param_helicity_" + moment_type +".pdf"
+    FILE_PATH = cfg.PLOT_PATH / f"imp_param_helicity_{moment_type}.pdf"
     
 
     # Define the grid for b_vec
@@ -5820,7 +5636,7 @@ def plot_fourier_transform_singlet_helicity(eta, mu, Nf=3, particle = "gluon",ev
         }
     title = title_map[particle]
     
-    FILE_PATH = cfg.PLOT_PATH / "imp_param_helicity_" + "singlet_" + particle + ".pdf"
+    FILE_PATH = cfg.PLOT_PATH / f"imp_param_helicity_singlet_{particle}.pdf"
     READ_WRITE_PATH = cfg.IMPACT_PARAMETER_MOMENTS_PATH / "imp_param_helicity_" + "singlet_" + particle
 
     # Define the grid for b_vec
@@ -5978,7 +5794,7 @@ def plot_fourier_transform_singlet_spin_orbit_correlation(eta, mu, Nf=3, particl
         }
     title = title_map[particle]
     
-    FILE_PATH = cfg.PLOT_PATH / "imp_param_" + "spin_orbit_singlet_" + particle + ".pdf"
+    FILE_PATH = cfg.PLOT_PATH / f"imp_param_spin_orbit_singlet_{particle}.pdf"
     READ_WRITE_PATH = cfg.IMPACT_PARAMETER_MOMENTS_PATH / "imp_param_"  + "spin_orbit_singlet_" + particle
 
     # Define the grid for b_vec
@@ -6126,7 +5942,7 @@ def plot_fourier_transform_quark_orbital_angular_momentum(eta, mu, Nf=3, moment_
     if moment_type not in ["non_singlet_isovector", "non_singlet_isoscalar", "u", "d", "all"]:
         raise ValueError(f"Wrong moment_type {moment_type}")
 
-    FILE_PATH = cfg.PLOT_PATH / "imp_param_oam_" + moment_type +".pdf"
+    FILE_PATH = cfg.PLOT_PATH / f"imp_param_oam_{moment_type}.pdf"
 
     # Convert GeV^-1 to fm
     hbarc = 0.1975
@@ -6359,185 +6175,6 @@ def plot_conformal_partial_wave(j,eta,particle="quark",parity="none"):
     plt.tight_layout()  # Adjust spacing between subplots
     plt.show()
 
-def plot_evolved_moment_over_j(eta,t,mu,Nf = 3,j_base = 3,particle="quark",moment_type="non_singlet_isovector",moment_label ="A",evolution_order="LO", 
-                            error_type = "central", j_max=5, num_points=200, real_imag = "real"):
-    """
-    Plot the real and imaginary parts of the evolved conformal moment 
-    over -j_max < k < j_max, with j transformed as j -> z = j_base + 1j * k.
-
-    Arguments:
-    particle -- "quark" or "gluon"
-    moment_label -- Label of the moment (e.g., "A", "B")
-    parity -- Parity information used to compute j_base
-    eta -- Skewness parameter
-    t -- Mandelstam t
-    mu -- Resolution scale
-    Nf -- Number of active flavors (default: 3)
-    moment_type -- Type of moment ("non_singlet_isovector", "non_singlet_isoscalar", or "singlet")
-    error_type -- Choose "central", "upper", or "lower" value for input PDF parameters
-    j_max -- Maximum absolute value of k (default: 5)
-    num_points -- Number of points for plotting (default: 200)
-    """
-
-    # Define k values
-    
-    
-    if real_imag == "real":
-        k_vals = np.linspace(j_base, j_max, num_points)
-        z_vals = k_vals
-    elif real_imag == "imag":
-        k_vals = np.linspace(-j_max, j_max, num_points)
-        z_vals = j_base +  1j * k_vals 
-
-    # Evaluate the function for each z
-    evolved_moment = np.array(
-        Parallel(n_jobs=-1)(delayed(evolve_conformal_moment)(z, eta, t, mu, Nf, 1,
-                                                        particle, moment_type, moment_label, evolution_order, error_type) for z in z_vals),
-                dtype=complex)
-    # evolved_moment = np.array([evolve_conformal_moment(z, eta, t, mu, Nf, 
-    #                                                     particle, moment_type, moment_label, error_type) for z in z_vals])
-
-    # Plot real and imaginary parts
-    plt.figure(figsize=(8, 5))
-    plt.plot(k_vals, evolved_moment.real, label="Re[evolved moment]", color='b')
-    plt.plot(k_vals, evolved_moment.imag, label="Im[evolved moment]", color='r', linestyle='dashed')
-    plt.xlabel(r"$k$")
-    plt.ylabel(r"$\mathcal{F}(z)$")
-    plt.title(f"Evolution of Conformal Moment for {particle}, {moment_label}")
-    plt.axhline(0, color='black', linewidth=0.5, linestyle='dotted')
-    plt.axvline(0, color='black', linewidth=0.5, linestyle='dotted')
-    plt.legend(fontsize=10, markerscale=1.5)
-    plt.grid()
-    plt.show()
-
-def plot_conformal_partial_wave_over_j(x,eta,particle="quark",moment_type="non_singlet_isovector",moment_label ="A",parity="none"):
-    """Plots the conformal parftial wave over conformal spin-j for given eta, particle and parity.
-
-    Parameters:
-    - j (float): conformal spin
-    - eta (float): skewness
-    - particle (str., optiona): quark or gluon. Default is quark
-    - parity (str., optional): even, odd, or none. Default is none
-    """
-    hp.check_particle_type(particle)
-    hp.check_parity(parity)
-
-    j_base, parity = get_j_base(particle,moment_type,moment_label)
-    k_values = np.linspace(-15, 15, 200)
-    j_values = j_base + 1j * k_values
-    y_values = np.array(Parallel(n_jobs=-1)(delayed(conformal_partial_wave)(j, x, eta , particle, parity) for j in j_values)
-                        ,dtype=complex)
-
-    # Create subplots for real and imaginary parts
-    plt.figure(figsize=(10, 6))  # Adjust figure size for better visualization
-
-    #plt.subplot(2, 1, 1)
-    plt.plot(k_values, y_values.real)
-    plt.xlabel("j")
-    plt.ylabel("Real Part")
-    plt.title(f"Real Part of Conformal Partial Wave for {particle} with Parity {parity}")
-
-    #plt.subplot(2, 1, 2)
-    plt.plot(k_values, y_values.imag)
-    plt.xlabel("j")
-    plt.ylabel("Imaginary Part")
-    plt.title(f"Imaginary Part of Conformal Partial Wave for {particle} with Parity {parity}")
-
-    plt.tight_layout()  # Adjust spacing between subplots
-    plt.show()
-
-def plot_mellin_barnes_gpd_integrand(x, eta, t, mu, Nf=3, particle="quark", moment_type="singlet", moment_label="A",evolution_order="LO", parity = "none", error_type="central", j_max=7.5):
-    """
-    Plot the real and imaginary parts of the integrand of the Mellin-Barnes integral over k with j = j_base + i*k.
-
-    Parameters:
-    - x, eta, t, mu: Physical parameters.
-    - Nf (int): Number of flavors.
-    - particle (str): Particle species ("quark" or "gluon").
-    - moment_type (str. optional): Moment type ("singlet", "non_singlet_isovector", "non_singlet_isoscalar").
-    - moment_label (str. optional): Moment label ("A", "Atilde", "B").
-    - parity (str., optional)
-    - error_type (str. optional): PDF value type ("central", "plus", "minus").
-    - j_max (float. optional): Maximum value of imaginary part k for plotting.
-    """
-    hp.check_parity(parity)
-    hp.check_error_type(error_type)
-    hp.check_particle_type(particle)
-    hp.check_moment_type_label(moment_type,moment_label)
-
-    j_base, parity_check = get_j_base(particle,moment_type,moment_label)
-    if parity != parity_check:
-        print(f"Warning: Wrong parity of {parity} for moment_type of {moment_type} for particle {particle}")
-
-    if eta == 0:
-        eta = 1e-6
-
-    def integrand_real(k):
-        # Plot imag
-        z = j_base + 1j * k
-        # Plot real
-        #z = k
-        dz = 1j
-        sin_term = mp.sin(mp.pi * z)
-        pw_val = conformal_partial_wave(z, x, eta, particle, parity)
-        if particle == "quark":
-            if moment_type == "singlet":
-                mom_val = evolve_quark_singlet(z, eta, t, mu, Nf,1, moment_label, evolution_order, error_type)
-            else:
-                mom_val = evolve_quark_non_singlet(z, eta, t, mu, Nf,1, moment_type, moment_label, evolution_order, error_type)
-        else:
-            mom_val = evolve_gluon_singlet(z, eta, t, mu, Nf,1, moment_label, evolution_order, error_type)
-        result = -0.5j * dz * pw_val * mom_val / sin_term
-        return result.real
-
-    def integrand_imag(k):
-        # Plot imag
-        z = j_base + 1j * k
-        # Plot real
-        #z = k
-        dz = 1j
-        sin_term = mp.sin(mp.pi * z)
-        pw_val = conformal_partial_wave(z, x, eta, particle, parity)
-        if particle == "quark":
-            if moment_type == "singlet":
-                mom_val = evolve_quark_singlet(z, eta, t, mu, Nf,1, moment_label, evolution_order, error_type)
-            else:
-                mom_val = evolve_quark_non_singlet(z, eta, t, mu, Nf,1, moment_type, moment_label, evolution_order, error_type)
-        else:
-            mom_val = (-1) * evolve_gluon_singlet(z, eta, t, mu, Nf,1,moment_label, evolution_order, error_type)
-        result = -0.5j * dz * pw_val * mom_val / sin_term
-        return result.imag
-
-    print(f"Integrand at j_max={j_max}")
-    print(integrand_real(j_max))
-    print(integrand_imag(j_max))
-
-    # Define k range for plotting
-    k_values = np.linspace(-j_max, j_max, 300)
-    #k_values = np.linspace(1.1, 10, 300)
-    #k_values = np.linspace(j_base,j_max,300)
-    # Parallel computation of real and imaginary parts
-    real_values = Parallel(n_jobs=-1)(delayed(integrand_real)(k) for k in k_values)
-    imag_values = Parallel(n_jobs=-1)(delayed(integrand_imag)(k) for k in k_values)
-
-    # Plotting
-    fig, ax = plt.subplots(2, 1, figsize=(10, 8), sharex=True)
-    ax[0].plot(k_values, real_values, label="Real Part", color="blue")
-    ax[0].set_ylabel("Real Part")
-    ax[0].legend()
-    ax[0].grid()
-    #ax[0].set_ylim([-30,40])
-
-    ax[1].plot(k_values, imag_values, label="Imaginary Part", color="red")
-    ax[1].set_xlabel("k")
-    ax[1].set_ylabel("Imaginary Part")
-    ax[1].legend()
-    ax[1].grid()
-
-    plt.suptitle("Integrand Real and Imaginary Parts")
-    plt.tight_layout(rect=[0, 0, 1, 0.96])
-    plt.show()
-
 
 def plot_gpd_data(Nf=3,particle="quark",gpd_type="non_singlet_isovector",gpd_label="Htilde",evolution_order="LO",n_int=300,n_gpd=50,sampling=True,n_init=os.cpu_count(), 
                   plot_gpd =True, error_bars=True,write_to_file = False, read_from_file = True, plot_legend = True, y_0 = -1e-1, y_1 =3):
@@ -6567,6 +6204,8 @@ def plot_gpd_data(Nf=3,particle="quark",gpd_type="non_singlet_isovector",gpd_lab
         return mellin_barnes_gpd(x, eta, t, mu, Nf,particle,gpd_type,moment_label, evolution_order, real_imag="real", error_type=error_type,n_jobs=1)
     
     y_label_map = {
+            ("non_singlet_isovector","H"): "$H^{{u-d}}(x,\eta,t;\mu)$",
+            ("non_singlet_isoscalar","H"): "$H^{{u+d}}(x,\eta,t;\mu)$",
             ("non_singlet_isovector","Htilde"): "$\\widetilde{{H}}^{{u-d}}(x,\eta,t;\mu)$",
             ("non_singlet_isoscalar", "Htilde"): "$\\widetilde{{H}}^{{u+d}}(x,\eta,t;\mu)$",
             ("u","Htilde"): "$\\widetilde{{H}}^{{u}}(x,\eta,t;\mu)$",
@@ -6747,455 +6386,11 @@ def plot_gpd_data(Nf=3,particle="quark",gpd_type="non_singlet_isovector",gpd_lab
     if plot_legend:
         ax.legend(fontsize=10, markerscale=1.5)
     ax.grid(True)  # Add a grid for better readability
-    FILE_PATH = cfg.PLOT_PATH / gpd_type + "_" + particle + "_GPD_" + gpd_label +"_comparison" + ".pdf"
+    FILE_PATH = cfg.PLOT_PATH / f"{gpd_type}_{particle}_GPD_{gpd_label}_comparison.pdf"
+
     fig.savefig(FILE_PATH,format="pdf",bbox_inches="tight",dpi=600)
 
-def plot_singlet_quark_gpd(eta, t, mu, Nf=3, moment_label="A",evolution_order="LO", real_imag="real", sampling=True, n_init=os.cpu_count(), n_points=20, x_0=1e-2, x_1=1, error_bars=True):
-    """
-    Plot the real or imaginary part of the singlet quark GPD
-    with dynamically adjusted x intervals, including error bars.
-    The function supports both positive and negative values of parton x.
-
-    Parameters:
-    - eta (float): Skewness.
-    - t (float): Mandelstam t
-    - mu (float): Resolution scale
-    - Nf (int 1<= Nf <= 4): Number of flavors
-    - real_imag (str): Choose to plot real part, imaginary part or both. Imaginary part should be zero, so this is just for checks.
-    - sampling (True or False): Choose whether to plot using importance sampling  
-    - n_init (int): Sampling size, default is available number of CPUs
-    - n_points (int): Number of plot points
-    - x_0 (float): lower bound on parton x
-    - x_1 (float): upper bound on parton x
-    - error_bars (True or False): Compute error bars as well
-    """
-    hp.check_moment_type_label("singlet",moment_label)
-    # Ensure x_0 < x_1 for a valid range
-    if x_0 >= x_1:
-        raise ValueError("x_0 must be less than x_1.")
-
-    if x_0 <= 0:
-        raise ValueError("x_0 must be greater than zero.")
-
-    def compute_result(x, error_type="central"):
-        return mellin_barnes_gpd(x, eta, t, mu, Nf,particle="quark",moment_type="singlet",moment_label=moment_label, evolution_order=evolution_order, real_imag=real_imag, error_type=error_type,n_jobs=1)
-
-    if sampling:
-
-        x_values = np.linspace(x_0, x_1, n_init)
-
-        # Measure time for sampling initial points
-        start_time_sampling = time.time()
-        results = Parallel(n_jobs=-n_init)(delayed(compute_result)(x,eta,t,mu) for x in x_values)
-        end_time_sampling = time.time()
-
-        # Compute differences and scale intervals
-        diffs = np.abs(np.diff(results))
-        # Ensure diffs is not zero for power
-        diffs += 1e-6
-        scaled_intervals = np.power(diffs, 0.5) / np.sum(np.power(diffs, 0.5))
-        cumulative_intervals = np.cumsum(np.insert(scaled_intervals, 0, 0))
-        cumulative_intervals = x_0 + (x_1 - x_0) * (
-            cumulative_intervals - cumulative_intervals[0]) / (
-                cumulative_intervals[-1] - cumulative_intervals[0])
-
-        # Output sampling time
-        print(f"Time for initial sampling for parameters (eta,t) = ({eta,t}): {end_time_sampling - start_time_sampling:.6f} seconds")
-
-    # Measure time for adaptive grid computation
-    start_time_adaptive = time.time()
-    if sampling:
-        x_values = np.interp(np.linspace(x_0, x_1, n_points), cumulative_intervals, x_values)
-    else:
-        x_values = np.linspace(x_0, x_1, n_points)
-
-    # Add crossover points
-    if eta not in x_values:
-        x_values = np.append(x_values,eta)
-    if - eta not in x_values and x_0 < 0:
-        x_values = np.append(x_values,-eta)
-    x_values = np.sort(x_values)
-
-    results = Parallel(n_jobs=-1)(delayed(compute_result)(x) for x in x_values)
-
-    # Error bar computations
-    if error_bars:
-        results_plus = Parallel(n_jobs=-1)(delayed(compute_result)(x, error_type="plus") for x in x_values)
-        results_minus = Parallel(n_jobs=-1)(delayed(compute_result)(x, error_type="minus") for x in x_values)
-    else:
-        results_plus = results
-        results_minus = results
-
-    end_time_adaptive = time.time()
-
-    # Extract real and imaginary parts of results
-    real_parts = np.real(results)
-    imag_parts = np.imag(results)
-
-    # Compute real and imaginary error bars
-    real_errors_plus = abs(np.real(results_plus) - real_parts)
-    real_errors_minus = abs(real_parts - np.real(results_minus))
-    imag_errors_plus = abs(np.imag(results_plus) - imag_parts)
-    imag_errors_minus = abs(imag_parts - np.imag(results_minus))
-
-    # Output plot generation time
-    print(f"Time for plot computation: {end_time_adaptive - start_time_adaptive:.6f} seconds")
-
-    # Define the data and labels for real and imaginary parts
-    plot_parts = [
-        ("real", real_parts, real_errors_minus, real_errors_plus, 'b'),
-        ("imag", imag_parts, imag_errors_minus, imag_errors_plus, 'r')
-    ]
-
-    # Plot real and/or imaginary parts
-    for part, data, errors_minus, errors_plus, color in plot_parts:
-        if real_imag in (part, "both"):
-            if error_bars:
-                plt.errorbar(
-                    x_values, data,
-                    yerr=(errors_minus, errors_plus),
-                    fmt='o', label=(f"$\\eta={eta:.2f}$"
-                                    "\n"
-                                    f"$t={t:.2f} \\text{{ GeV}}^2$"
-                                    "\n"
-                                    f"$\\mu = {mu} \\text{{ GeV}}$"),
-                    color=color, capsize=3
-                )
-            else:
-                plt.scatter(
-                    x_values, data,
-                    label=(f"$\\eta={eta:.2f}$"
-                                "\n"
-                                f"$t={t:.2f} \\text{{ GeV}}^2$"
-                                "\n"
-                                f"$\\mu = {mu} \\text{{ GeV}}$"),
-                    color=color
-                )
-
-    if moment_label == "A":
-            title = "singlet Sea Quark GPD"
-    elif moment_label == "Atilde":
-            title = "Axial singlet Sea Quark GPD"
-    else:
-        print("No title defined.")
-
-    # Set the title based on real_imag
-    if real_imag == "real":
-        plt.title(f'{title}')
-    elif real_imag == "imag":
-        plt.title(f'Imaginary Part of {title}')
-    elif real_imag == "both":
-        plt.title(f'Real and Imaginary Part of {title}')
-
-    # Add vertical lines to separate DGLAP from ERBL region
-    plt.axvline(x=eta, linestyle='--')   
-    plt.axvline(x=-eta, linestyle='--')
-
-    plt.xlim(x_0, x_1)
-    plt.xlabel('x')
-    plt.legend(fontsize=10, markerscale=1.5)
-    plt.grid(True)
-    plt.show()
-
-def plot_non_singlet_quark_gpd(eta, t, mu, Nf=3, moment_type="non_singlet_isovector",moment_label="A",evolution_order="LO",real_imag="real", sampling=True, n_init=os.cpu_count(), n_points=30, x_0=-1, x_1=1, error_bars=True):
-    """
-    Plot the real or imaginary part of the non-singlet quark GPD
-    with dynamically adjusted x intervals, including error bars.
-    The function supports both positive and negative values of parton x.
-
-    Parameters:
-    - eta (float): Skewness.
-    - t (float): Mandelstam t
-    - mu (float): Resolution scale
-    - Nf (int 1<= Nf <= 4): Number of flavors
-    - real_imag (str): Choose to plot real part, imaginary part or both. Imaginary part should be zero, so this is just for checks.
-    - sampling (True or False): Choose whether to plot using importance sampling 
-    - n_init (int): Sampling size, default is available number of CPUs
-    - n_points (int): Number of plot points
-    - x_0 (float): lower bound on parton x
-    - x_1 (float): upper bound on parton x
-    - error_bars (True or False): Compute error bars as well
-    """
-    hp.check_moment_type_label(moment_type,moment_label)
-    # Ensure x_0 < x_1 for a valid range
-    if x_0 >= x_1:
-        raise ValueError("x_0 must be less than x_1.")
-
-    # Validate real_imag input
-    if real_imag not in ("real", "imag", "both"):
-        raise ValueError("Invalid option for real_imag. Choose from 'real', 'imag', or 'both'.")
-
-    def compute_result(x, error_type="central"):
-        return mellin_barnes_gpd(x, eta, t, mu, Nf, particle="quark",moment_type=moment_type,moment_label=moment_label, evolution_order=evolution_order,real_imag=real_imag, error_type=error_type, n_jobs=1)
-
-    if sampling:
-
-        x_values = np.linspace(x_0, x_1, n_init)
-
-        # Measure time for sampling initial points
-        start_time_sampling = time.time()
-        results = Parallel(n_jobs=-1)(delayed(compute_result)(x,eta,t,mu) for x in x_values)
-        end_time_sampling = time.time()
-
-        # Compute differences and scale intervals
-        diffs = np.abs(np.diff(results))
-        # Ensure diffs is not zero for power
-        diffs += 1e-6
-        scaled_intervals = np.power(diffs, 0.5) / np.sum(np.power(diffs, 0.5))
-        cumulative_intervals = np.cumsum(np.insert(scaled_intervals, 0, 0))
-        cumulative_intervals = x_0 + (x_1 - x_0) * (
-            cumulative_intervals - cumulative_intervals[0]) / (
-                cumulative_intervals[-1] - cumulative_intervals[0])
-
-        # Output sampling time
-        print(f"Time for initial sampling for parameters (eta,t) = ({eta,t}): {end_time_sampling - start_time_sampling:.6f} seconds")
-
-    # Measure time for adaptive grid computation
-    start_time_adaptive = time.time()
-    if sampling:
-        x_values = np.interp(np.linspace(x_0, x_1, n_points), cumulative_intervals, x_values)
-    else:
-        x_values = np.linspace(x_0, x_1, n_points)
-
-    # Add crossover points
-    if eta not in x_values:
-        x_values = np.append(x_values,eta)
-    if - eta not in x_values and x_0 < 0:
-        x_values = np.append(x_values,-eta)
-    x_values = np.sort(x_values)
-
-    # Error bar computations
-    if error_bars:
-        results_plus = Parallel(n_jobs=-1)(delayed(compute_result)(x, error_type="plus") for x in x_values)
-        results_minus = Parallel(n_jobs=-1)(delayed(compute_result)(x, error_type="minus") for x in x_values)
-    else:
-        results_plus = results
-        results_minus = results
-
-    end_time_adaptive = time.time()
-
-    # Extract real and imaginary parts of results
-    real_parts = np.real(results)
-    imag_parts = np.imag(results)
-
-    # Compute real and imaginary error bars
-    real_errors_plus = abs(np.real(results_plus) - real_parts)
-    real_errors_minus = abs(real_parts - np.real(results_minus))
-    imag_errors_plus = abs(np.imag(results_plus) - imag_parts)
-    imag_errors_minus = abs(imag_parts - np.imag(results_minus))
-
-    # Output plot generation time
-    print(f"Time for plot computation: {end_time_adaptive - start_time_adaptive:.6f} seconds")
-
-    # Define the data and labels for real and imaginary parts
-    plot_parts = [
-        ("real", real_parts, real_errors_minus, real_errors_plus, 'b'),
-        ("imag", imag_parts, imag_errors_minus, imag_errors_plus, 'r')
-    ]
-
-
-    # Plot real and/or imaginary parts
-    for part, data, errors_minus, errors_plus, color in plot_parts:
-        if real_imag in (part, "both"):
-            if error_bars:
-                plt.errorbar(
-                    x_values, data,
-                    yerr=(errors_minus, errors_plus),
-                    fmt='o', label=(f"$\\eta={eta:.2f}$"
-                                    "\n"
-                                    f"$t={t:.2f} \\text{{ GeV}}^2$"
-                                    "\n"
-                                    f"$\\mu = {mu} \\text{{ GeV}}$"),
-                    color=color, capsize=3
-                )
-            else:
-                plt.scatter(
-                    x_values, data,
-                    label=(f"$\\eta={eta:.2f}$"
-                                "\n"
-                                f"$t={t:.2f} \\text{{ GeV}}^2$"
-                                "\n"
-                                f"$\\mu = {mu} \\text{{ GeV}}$"),
-                    color=color
-                )
-    if moment_label == "A":
-        if moment_type == "non_singlet_isovector":
-            title = "Non-singlet Isovector"
-        elif moment_type == "non_singlet_isoscalar":
-            title = "Non-singlet Isoscalar"
-    elif moment_label == "Atilde":
-        if moment_type == "non_singlet_isovector":
-            title = "Axial Non-singlet Isovector"
-        elif moment_type == "non_singlet_isoscalar":
-            title = "Axial Non-singlet Isoscalar"
-    else:
-        print("No title defined.")
-
-    # Set the title based on real_imag
-    if real_imag == "real":
-        plt.title(f'{title} Quark GPD')
-    elif real_imag == "imag":
-        plt.title(f'Imaginary Part of {title} Quark GPD')
-    elif real_imag == "both":
-        plt.title(f'Real and Imaginary Part of {title} Quark GPD')
-
-    # Add vertical lines to separate DGLAP from ERBL region
-    plt.axvline(x=eta, linestyle='--')   
-    plt.axvline(x=-eta, linestyle='--')
-
-    plt.xlim(x_0, x_1)
-    plt.xlabel('x')
-    plt.legend(fontsize=10, markerscale=1.5)
-    plt.grid(True)
-    plt.show()
-    
-def plot_gluon_gpd(eta, t, mu, Nf=3,moment_label="A",evolution_order="LO", real_imag="real", sampling=True, n_init=os.cpu_count(), n_points=20, x_0=1e-2, x_1=1, error_bars=True):
-    """
-    Plot the real or imaginary part of the non-singlet quark GPD
-    with dynamically adjusted x intervals, including error bars.
-    The function supports both positive and negative values of parton x.
-
-    Parameters:
-    - eta (float): Skewness.
-    - t (float): Mandelstam t
-    - mu (float): Resolution scale
-    - Nf (int 1<= Nf <= 4): Number of flavors
-    - real_imag (str): Choose to plot real part, imaginary part or both. Imaginary part should be zero, so this is just for checks.
-    - sampling (True or False): Choose whether to plot using importance sampling 
-    - n_init (int): Sampling size, default is available number of CPUs
-    - n_points (int): Number of plot points
-    - x_0 (float): lower bound on parton x
-    - x_1 (float): upper bound on parton x
-    - error_bars (True or False): Computer error bars as well
-    """
-    # Ensure x_0 < x_1 for a valid range
-    if x_0 >= x_1:
-        raise ValueError("x_0 must be less than x_1.")
-
-    if x_0 <= 0:
-        raise ValueError("x_0 must be greater than zero.")
-
-    def compute_result(x, error_type="central"):
-        return mellin_barnes_gpd(x, eta, t, mu, Nf, particle="gluon",moment_type="singlet",moment_label=moment_label, evolution_order=evolution_order,real_imag=real_imag, error_type=error_type,n_jobs=1)
-
-    if sampling:
-
-        x_values = np.linspace(x_0, x_1, n_init)
-
-        # Measure time for sampling initial points
-        start_time_sampling = time.time()
-        results = Parallel(n_jobs=-1)(delayed(compute_result)(x,eta,t,mu) for x in x_values)
-        end_time_sampling = time.time()
-
-        # Compute differences and scale intervals
-        diffs = np.abs(np.diff(results))
-        # Ensure diffs is not zero for power
-        diffs += 1e-6
-        scaled_intervals = np.power(diffs, 0.5) / np.sum(np.power(diffs, 0.5))
-        cumulative_intervals = np.cumsum(np.insert(scaled_intervals, 0, 0))
-        cumulative_intervals = x_0 + (x_1 - x_0) * (
-            cumulative_intervals - cumulative_intervals[0]) / (
-                cumulative_intervals[-1] - cumulative_intervals[0])
-
-        # Output sampling time
-        print(f"Time for initial sampling for parameters (eta,t) = ({eta,t}): {end_time_sampling - start_time_sampling:.6f} seconds")
-
-    # Measure time for adaptive grid computation
-    start_time_adaptive = time.time()
-    if sampling:
-        x_values = np.interp(np.linspace(x_0, x_1, n_points), cumulative_intervals, x_values)
-    else:
-        x_values = np.linspace(x_0, x_1, n_points)
-
-    # Add crossover points
-    if eta not in x_values:
-        x_values = np.append(x_values,eta)
-    if - eta not in x_values and x_0 < 0:
-        x_values = np.append(x_values,-eta)
-    x_values = np.sort(x_values)
-
-    results = Parallel(n_jobs=-1)(delayed(compute_result)(x) for x in x_values)
-
-    # Error bar computations
-    if error_bars:
-        results_plus = Parallel(n_jobs=-1)(delayed(compute_result)(x, error_type="plus") for x in x_values)
-        results_minus = Parallel(n_jobs=-1)(delayed(compute_result)(x, error_type="minus") for x in x_values)
-    else:
-        results_plus = results
-        results_minus = results
-
-    end_time_adaptive = time.time()
-
-    # Extract real and imaginary parts of results
-    real_parts = np.real(results)
-    imag_parts = np.imag(results)
-
-    # Compute real and imaginary error bars
-    real_errors_plus = abs(np.real(results_plus) - real_parts)
-    real_errors_minus = abs(real_parts - np.real(results_minus))
-    imag_errors_plus = abs(np.imag(results_plus) - imag_parts)
-    imag_errors_minus = abs(imag_parts - np.imag(results_minus))
-
-    # Output plot generation time
-    print(f"Time for plot computation: {end_time_adaptive - start_time_adaptive:.6f} seconds")
-
-    # Define the data and labels for real and imaginary parts
-    plot_parts = [
-        ("real", real_parts, real_errors_minus, real_errors_plus, 'b'),
-        ("imag", imag_parts, imag_errors_minus, imag_errors_plus, 'r')
-    ]
-
-    # Plot real and/or imaginary parts
-    for part, data, errors_minus, errors_plus, color in plot_parts:
-        if real_imag in (part, "both"):
-            if error_bars:
-                plt.errorbar(
-                    x_values, data,
-                    yerr=(errors_minus, errors_plus),
-                    fmt='o', label=(f"$\\eta={eta:.2f}$"
-                                    "\n"
-                                    f"$t={t:.2f} \\text{{ GeV}}^2$"
-                                    "\n"
-                                    f"$\\mu = {mu} \\text{{ GeV}}$"),
-                    color=color, capsize=3
-                )
-            else:
-                plt.scatter(
-                    x_values, data,
-                    label=(f"$\\eta={eta:.2f}$"
-                                "\n"
-                                f"$t={t:.2f} \\text{{ GeV}}^2$"
-                                "\n"
-                                f"$\\mu = {mu} \\text{{ GeV}}$"),
-                    color=color
-                )
-
-    if moment_label == "A":
-            title = "singlet Gluon GPD"
-    elif moment_label == "Atilde":
-            title = "Axial singlet Gluon GPD"
-    else:
-        print("No title defined.")
-
-    # Set the title based on real_imag
-    if real_imag == "real":
-        plt.title(f'{title}')
-    elif real_imag == "imag":
-        plt.title(f'Imaginary Part of {title}')
-    elif real_imag == "both":
-        plt.title(f'Real and Imaginary Part of {title}')
-
-    # Add vertical lines to separate DGLAP from ERBL region
-    plt.axvline(x=eta, linestyle='--')   
-    plt.axvline(x=-eta, linestyle='--')
-
-    plt.xlim(x_0, x_1)
-    plt.xlabel('x')
-    plt.legend(fontsize=10, markerscale=1.5)
-    plt.grid(True)
-    plt.show()
-
-def plot_gpds(eta_array, t_array, mu_array, colors, Nf=3, particle="quark",gpd_type="non_singlet_isovector",gpd_label="H",evolution_order="LO",sampling=True, n_init=os.cpu_count(), n_points=50, x_0=-1, x_1=1, y_0 = -1e-2, y_1 = 3, 
+def plot_gpds(eta_array, t_array, mu_array, colors,A0=1, Nf=3, particle="quark",gpd_type="non_singlet_isovector",gpd_label="H",evolution_order="LO",sampling=True, n_init=os.cpu_count(), n_points=50, x_0=-1, x_1=1, y_0 = -1e-2, y_1 = 3, 
               error_bars=True, plot_legend = False,write_to_file=True,read_from_file=False):
     """
     Plots a given GPD using the kinematical parameters contained in eta_array, t_array, mu_array
@@ -7210,6 +6405,7 @@ def plot_gpds(eta_array, t_array, mu_array, colors, Nf=3, particle="quark",gpd_t
     - t_array (array float): Array containing  t values
     - mu_array (array float): Array containing mu values
     - colors (array str.): Array containing colors for associated values
+    - A0 (float, optional): Manually adjust scale
     - Nf (int, optional): Number of active flavors
     - gpd_type (str. optional): non_singlet_isovector,...
     - gpd_label (str. optional): H, E, ...
@@ -7278,7 +6474,7 @@ def plot_gpds(eta_array, t_array, mu_array, colors, Nf=3, particle="quark",gpd_t
         x_0 = 1e-2
 
     def compute_result(x, eta,t,mu,error_type="central"):
-        return mellin_barnes_gpd(x, eta, t, mu, Nf,particle,moment_type,moment_label, evolution_order=evolution_order, real_imag="real", error_type=error_type,n_jobs=1)
+        return mellin_barnes_gpd(x, eta, t, mu, Nf,A0,particle,moment_type,moment_label, evolution_order=evolution_order, real_imag="real", error_type=error_type,n_jobs=1)
 
     if read_from_file:
         sampling = False
@@ -7327,16 +6523,21 @@ def plot_gpds(eta_array, t_array, mu_array, colors, Nf=3, particle="quark",gpd_t
                 if x_values is None:
                     raise ValueError("No data found on system. Change write_to_file = True")
         else:
-            results = Parallel(n_jobs=-1)(delayed(compute_result)(x,eta,t,mu) for x in x_values)
-
+            # results = Parallel(n_jobs=-1)(delayed(compute_result)(x,eta,t,mu) for x in x_values)
+            with hp.tqdm_joblib(tqdm(total=len(x_values))) as progress_bar:
+                results = Parallel(n_jobs=-1)(delayed(compute_result)(x,eta,t,mu) for x in x_values)
         # Error bar computations
         if error_bars:
             if read_from_file:
                 x_plus, results_plus = hp.load_gpd_data(eta,t,mu,particle,gpd_type,gpd_label,"plus")
                 x_minus,results_minus = hp.load_gpd_data(eta,t,mu,particle,gpd_type,gpd_label,"minus")
             else:
-                results_plus = Parallel(n_jobs=-1)(delayed(compute_result)(x,eta,t,mu, error_type="plus") for x in x_values)
-                results_minus = Parallel(n_jobs=-1)(delayed(compute_result)(x,eta,t,mu, error_type="minus") for x in x_values)
+                # results_plus = Parallel(n_jobs=-1)(delayed(compute_result)(x,eta,t,mu, error_type="plus") for x in x_values)
+                with hp.tqdm_joblib(tqdm(total=len(x_values))) as progress_bar:
+                    results_plus = Parallel(n_jobs=-1)(delayed(compute_result)(x,eta,t,mu, error_type="plus") for x in x_values)
+                # results_minus = Parallel(n_jobs=-1)(delayed(compute_result)(x,eta,t,mu, error_type="minus") for x in x_values)
+                with hp.tqdm_joblib(tqdm(total=len(x_values))) as progress_bar:
+                    results_minus = Parallel(n_jobs=-1)(delayed(compute_result)(x,eta,t,mu, error_type="minus") for x in x_values)
         else:
             results_plus = results
             results_minus = results
@@ -7375,7 +6576,7 @@ def plot_gpds(eta_array, t_array, mu_array, colors, Nf=3, particle="quark",gpd_t
         ax.legend(fontsize=10, markerscale=1.5)
     ax.grid(True)
     # Export
-    FILE_PATH = cfg.PLOT_PATH /  gpd_type + "_" + particle + "_GPD_" + gpd_label +".pdf"
+    FILE_PATH = cfg.PLOT_PATH / f"{gpd_type}_{particle}_GPD_{gpd_label}.pdf"
     fig.savefig(FILE_PATH,format="pdf",bbox_inches="tight",dpi=600)
     print(f"File saved to {FILE_PATH}")
 
