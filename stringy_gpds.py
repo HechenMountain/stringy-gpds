@@ -101,7 +101,7 @@ def integral_pdf_regge(A_pdf,eta_1,eta_2,epsilon,gamma_pdf,j,alpha_p,t):
         - gamma_pdf (float): Prefactor of x determining intermetiate behavior of input PDF.
         - j (float): conformal spin.
         - alpha_p (float): Regge slope.
-        - t (float): Mandelstam t (< 0 in physical region)
+        - t (float, or array): Mandelstam t (< 0 in physical region)
         """
         frac_1 = epsilon*mp.gamma(eta_1+j-alpha_p*t -.5)/(mp.gamma(eta_1+eta_2+j-alpha_p*t+.5))
         frac_2 = (eta_1+eta_2-gamma_pdf+eta_1*gamma_pdf+j*(1+gamma_pdf)-(1+gamma_pdf)*alpha_p*t)*mp.gamma(eta_1+j-alpha_p*t-1)/mp.gamma(1+eta_1+eta_2+j-alpha_p*t)
@@ -1678,6 +1678,7 @@ def d_hat(j,eta,t):
     if eta == 0:
         result = 1
     else :
+        t = -1e-12 if t == 0 else t
         if mp.im(j) < 0:
             j = mp.conj(j)
             result = mp.hyp2f1(-j/2, -(j-1)/2, 1/2 - j, - 4 * m_N**2/t * eta**2)
@@ -1769,7 +1770,8 @@ def quark_singlet_regge_D(j,eta,t, Nf=3, alpha_prime_ud=0.891,alpha_prime_s=1.82
     else :
         raise ValueError("Currently only (integer) 1 <= Nf <= 3 supported")
     sum_squared = mp.sqrt(sum_squared_1**2 + sum_squared_2**2)
-    error = np.frompyfunc(abs,1,1)(mp.sqrt(sum_squared))
+    # error = np.frompyfunc(abs,1,1)(mp.sqrt(sum_squared))
+    error = abs(mp.sqrt(sum_squared))
     error = (d_hat(j,eta,t)-1)*error
     result = (d_hat(j,eta,t)-1)*(term_1-term_2)
     return result, error
@@ -1791,7 +1793,8 @@ def quark_singlet_regge(j,eta,t,Nf=3,moment_label="A",evolve_type="vector",evolu
     term_1, error_1 = quark_singlet_regge_A(j,eta,t,Nf,alpha_prime_ud,moment_label,evolution_order,error_type)
     term_2, error_2 = quark_singlet_regge_D(j,eta,t,Nf,alpha_prime_ud,alpha_prime_s,moment_label,evolution_order,error_type)
     sum_squared = norm_A**2 * error_1**2 + norm_D**2 * error_2**2
-    error = np.frompyfunc(abs, 1, 1)(mp.sqrt(sum_squared))
+    # error = np.frompyfunc(abs, 1, 1)(mp.sqrt(sum_squared))
+    error = abs(mp.sqrt(sum_squared))
     result = norm_A * term_1 + norm_D * prf * term_2
 
     return result, error
@@ -1821,7 +1824,8 @@ def gluon_singlet_regge_D(j,eta,t, alpha_prime_T = 0.627, alpha_prime_S = 4.277,
         else:
             raise ValueError(f"Unsupported moment label {moment_label}")
         sum_squared = error_2**2+error_3**2
-        error = np.frompyfunc(abs, 1, 1)(mp.sqrt(sum_squared))
+        # error = np.frompyfunc(abs, 1, 1)(mp.sqrt(sum_squared))
+        error = abs(mp.sqrt(sum_squared))
         error = term_1 * error
         result = term_1 * (term_2-term_3)
         return result, error
@@ -1847,7 +1851,8 @@ def gluon_singlet_regge(j,eta,t,moment_label="A",evolve_type="vector", evolution
     else :
         term_2, error_2 = gluon_singlet_regge_D(j,eta,t,alpha_prime_T,alpha_prime_S,moment_label,evolution_order,error_type)
         sum_squared = norm_A**2 * error_1**2 + norm_D**2 * error_2**2
-        error = np.frompyfunc(abs, 1, 1)(mp.sqrt(sum_squared))
+        # error = np.frompyfunc(abs, 1, 1)(mp.sqrt(sum_squared))
+        error = abs(mp.sqrt(sum_squared))
         result = norm_A * term_1 + norm_D * prf * term_2
     return result, error
 
@@ -1882,7 +1887,8 @@ def singlet_moment(j,eta,t,Nf=3,moment_label="A",evolve_type="vector",solution="
     sum_squared = quark_prf**1 * quark_in_error**2 + gluon_prf**2*gluon_in_error**2
     # print("->",quark_in,quark_in_error,quark_prf)
     # print("->",gluon_in,gluon_in_error,gluon_prf)
-    error = np.frompyfunc(abs, 1, 1)(mp.sqrt(sum_squared))
+    # error = np.frompyfunc(abs, 1, 1)(mp.sqrt(sum_squared))
+    error = abs(mp.sqrt(sum_squared))
     result = quark_prf * quark_in + gluon_prf * gluon_in
     return result, error
 
@@ -3092,6 +3098,7 @@ def R_gg(j,Nf=3,evolve_type="vector",interpolation=True):
     result = term1 + term2
     return result
 
+@hp.mpmath_vectorize
 def evolve_conformal_moment(j,eta,t,mu,Nf=3,A0=1,particle="quark",moment_type="non_singlet_isovector",moment_label ="A", evolution_order = "LO", error_type = "central",interpolation=True,
                             n_k=100,k_range=10,trap=False,plot_integrand=False,n_jobs=1):
     """
@@ -3314,7 +3321,8 @@ def evolve_conformal_moment(j,eta,t,mu,Nf=3,A0=1,particle="quark",moment_type="n
 
         quark_non_diagonal_part = eta**(j-k) * (plus_terms * moment_k_p + minus_terms * moment_k_m)
         sum_squared = (eta**(j-k) * plus_terms * error_k_p)**2 + (eta**(j-k) * minus_terms * error_k_m)**2
-        quark_non_diagonal_errors = np.frompyfunc(abs, 1, 1)(mp.sqrt(sum_squared))
+        # quark_non_diagonal_errors = np.frompyfunc(abs, 1, 1)(mp.sqrt(sum_squared))
+        quark_non_diagonal_errors = abs(mp.sqrt(sum_squared))
 
         return quark_non_diagonal_part, quark_non_diagonal_errors
 
@@ -3357,7 +3365,8 @@ def evolve_conformal_moment(j,eta,t,mu,Nf=3,A0=1,particle="quark",moment_type="n
 
         gluon_non_diagonal_part = eta**(j-k) * (plus_terms * moment_k_p + minus_terms * moment_k_m)
         sum_squared = (eta**(j-k) * plus_terms * error_k_p)**2 + (eta**(j-k) * minus_terms * error_k_m)**2
-        gluon_non_diagonal_errors = np.frompyfunc(abs, 1, 1)(mp.sqrt(sum_squared))
+        # gluon_non_diagonal_errors = np.frompyfunc(abs, 1, 1)(mp.sqrt(sum_squared))
+        gluon_non_diagonal_errors = abs(mp.sqrt(sum_squared))
 
         return gluon_non_diagonal_part, gluon_non_diagonal_errors
     # print("check")
@@ -3412,14 +3421,16 @@ def evolve_conformal_moment(j,eta,t,mu,Nf=3,A0=1,particle="quark",moment_type="n
         if particle == "quark":
             result = A_lo_quark("+") * moment_in_p + A_lo_quark("-") * moment_in_m
             sum_squared =  (A_lo_quark("+") * error_p)**2 + (A_lo_quark("-") * error_m)**2
-            error = np.frompyfunc(abs, 1, 1)(mp.sqrt(sum_squared))
+            # error = np.frompyfunc(abs, 1, 1)(mp.sqrt(sum_squared))
+            error = abs(mp.sqrt(sum_squared))
             result += hp.error_sign(error,error_type)
             if evolution_order == "NLO":
                 plus_terms = A_quark_nlo("+") + B_quark_nlo("+")
                 minus_terms = A_quark_nlo("-") + B_quark_nlo("-")
                 diagonal_terms = plus_terms * moment_in_p + minus_terms * moment_in_m
                 sum_squared = plus_terms**2 * error_p**2 + minus_terms**2 * error_m**2
-                diagonal_errors = np.frompyfunc(abs, 1, 1)(mp.sqrt(sum_squared))
+                # diagonal_errors = np.frompyfunc(abs, 1, 1)(mp.sqrt(sum_squared))
+                diagonal_errors = abs(mp.sqrt(sum_squared))
                 non_diagonal_terms = 0
                 non_diagonal_errors = 0
                 if isinstance(j, (int, np.integer)) and eta != 0:
@@ -3435,15 +3446,16 @@ def evolve_conformal_moment(j,eta,t,mu,Nf=3,A0=1,particle="quark",moment_type="n
         if particle == "gluon":
             result = A_lo_gluon("+") * moment_in_p + A_lo_gluon("-") * moment_in_m
             sum_squared =  (A_lo_gluon("+") * error_p)**2 + (A_lo_gluon("-") * error_m)**2
-            error = np.frompyfunc(abs, 1, 1)(mp.sqrt(sum_squared))
+            # error = np.frompyfunc(abs, 1, 1)(mp.sqrt(sum_squared))
+            error = abs(mp.sqrt(sum_squared))
             result += hp.error_sign(error,error_type)
             if evolution_order == "NLO":
                 plus_terms = A_gluon_nlo("+") + B_gluon_nlo("+")
                 minus_terms = A_gluon_nlo("-")  + B_gluon_nlo("-")
                 diagonal_terms =  plus_terms * moment_in_p + minus_terms * moment_in_m
                 sum_squared = plus_terms**2 * error_p**2 + minus_terms**2 * error_m**2
-                diagonal_errors = np.frompyfunc(abs, 1, 1)(mp.sqrt(sum_squared))
-
+                # diagonal_errors = np.frompyfunc(abs, 1, 1)(mp.sqrt(sum_squared))
+                diagonal_errors = abs(mp.sqrt(sum_squared))
                 non_diagonal_terms = 0
                 non_diagonal_errors = 0
                 if isinstance(j, (int, np.integer)) and eta != 0:
@@ -3720,7 +3732,8 @@ def fourier_transform_moment(j,eta,mu,b_vec,Nf=3,A0=1,particle="quark",moment_ty
             moment = evolve_conformal_moment(j,eta,t,mu,Nf,A0,particle,moment_type,moment_label,evolution_order,error_type)
         else:
             moment = first_singlet_moment_dipole(eta,t,mu,Nf,particle,moment_label,evolution_order,error_type)
-        result = np.float64(mp.re(moment))*np.exp(exponent)
+        moment_re = np.vectorize(lambda x: float(mp.re(x)))(moment).astype(np.float64)
+        result = moment_re * np.exp(exponent)
         return result
     
     # Compute the integrand for each pair of (Delta_x, Delta_y) values
@@ -4972,7 +4985,6 @@ def plot_fourier_transform_transverse_moments(j,eta,mu,Nf=3,particle="quark",mom
     Generates a density plot of the 2D Fourier transfrom of RGE-evolved 
     conformal moments for a given moment type and a transversely polarzied target.
     Automatically uses A and B moments.
-    
     Parameters:
     - j (float): Conformal spin
     - eta (float): Skewness parameter
@@ -4983,7 +4995,7 @@ def plot_fourier_transform_transverse_moments(j,eta,mu,Nf=3,particle="quark",mom
     - b_max (float, optional): Maximum b value for the vector b_vec=[b_x,b_y] (default is 2).
     - Delta_max (float, optional): Maximum value for Delta integration (default is 11).
     - num_points (float, optional): Number of intervals to split [-Delta_max, Delta_max] interval (default is 100).
-    - n_b (int, optional): Number of points the interval [-b_max, b_max] is split into (default is 50).
+    - n_b (int, optional): Number of points the interval [-b_max, b_max] is split into (default is 100).
     - interpolation (bool, optional): Interpolate data points on finer grid
     - n_int (int, optional): Number of points used for interpolation
     - vmin (float ,optioanl): Sets minimum value of colorbar
@@ -5025,7 +5037,7 @@ def plot_fourier_transform_transverse_moments(j,eta,mu,Nf=3,particle="quark",mom
         axs = np.array([[axs[0]], [axs[1]]])  # Make it a 2D array for consistency
 
     for i, mom_type in enumerate(moment_types):
-        READ_WRITE_PATH = cfg.IMPACT_PARAMETER_MOMENTS_PATH / "imp_param_transv_pol_moment_j_" + str(j) + "_"  + mom_type 
+        READ_WRITE_PATH = cfg.IMPACT_PARAMETER_MOMENTS_PATH / f"imp_param_transv_pol_moment_j_{j}_{mom_type}"
         row, col = divmod(i, 4)  # Map index to subplot location
         ax = axs[col]
 
@@ -5058,7 +5070,7 @@ def plot_fourier_transform_transverse_moments(j,eta,mu,Nf=3,particle="quark",mom
                     b_x_grid, b_y_grid = np.meshgrid(b_x, b_y)
                 else:
                     fourier_transform_moment_values_flat = Parallel(n_jobs=-1)(delayed(fourier_transform_transverse_moment)(
-                        j,eta, mu, b_vec, Nf, particle,mom_type, evolution_order, Delta_max, num_points, "central") for b_vec in b_vecs)
+                        j=j,eta=eta, mu=mu, b_vec=b_vec, Nf=Nf, A0=1,particle=particle,moment_type=mom_type, evolution_order=evolution_order, Delta_max=Delta_max, num_points=num_points, error_type="central") for b_vec in b_vecs)
                     # Reshape
                     fourier_transform_moment_values_flat = np.array(fourier_transform_moment_values_flat).reshape(b_x_grid.shape)
                     # Convert to fm^-2

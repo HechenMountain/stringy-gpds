@@ -12,6 +12,16 @@ from config import mp
 ##########################
 #### Helper functions ####
 ##########################
+# Decorator such that mpmath functions can be called with arrays
+def mpmath_vectorize(fn):
+    """Decorator to allow mpmath-based functions to handle NumPy arrays transparently."""
+    vectorized_fn = np.vectorize(fn, otypes=[object])
+    def wrapper(*args, **kwargs):
+        if any(isinstance(arg, np.ndarray) for arg in args):
+            return vectorized_fn(*args, **kwargs)
+        else:
+            return fn(*args, **kwargs)
+    return wrapper
 
 ####################
 ####   Checks   ####
