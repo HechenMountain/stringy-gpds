@@ -20,6 +20,122 @@ from aac_pdf import AAC_PDF
 import config as cfg
 import helpers as hp
 
+def generate_moment_table(eta,solution,Nf,moment_type,moment_label, evolution_order, error_type,
+                              re_j_min=1,re_j_max=6,im_j_max=100,t_max=-10,step=.1):
+    if moment_label in ["A","B"]:
+        evolve_type = "vector"
+    elif moment_label in ["Atilde","Btilde"]:
+        evolve_type = "axial"
+
+    def compute_moment(j, eta, t):
+        if moment_type == "non_singlet_isovector":
+            return non_singlet_isovector_moment(j, eta, t,
+                                                moment_label=moment_label, evolve_type=evolve_type,
+                                                evolution_order=evolution_order, error_type=error_type)
+        elif moment_type == "non_singlet_isoscalar":
+            return non_singlet_isoscalar_moment(j, eta, t,
+                                                moment_label=moment_label, evolve_type=evolve_type,
+                                                evolution_order=evolution_order, error_type=error_type)
+        elif moment_type == "singlet":
+            val = singlet_moment(j, eta, t, Nf=Nf,
+                                  moment_label=moment_label, evolve_type=evolve_type,
+                                  solution=solution, evolution_order=evolution_order, error_type=error_type)
+            return val[0] if error_type == "central" else val[1]
+        else:
+            raise ValueError(f"Unknown moment_type {moment_type}")
+
+    # Define output filename
+    if moment_type != "singlet":
+        prefix = cfg.INTERPOLATION_TABLE_PATH / f"{moment_type}_{moment_label}_{evolution_order}"
+    else:
+        prefix = cfg.INTERPOLATION_TABLE_PATH/ f"{moment_type}_{solution}_{moment_label}_{evolution_order}"
+    filename = hp.generate_filename(eta, 0, 0, prefix, error_type)
+
+    # Grids
+    re_j = np.arange(re_j_min, re_j_max + step, step)
+    im_j = np.arange(0.0, im_j_max + step, step)  # Im ≥ 0 only
+    ts = np.arange(-t_max, 0.0 + step, step)
+
+    # Generate grid points
+    grid_points = [
+        (rj, ij, tval)
+        for rj in re_j
+        for ij in im_j
+        for tval in ts
+    ]
+
+    # Parallel compute
+    with hp.tqdm_joblib(tqdm(total=len(grid_points))) as progress_bar:
+        results = Parallel(n_jobs=-1)(
+            delayed(lambda rj, ij, tval: (rj, ij, tval, compute_moment(complex(rj, ij), eta, tval)))(
+                *args) for args in grid_points
+        )
+
+    # Add mirrored points: f(j*) = f(j)* for Im(j) < 0
+    mirrored = []
+    for rj, ij, tval, val in results[1:]:  # skip ij = 0 to avoid duplication
+        if ij > 0:
+            mirrored.append((rj, -ij, tval, np.conj(val)))
+
+    all_data = results + mirrored
+    all_data.sort(key=lambda x: (x[0], x[1], x[2]))  # sort by Re(j), Im(j), t
+
+    # Write CSV
+    with open(filename, mode='w', newline='') as csvfile:
+        writer = csv.writer(csvfile)
+        writer.writerow(["Re(j)", "Im(j)", "t", "Re(value)", "Im(value)"])
+        for rj, ij, tval, val in all_data:
+            writer.writerow([rj, ij, tval, val.real, val.imag])
+
+    print(f"Successfully wrote table to {filename}")
+
+# @cfg.memory.cache
+def build_moment_interpolator(eta,solution,moment_type,moment_label, evolution_order, error_type):
+    # Build filename
+    if moment_type != "singlet":
+        prefix = cfg.MOMENTUM_SPACE_MOMENTS_PATH / f"{moment_type}_{moment_label}_{evolution_order}"
+    else:
+        prefix = cfg.MOMENTUM_SPACE_MOMENTS_PATH / f"{moment_type}_{solution}_{moment_label}_{evolution_order}"
+    filename = hp.generate_filename(eta, 0, 0, prefix, error_type)
+
+    # Load CSV data
+    data = []
+    with open(filename, mode='r') as csvfile:
+        reader = csv.DictReader(csvfile)
+        for row in reader:
+            re_j = float(row["Re(j)"])
+            im_j = float(row["Im(j)"])
+            tval = float(row["t"])
+            re_val = float(row["Re(value)"])
+            im_val = float(row["Im(value)"])
+            data.append((re_j, im_j, tval, re_val + 1j * im_val))
+
+    # Extract grid structure
+    re_j_vals = sorted(set(row[0] for row in data))
+    im_j_vals = sorted(set(row[1] for row in data))
+    t_vals = sorted(set(row[2] for row in data))
+
+    # Build complex-valued 3D array
+    shape = (len(re_j_vals), len(im_j_vals), len(t_vals))
+    values = np.empty(shape, dtype=complex)
+    re_j_idx = {v: i for i, v in enumerate(re_j_vals)}
+    im_j_idx = {v: j for j, v in enumerate(im_j_vals)}
+    t_idx = {v: k for k, v in enumerate(t_vals)}
+
+    for rj, ij, tval, val in data:
+        i = re_j_idx[rj]
+        j = im_j_idx[ij]
+        k = t_idx[tval]
+        values[i, j, k] = val
+
+    # Build real and imaginary interpolators
+    re_interp = hp.RegularGridInterpolator((re_j_vals, im_j_vals, t_vals), values.real, bounds_error=False, fill_value=None)
+    im_interp = hp.RegularGridInterpolator((re_j_vals, im_j_vals, t_vals), values.imag, bounds_error=False, fill_value=None)
+
+    return hp.ComplexInterpolator(re_interp, im_interp)
+
+
+
 ########################################
 #### Currently enforced assumptions ####
 ########################################
@@ -32,8 +148,6 @@ import helpers as hp
 #####################################
 ### Input for Evolution Equations ###
 #####################################
-# Cache evolved alpha_s values
-@cfg.memory.cache
 def evolve_alpha_s(mu, Nf = 3,evolution_order="LO"):
     """
     Evolve alpha_S=g**/(4pi) from some input scale mu_in to some other scale mu.
@@ -1856,7 +1970,7 @@ def gluon_singlet_regge(j,eta,t,moment_label="A",evolve_type="vector", evolution
         result = norm_A * term_1 + norm_D * prf * term_2
     return result, error
 
-def singlet_moment(j,eta,t,Nf=3,moment_label="A",evolve_type="vector",solution="+",evolution_order="LO",error_type="central"):
+def singlet_moment(j,eta,t,Nf=3,moment_label="A",evolve_type="vector",solution="+",evolution_order="LO",error_type="central",interpolation=True):
     """
     Returns 0 if the moment_label = "B", in accordance with holography and quark model considerations. 
     Otherwise it returns the diagonal combination of quark + gluon moment. Error for singlet_moment at j = 1
@@ -1880,8 +1994,8 @@ def singlet_moment(j,eta,t,Nf=3,moment_label="A",evolve_type="vector",solution="
     quark_prf = .5 
     quark_in, quark_in_error = quark_singlet_regge(j,eta,t,Nf,moment_label,evolve_type,evolution_order,error_type)
     # Note: j/6 already included in gamma_qg and gamma_gg definitions
-    gluon_prf = .5 * (gamma_qg(j-1,Nf,evolve_type,"LO",interpolation=False)/
-                    (gamma_qq(j-1,Nf,"singlet",evolve_type,"LO",interpolation=False)-gamma_pm(j-1,Nf,evolve_type,solution)))
+    gluon_prf = .5 * (gamma_qg(j-1,Nf,evolve_type,"LO",interpolation=interpolation)/
+                    (gamma_qq(j-1,Nf,"singlet",evolve_type,"LO",interpolation=interpolation)-gamma_pm(j-1,Nf,evolve_type,solution,interpolation=interpolation)))
     gluon_in, gluon_in_error = gluon_singlet_regge(j,eta,t,moment_label,evolve_type,evolution_order,error_type)
     # print(solution,gluon_prf)
     sum_squared = quark_prf**1 * quark_in_error**2 + gluon_prf**2*gluon_in_error**2
@@ -2062,8 +2176,29 @@ def polygamma_asymptotic(n, z, terms=5):
         result += term
     return sign * result
 
-def harmonic_number(l,j,k_range=3,n_k=300,plot_integrand=False,trap=False):
-    
+# Generate interpolators
+harmonic_number_1_interpolation = hp.build_harmonic_interpolator(1)
+harmonic_number_2_interpolation = hp.build_harmonic_interpolator(2)
+harmonic_number_3_interpolation = hp.build_harmonic_interpolator(3)
+harmonic_number_m2_interpolation = hp.build_harmonic_interpolator(-2)
+harmonic_number_m3_interpolation = hp.build_harmonic_interpolator(-3)
+# Pick interpolation
+def harmonic_number_interpolation(l):
+    harmonic_dictionary = {
+    1: harmonic_number_1_interpolation,
+    2: harmonic_number_2_interpolation,
+    3: harmonic_number_3_interpolation,
+    -2: harmonic_number_m2_interpolation,
+    -3: harmonic_number_m3_interpolation
+    }
+    if l in harmonic_dictionary:
+        return harmonic_dictionary[l]
+    else: raise ValueError(f"Index l not in dictionary. Generate table and modify module.")
+
+def harmonic_number(l,j,k_range=3,n_k=300,plot_integrand=False,trap=False,interpolation=True):
+    if interpolation:
+        interp = harmonic_number_interpolation(l)
+        return interp(j)
     if j.imag == 0 and j.real == int(j.real):
         j_int = int(j.real)
         if j_int >= 1:
@@ -2135,7 +2270,23 @@ def harmonic_number_tilde(j,k_range=10,n_k=500,epsilon=.2):
         result = fractional_finite_sum(stilde,k_0=1,k_1=j,alternating_sum=True,k_range=k_range,n_k=n_k,epsilon=epsilon)
     return result
 
-@cfg.memory.cache
+# Generate interpolator
+nested_harmonic_1_2_interpolation = hp.build_harmonic_interpolator([1,2])
+nested_harmonic_1_m2_interpolation = hp.build_harmonic_interpolator([1,-2])
+nested_harmonic_2_1_interpolation = hp.build_harmonic_interpolator([2,1])
+# Pick interpolation
+def nested_harmonic_interpolation(indices):
+    indices = tuple(int(i) for i in indices)
+    if indices == (1,2):
+        return nested_harmonic_1_2_interpolation
+    elif indices == (1,-2):
+        return nested_harmonic_1_m2_interpolation
+    elif indices == (2,1):
+        return nested_harmonic_2_1_interpolation
+    else:
+        raise ValueError(f"Generated table for interpolation of indices = {indices} and include in module.")
+    
+# @cfg.memory.cache
 def nested_harmonic_number(indices, j,interpolation=True,n_k=100,k_range=10,epsilon=1e-1,trap=False):
     """
     Nested harmonic sum for j over indices. If interpolation is true, tabulated values are being used.
@@ -2162,7 +2313,8 @@ def nested_harmonic_number(indices, j,interpolation=True,n_k=100,k_range=10,epsi
         result = harmonic_number(indices[0], j,n_k=n_k,k_range=k_range,trap=trap)
     # Use interpolated tables when no analytical solutions are available
     elif interpolation:
-        interp = hp.harmonic_interpolator(indices)
+        # interp = hp.build_harmonic_interpolator(indices)
+        interp = nested_harmonic_interpolation(indices)
         result = interp(j)
     # Explicitly compute result
     elif isinstance(j, (int, np.integer)):
@@ -2337,16 +2489,12 @@ def d_weight(m,k,n):
     result = 1/(n+k)**m
     return result 
 
-
-# def gamma_qq(j,Nf=3,moment_type="non_singlet_isovector",evolve_type="vector",evolution_order="LO",interpolation=True):
-#     if evolution_order != "LO":
-#         return _cached_gamma_qq(j, Nf=Nf, moment_type=moment_type,
-#                                 evolve_type=evolve_type,
-#                                 evolution_order=evolution_order,
-#                                 interpolation=interpolation)
-#     else:
-
-def gamma_qq_lo(j):
+# Generate the interpolator
+gamma_qq_lo_interpolation = hp.build_gamma_interpolator("qq","non_singlet_isovector","vector",evolution_order="LO")
+def gamma_qq_lo(j,interpolation=True):
+    if interpolation:
+        interp = gamma_qq_lo_interpolation 
+        return interp(j)
     Nc = 3
     c_f = (Nc**2-1)/(2*Nc)
     t_f = .5
@@ -2354,10 +2502,25 @@ def gamma_qq_lo(j):
     result = - c_f * (-4*mp.digamma(j+2)+4*mp.digamma(1)+2/((j+1)*(j+2))+3)
     return result
 
-@cfg.memory.cache
+# Generate the interpolators
+gamma_qq_non_singlet_vector_nlo_interpolation = hp.build_gamma_interpolator("qq","non_singlet_isovector","vector",evolution_order="NLO")
+gamma_qq_non_singlet_axial_nlo_interpolation = hp.build_gamma_interpolator("qq","non_singlet_isovector","axial",evolution_order="NLO")
+gamma_qq_singlet_vector_nlo_interpolation = hp.build_gamma_interpolator("qq","singlet","vector",evolution_order="NLO")
+gamma_qq_singlet_axial_nlo_interpolation = hp.build_gamma_interpolator("qq","singlet","axial",evolution_order="NLO")
+
+# Pick correct interpolation
+def gamma_qq_nlo_interpolation(moment_type,evolve_type):
+    if moment_type != "singlet":
+        return gamma_qq_non_singlet_vector_nlo_interpolation if evolve_type == "vector" else gamma_qq_non_singlet_axial_nlo_interpolation
+    elif moment_type == "singlet":
+        return gamma_qq_singlet_vector_nlo_interpolation if evolve_type == "vector" else gamma_qq_singlet_axial_nlo_interpolation
+    else:
+        raise ValueError(f"Wrong moment_type {moment_type}")
+# @cfg.memory.cache
 def gamma_qq_nlo(j,Nf=3,moment_type="non_singlet_isovector",evolve_type="vector",interpolation=True):
     if interpolation:
-        interp = hp.gamma_interpolator("qq",moment_type,evolve_type,evolution_order="NLO")
+        # interp = hp.build_gamma_interpolator("qq",moment_type,evolve_type,evolution_order="NLO")
+        interp = gamma_qq_nlo_interpolation(moment_type,evolve_type)
         result = interp(j)
         return result
     Nc = 3
@@ -2397,13 +2560,15 @@ def gamma_qq_nlo(j,Nf=3,moment_type="non_singlet_isovector",evolve_type="vector"
     term1 = - 4 * c_a * c_f * (2 * s_3_p - 17/24 - 2 * s_m3 - 28/3 * s_1
                             + 151/18 * (s_1_m + s_1_p) + 2 * (s_1_m2_m + s_1_m2_p) - 11/6 * (s_2_m + s_2_p)
                             )
+    # Factor 2 because we insert t_f
     term2 = - 8 * c_f * t_f * Nf * (1/12 + 4/3 * s_1 - (11/9 * (s_1_m + s_1_p) - 1/3*(s_2_m + s_2_p)) )
     term3 = - 4 * c_f**2 * (4*s_m3 + 2*s_1 + 2 * s_2 -3/8 + (s_2_m + 2 * s_3_m)
                             - ((s_1_m + s_1_p) + 4 * (s_1_m2_m +s_1_m2_p) + 2 * (s_1_2_m + s_1_2_p) + 2 * (s_2_1_m + s_2_1_p) + (s_3_m + s_3_p))
     )
-    # enforce conservation
+    
     if moment_type != "singlet":
         if evolve_type == "vector":
+            # enforce conservation
             term1+= (7 * c_a *c_f - 14 * c_f**2)
         elif evolve_type == "axial":
             term1 += - 16 * c_f * (c_f - .5 * c_a) * (
@@ -2422,11 +2587,6 @@ def gamma_qq_nlo(j,Nf=3,moment_type="non_singlet_isovector",evolve_type="vector"
                 20/9 * (s_1_mm - s_1_m) - (56/9*(s_1_p - s_1_pp) + 8/3 * ((s_2_p - s_2_pp)) )
                 + (8*(s_1 - s_1_p)-4 * (s_2 - s_2_p)) - (2 * (s_1_m - s_1_p) + (s_2_m - s_2_p) + 2 * (s_3_m - s_3_p))
             )
-            # Belitsky K.6
-            # term2 = -(
-            #             4*c_f*t_f*Nf * (5 * j**5 + 57 * j**4 + 227 * j**3 + 427 * j**2 + 404 * j + 160)/
-            #             (j * (j + 1)**3 * (j + 2)**3 * (j + 3)**2)
-            # )
         if evolve_type == "axial":
             # Nucl.Phys.B 889 (2014) 351-400
             # Note different beta function convention
@@ -2459,13 +2619,23 @@ def gamma_qq(j,Nf=3,moment_type="non_singlet_isovector",evolve_type="vector",evo
     - interpolation (bool, optional): Use tabulated values for interpolation (only beyond LO)
     """
     if evolution_order == "LO":
-        return gamma_qq_lo(j)
+        return gamma_qq_lo(j,interpolation)
     elif evolution_order == "NLO":
         return gamma_qq_nlo(j,Nf,moment_type,evolve_type,interpolation)
     else:
         raise ValueError(f"Wrong evolution_order {evolution_order}")
 
-def gamma_qg_lo(j, Nf=3, evolve_type = "vector"):
+# Generate the interpolator
+gamma_qg_vector_lo_interpolation = hp.build_gamma_interpolator("qg","singlet","vector",evolution_order="LO")
+gamma_qg_axial_lo_interpolation = hp.build_gamma_interpolator("qg","singlet","axial",evolution_order="LO")
+# Pick the correct interpolation
+def gamma_qg_lo_interpolation(evolve_type):
+    return gamma_qg_vector_lo_interpolation if evolve_type == "vector" else gamma_qg_axial_lo_interpolation
+
+def gamma_qg_lo(j, Nf=3, evolve_type = "vector",interpolation=True):
+    if interpolation:
+        interp = gamma_qg_lo_interpolation(evolve_type)
+        return interp(j)
     t_f = .5
     # Note additional factor of j/6 at LO (see (K.1) in 0504030)
     if j == 0:
@@ -2480,10 +2650,18 @@ def gamma_qg_lo(j, Nf=3, evolve_type = "vector"):
     result*=j/6
     return result
 
-@cfg.memory.cache
+# Generate the interpolator
+gamma_qg_singlet_vector_nlo_interpolation = hp.build_gamma_interpolator("qg","singlet","vector",evolution_order="NLO")
+gamma_qg_singlet_axial_nlo_interpolation = hp.build_gamma_interpolator("qg","singlet","axial",evolution_order="NLO")
+# Pick the correct interpolation
+def gamma_qg_nlo_interpolation(evolve_type):
+    return gamma_qg_singlet_vector_nlo_interpolation if evolve_type == "vector" else gamma_qg_singlet_axial_nlo_interpolation
+
+# @cfg.memory.cache
 def gamma_qg_nlo(j, Nf=3, evolve_type = "vector",interpolation=True):
     if interpolation:
-        interp = hp.gamma_interpolator("qg","singlet",evolve_type,"NLO")
+        # interp = hp.build_gamma_interpolator("qg","singlet",evolve_type,"NLO")
+        interp = gamma_qg_nlo_interpolation(evolve_type)
         result = interp(j)
         return result
     Nc = 3
@@ -2575,19 +2753,6 @@ def gamma_qg_nlo(j, Nf=3, evolve_type = "vector",interpolation=True):
     result*=2
     return result
 
-def run_gamma_qg_nlo_parallel():
-    complex_inputs = [mp.mpc(2,z) for z in range(16)]
-
-    start = time.time()
-    results = Parallel(n_jobs=-1)(
-        delayed(gamma_qg)(z,evolution_order="NLO",interpolation=True) for z in complex_inputs
-    )
-    end = time.time()
-
-    print(f"Elapsed time: {end - start:.2f} seconds")
-    print("Results:", results)
-    return results
-
 def gamma_qg(j,Nf=3,evolve_type="vector",evolution_order="LO",interpolation=True):
     """
     Returns conformal qg singlet anomalous dimension for conformal spin-j
@@ -2600,13 +2765,22 @@ def gamma_qg(j,Nf=3,evolve_type="vector",evolution_order="LO",interpolation=True
     - interpolation (bool, optional): Use tabulated values for interpolation (only beyond LO)
     """
     if evolution_order == "LO":
-        return gamma_qg_lo(j,Nf,evolve_type)
+        return gamma_qg_lo(j,Nf,evolve_type,interpolation)
     elif evolution_order == "NLO":
         return gamma_qg_nlo(j,Nf,evolve_type,interpolation)
     else:
         raise ValueError(f"Wrong evolution_order {evolution_order}")
-
-def gamma_gq_lo(j,evolve_type="vector"):
+    
+# Generate the interpolator
+gamma_gq_vector_lo_interpolation = hp.build_gamma_interpolator("gq","singlet","vector",evolution_order="LO")
+gamma_gq_axial_lo_interpolation = hp.build_gamma_interpolator("gq","singlet","axial",evolution_order="LO")
+# Pick the correct interpolation
+def gamma_gq_lo_interpolation(evolve_type):
+    return gamma_gq_vector_lo_interpolation if evolve_type == "vector" else gamma_gq_axial_lo_interpolation
+def gamma_gq_lo(j,evolve_type="vector",interpolation=True):
+    if interpolation:
+        interp = gamma_gq_lo_interpolation(evolve_type)
+        return interp(j)
     Nc = 3
     c_f = (Nc**2-1)/(2*Nc)
     if j == 0:
@@ -2621,10 +2795,18 @@ def gamma_gq_lo(j,evolve_type="vector"):
     result*=6/j
     return result
 
-@cfg.memory.cache
+# Generate the interpolator
+gamma_gq_singlet_vector_nlo_interpolation = hp.build_gamma_interpolator("gq","singlet","vector",evolution_order="NLO")
+gamma_gq_singlet_axial_nlo_interpolation = hp.build_gamma_interpolator("gq","singlet","axial",evolution_order="NLO")
+# Pick the correct interpolation
+def gamma_gq_nlo_interpolation(evolve_type):
+    return gamma_gq_singlet_vector_nlo_interpolation if evolve_type == "vector" else gamma_gq_singlet_axial_nlo_interpolation
+
+# @cfg.memory.cache
 def gamma_gq_nlo(j, Nf=3,evolve_type = "vector",interpolation=True):
     if interpolation:
-        interp = hp.gamma_interpolator("gq","singlet",evolve_type,evolution_order="NLO")
+        # interp = hp.build_gamma_interpolator("gq","singlet",evolve_type,evolution_order="NLO")
+        interp = gamma_gq_nlo_interpolation(evolve_type)
         result = interp(j)
         return result
 
@@ -2735,13 +2917,22 @@ def gamma_gq(j,Nf=3,evolve_type="vector",evolution_order="LO",interpolation=True
     - interpolation (bool, optional): Use tabulated values for interpolation (only beyond LO)
     """
     if evolution_order == "LO":
-        return gamma_gq_lo(j,evolve_type)
+        return gamma_gq_lo(j,evolve_type,interpolation)
     elif evolution_order == "NLO":
         return gamma_gq_nlo(j,Nf,evolve_type,interpolation)
     else:
         raise ValueError(f"Wrong evolution_order {evolution_order}")
+# Generate the interpolator
+gamma_gg_vector_lo_interpolation = hp.build_gamma_interpolator("gg","singlet","vector",evolution_order="LO")
+gamma_gg_axial_lo_interpolation = hp.build_gamma_interpolator("gg","singlet","axial",evolution_order="LO")
+# Pick the correct interpolation
+def gamma_gg_lo_interpolation(evolve_type):
+    return gamma_gg_vector_lo_interpolation if evolve_type == "vector" else gamma_gg_axial_lo_interpolation
 
-def gamma_gg_lo(j,Nf=3,evolve_type="vector"):
+def gamma_gg_lo(j,Nf=3,evolve_type="vector",interpolation=True):
+    if interpolation:
+        interp = gamma_gg_lo_interpolation(evolve_type)
+        return interp(j)
     Nc = 3
     c_a = Nc
     beta_0 = 2/3* Nf - 11/3 * Nc
@@ -2755,10 +2946,17 @@ def gamma_gg_lo(j,Nf=3,evolve_type="vector"):
         raise ValueError("Type must be axial or vector")
     return result
 
-@cfg.memory.cache
+# Generate the interpolator
+gamma_gg_singlet_vector_nlo_interpolation = hp.build_gamma_interpolator("gg","singlet","vector",evolution_order="NLO")
+gamma_gg_singlet_axial_nlo_interpolation = hp.build_gamma_interpolator("gg","singlet","axial",evolution_order="NLO")
+# Pick the correct interpolation
+def gamma_gg_nlo_interpolation(evolve_type):
+    return gamma_gg_singlet_vector_nlo_interpolation if evolve_type == "vector" else gamma_gg_singlet_axial_nlo_interpolation
+# @cfg.memory.cache
 def gamma_gg_nlo(j, Nf = 3, evolve_type = "vector",interpolation=True):
     if interpolation:
-        interp = hp.gamma_interpolator("gg","singlet",evolve_type,evolution_order="NLO")
+        # interp = hp.build_gamma_interpolator("gg","singlet",evolve_type,evolution_order="NLO")
+        interp = gamma_gg_nlo_interpolation(evolve_type)
         result = interp(j)
         return result
     
@@ -2857,7 +3055,7 @@ def gamma_gg(j,Nf=3,evolve_type="vector",evolution_order="LO",interpolation=True
     - interpolation (bool, optional): Use tabulated values for interpolation (only beyond LO)
     """
     if evolution_order == "LO":
-        return gamma_gg_lo(j,Nf,evolve_type)
+        return gamma_gg_lo(j,Nf,evolve_type,interpolation)
     elif evolution_order == "NLO":
         return gamma_gg_nlo(j,Nf,evolve_type,interpolation)
     else:
@@ -2940,7 +3138,7 @@ def conformal_anomaly_gg(j,k):
         )
     return result
 
-def gamma_qq_nd(j,k, Nf=3, evolve_type = "vector",evolution_order="LO"):
+def gamma_qq_nd(j,k, Nf=3, evolve_type = "vector",evolution_order="LO",interpolation=True):
     """ Belistky (4.203)"""
     if evolution_order == "LO":
         return 0
@@ -2951,17 +3149,17 @@ def gamma_qq_nd(j,k, Nf=3, evolve_type = "vector",evolution_order="LO"):
 
     
     if evolution_order == "NLO":
-        term1 = (gamma_qq(j,evolution_order="LO",interpolation=False)-gamma_qq(k,evolution_order="LO",interpolation=False))* \
-                (d_element(j,k) * (beta_0 - gamma_qq(k,evolution_order="LO",interpolation=False)) + conformal_anomaly_qq(j,k))
-        term2 = - (gamma_qg(j,Nf,evolve_type,"LO",interpolation=False) - 
-                   gamma_qg(k,Nf,evolve_type,evolution_order="LO",interpolation=False)) * d_element(j,k) * gamma_gq(j,Nf,evolve_type,evolution_order="LO",interpolation=False)
-        term3 = gamma_qg(j,Nf,evolve_type,"LO",interpolation=False) * conformal_anomaly_gq(j,k)
+        term1 = (gamma_qq(j,evolution_order="LO",interpolation=interpolation)-gamma_qq(k,evolution_order="LO",interpolation=interpolation))* \
+                (d_element(j,k) * (beta_0 - gamma_qq(k,evolution_order="LO",interpolation=interpolation)) + conformal_anomaly_qq(j,k))
+        term2 = - (gamma_qg(j,Nf,evolve_type,"LO",interpolation=interpolation) - 
+                   gamma_qg(k,Nf,evolve_type,evolution_order="LO",interpolation=interpolation)) * d_element(j,k) * gamma_gq(j,Nf,evolve_type,evolution_order="LO",interpolation=interpolation)
+        term3 = gamma_qg(j,Nf,evolve_type,"LO",interpolation=interpolation) * conformal_anomaly_gq(j,k)
         result = term1 + term2 + term3
     else:
         raise ValueError(f"Currently unsupported evolution order {evolution_order}")
     return result
 
-def gamma_qg_nd(j,k, Nf=3, evolve_type = "vector",evolution_order="LO"):
+def gamma_qg_nd(j,k, Nf=3, evolve_type = "vector",evolution_order="LO",interpolation=True):
     """ Belistky (4.203)"""
     if evolution_order == "LO":
         return 0
@@ -2972,18 +3170,18 @@ def gamma_qg_nd(j,k, Nf=3, evolve_type = "vector",evolution_order="LO"):
 
     
     if evolution_order == "NLO":
-        term1 = (gamma_qg(j, Nf, evolve_type, "LO",interpolation=False) - gamma_qg(k, Nf, evolve_type, "LO",interpolation=False)) * \
-                d_element(j, k) * (beta_0 - gamma_gg(k, Nf, evolve_type, "LO",interpolation=False))
-        term2 = - (gamma_qq(j, evolution_order="LO",interpolation=False) - gamma_qq(k, evolution_order="LO",interpolation=False)) * \
-                d_element(j, k) * gamma_qg(k, Nf, evolve_type, "LO",interpolation=False)
+        term1 = (gamma_qg(j, Nf, evolve_type, "LO",interpolation=interpolation) - gamma_qg(k, Nf, evolve_type, "LO",interpolation=interpolation)) * \
+                d_element(j, k) * (beta_0 - gamma_gg(k, Nf, evolve_type, "LO",interpolation=interpolation))
+        term2 = - (gamma_qq(j, evolution_order="LO",interpolation=interpolation) - gamma_qq(k, evolution_order="LO",interpolation=interpolation)) * \
+                d_element(j, k) * gamma_qg(k, Nf, evolve_type, "LO",interpolation=interpolation)
         term3 = gamma_qg(j, Nf, evolve_type, evolution_order="LO") * conformal_anomaly_gg(j, k)
-        term4 = - conformal_anomaly_qq(j, k) * gamma_qg(k, Nf, evolve_type, evolution_order="LO",interpolation=False)
+        term4 = - conformal_anomaly_qq(j, k) * gamma_qg(k, Nf, evolve_type, evolution_order="LO",interpolation=interpolation)
         result = term1 + term2 + term3 + term4
     else:
         raise ValueError(f"Currently unsupported evolution order {evolution_order}")
     return result
 
-def gamma_gq_nd(j,k, Nf=3, evolve_type = "vector",evolution_order="LO"):
+def gamma_gq_nd(j,k, Nf=3, evolve_type = "vector",evolution_order="LO",interpolation=True):
     """ Belistky (4.203)"""
     if evolution_order == "LO":
         return 0
@@ -2994,20 +3192,20 @@ def gamma_gq_nd(j,k, Nf=3, evolve_type = "vector",evolution_order="LO"):
 
     
     if evolution_order == "NLO":
-        term1 = (gamma_gq(j, Nf, evolve_type, evolution_order="LO",interpolation=False) - gamma_gq(k, Nf, evolve_type, evolution_order="LO",interpolation=False)) * \
-                d_element(j, k) * (beta_0 - gamma_qq(k, evolution_order="LO",interpolation=False))
-        term2 = - (gamma_gg(j, Nf, evolve_type, evolution_order="LO",interpolation=False) - gamma_gg(k, Nf, evolve_type, evolution_order="LO",interpolation=False)) * \
-                d_element(j, k) * gamma_gq(k, Nf, evolve_type, evolution_order="LO",interpolation=False)
+        term1 = (gamma_gq(j, Nf, evolve_type, evolution_order="LO",interpolation=interpolation) - gamma_gq(k, Nf, evolve_type, evolution_order="LO",interpolation=interpolation)) * \
+                d_element(j, k) * (beta_0 - gamma_qq(k, evolution_order="LO",interpolation=interpolation))
+        term2 = - (gamma_gg(j, Nf, evolve_type, evolution_order="LO",interpolation=interpolation) - gamma_gg(k, Nf, evolve_type, evolution_order="LO",interpolation=interpolation)) * \
+                d_element(j, k) * gamma_gq(k, Nf, evolve_type, evolution_order="LO",interpolation=interpolation)
         term3 = gamma_gq(j, Nf, evolve_type, evolution_order="LO") * conformal_anomaly_qq(j, k)
-        term4 = - conformal_anomaly_gg(j, k) * gamma_gq(k, Nf, evolve_type, evolution_order="LO",interpolation=False)
-        term5 = (gamma_gg(j, Nf, evolve_type, evolution_order="LO",interpolation=False) - gamma_qq(k,evolution_order="LO",interpolation=False)) * conformal_anomaly_gq(j, k)
+        term4 = - conformal_anomaly_gg(j, k) * gamma_gq(k, Nf, evolve_type, evolution_order="LO",interpolation=interpolation)
+        term5 = (gamma_gg(j, Nf, evolve_type, evolution_order="LO",interpolation=interpolation) - gamma_qq(k,evolution_order="LO",interpolation=interpolation)) * conformal_anomaly_gq(j, k)
 
         result = term1 + term2 + term3 + term4 + term5
     else:
         raise ValueError(f"Currently unsupported evolution order {evolution_order}")
     return result
 
-def gamma_gg_nd(j,k, Nf=3, evolve_type = "vector",evolution_order="LO"):
+def gamma_gg_nd(j,k, Nf=3, evolve_type = "vector",evolution_order="LO",interpolation=True):
     """ Belistky (4.203)"""
     if evolution_order == "LO":
         return 0
@@ -3018,17 +3216,17 @@ def gamma_gg_nd(j,k, Nf=3, evolve_type = "vector",evolution_order="LO"):
 
     
     if evolution_order == "NLO":
-        term1 = (gamma_gg(j, Nf, evolve_type, evolution_order="LO",interpolation=False) - gamma_gg(k, Nf, evolve_type, evolution_order="LO",interpolation=False)) * \
-                (d_element(j, k) * (beta_0 - gamma_gg(k, Nf, evolve_type, "LO",interpolation=False)) + conformal_anomaly_gg(j, k))
-        term2 = - (gamma_gq(j, Nf, evolve_type, evolution_order="LO",interpolation=False) - gamma_gq(k, Nf, evolve_type, evolution_order="LO",interpolation=False)) * \
-                d_element(j, k) * gamma_qg(k, Nf, evolve_type, evolution_order="LO",interpolation=False)
-        term3 = - conformal_anomaly_gq(j, k) * gamma_qg(k, Nf, evolve_type, evolution_order="LO",interpolation=False)
+        term1 = (gamma_gg(j, Nf, evolve_type, evolution_order="LO",interpolation=interpolation) - gamma_gg(k, Nf, evolve_type, evolution_order="LO",interpolation=interpolation)) * \
+                (d_element(j, k) * (beta_0 - gamma_gg(k, Nf, evolve_type, "LO",interpolation=interpolation)) + conformal_anomaly_gg(j, k))
+        term2 = - (gamma_gq(j, Nf, evolve_type, evolution_order="LO",interpolation=interpolation) - gamma_gq(k, Nf, evolve_type, evolution_order="LO",interpolation=interpolation)) * \
+                d_element(j, k) * gamma_qg(k, Nf, evolve_type, evolution_order="LO",interpolation=interpolation)
+        term3 = - conformal_anomaly_gq(j, k) * gamma_qg(k, Nf, evolve_type, evolution_order="LO",interpolation=interpolation)
         result = term1 + term2 + term3
     else:
         raise ValueError(f"Currently unsupported evolution order {evolution_order}")
     return result
 
-def gamma_pm(j, Nf = 3, evolve_type = "vector",solution="+"):
+def gamma_pm(j, Nf = 3, evolve_type = "vector",solution="+",interpolation=True):
     """ Compute the (+) and (-) eigenvalues of the LO evolution equation of the coupled singlet quark and gluon GPD
     Arguments:
     - j: conformal spin,
@@ -3041,9 +3239,9 @@ def gamma_pm(j, Nf = 3, evolve_type = "vector",solution="+"):
     # Check evolve_type
     hp.check_evolve_type(evolve_type)
 
-    base = gamma_qq(j,evolution_order="LO",interpolation=False)+gamma_gg(j,Nf,evolve_type,evolution_order="LO",interpolation=False)
-    root = mp.sqrt((gamma_qq(j,evolution_order="LO",interpolation=False)-gamma_gg(j,Nf,evolve_type,evolution_order="LO",interpolation=False))**2
-                   +4*gamma_gq(j,Nf,evolve_type,evolution_order="LO",interpolation=False)*gamma_qg(j,Nf,evolve_type,evolution_order="LO",interpolation=False))
+    base = gamma_qq(j,evolution_order="LO",interpolation=interpolation)+gamma_gg(j,Nf,evolve_type,evolution_order="LO",interpolation=interpolation)
+    root = mp.sqrt((gamma_qq(j,evolution_order="LO",interpolation=interpolation)-gamma_gg(j,Nf,evolve_type,evolution_order="LO",interpolation=interpolation))**2
+                   +4*gamma_gq(j,Nf,evolve_type,evolution_order="LO",interpolation=interpolation)*gamma_qg(j,Nf,evolve_type,evolution_order="LO",interpolation=interpolation))
     if solution == "+":
         return (base + root)/2
     elif solution == "-":
@@ -3058,7 +3256,7 @@ def R_qq(j,Nf=3,evolve_type="vector",interpolation=True):
     beta_0 = 2/3* Nf - 11/3 * Nc
     beta_1 = 10/3 * c_a * Nf + 2 * c_f * Nf -34/3 * c_a**2
     term1 = gamma_qq(j,Nf,"singlet",evolve_type,evolution_order="NLO",interpolation=interpolation)
-    term2 = - .5 * beta_1/beta_0 * gamma_qq(j,Nf,"singlet",evolve_type,evolution_order="LO",interpolation=False)
+    term2 = - .5 * beta_1/beta_0 * gamma_qq(j,Nf,"singlet",evolve_type,evolution_order="LO",interpolation=interpolation)
     result = term1 + term2
     return result
 
@@ -3070,7 +3268,7 @@ def R_qg(j,Nf=3,evolve_type="vector",interpolation=True):
     beta_0 = 2/3* Nf - 11/3 * Nc
     beta_1 = 10/3 * c_a * Nf + 2 * c_f * Nf -34/3 * c_a**2
     term1 = gamma_qg(j,Nf,evolve_type,"NLO",interpolation=interpolation)
-    term2 = - .5 * beta_1/beta_0 * gamma_qg(j,Nf,evolve_type,"LO",interpolation=False)
+    term2 = - .5 * beta_1/beta_0 * gamma_qg(j,Nf,evolve_type,"LO",interpolation=interpolation)
     result = term1 + term2
     return result
 
@@ -3082,7 +3280,7 @@ def R_gq(j,Nf=3,evolve_type="vector",interpolation=True):
     beta_0 = 2/3* Nf - 11/3 * Nc
     beta_1 = 10/3 * c_a * Nf + 2 * c_f * Nf -34/3 * c_a**2
     term1 = gamma_gq(j,Nf,evolve_type,"NLO",interpolation=interpolation)
-    term2 = - .5 * beta_1/beta_0 * gamma_gq(j,Nf,evolve_type,"LO",interpolation=False)
+    term2 = - .5 * beta_1/beta_0 * gamma_gq(j,Nf,evolve_type,"LO",interpolation=interpolation)
     result = term1 + term2
     return result
 
@@ -3094,7 +3292,7 @@ def R_gg(j,Nf=3,evolve_type="vector",interpolation=True):
     beta_0 = 2/3* Nf - 11/3 * Nc
     beta_1 = 10/3 * c_a * Nf + 2 * c_f * Nf -34/3 * c_a**2
     term1 = gamma_gg(j,Nf,evolve_type,"NLO",interpolation=interpolation)
-    term2 = - .5 * beta_1/beta_0 * gamma_gg(j,Nf,evolve_type,"LO",interpolation=False)
+    term2 = - .5 * beta_1/beta_0 * gamma_gg(j,Nf,evolve_type,"LO",interpolation=interpolation)
     result = term1 + term2
     return result
 
@@ -3151,18 +3349,18 @@ def evolve_conformal_moment(j,eta,t,mu,Nf=3,A0=1,particle="quark",moment_type="n
 
     # moment_in, evolve_type = MOMENT_TO_FUNCTION.get((moment_type, moment_label))
 
-    ga_qq = gamma_qq(j-1,Nf,moment_type,evolve_type,evolution_order="LO",interpolation=False)
+    ga_qq = gamma_qq(j-1,Nf,moment_type,evolve_type,evolution_order="LO",interpolation=interpolation)
 
     if moment_type == "singlet":
         # Roots  of LO anomalous dimensions
-        ga_p = gamma_pm(j-1,Nf,evolve_type,"+")
-        ga_m = gamma_pm(j-1,Nf,evolve_type,"-")
-        moment_in_p, error_p = singlet_moment(j,eta,t, Nf, moment_label, evolve_type,"+",evolution_order,error_type)
-        moment_in_m, error_m = singlet_moment(j,eta,t, Nf, moment_label, evolve_type,"-",evolution_order,error_type)
-        ga_gq = gamma_gq(j-1,Nf, evolve_type,"LO",interpolation=False)
-        ga_qg = gamma_qg(j-1,Nf, evolve_type,"LO",interpolation=False)
+        ga_p = gamma_pm(j-1,Nf,evolve_type,"+",interpolation=interpolation)
+        ga_m = gamma_pm(j-1,Nf,evolve_type,"-",interpolation=interpolation)
+        moment_in_p, error_p = singlet_moment(j,eta,t, Nf, moment_label, evolve_type,"+",evolution_order,error_type,interpolation=interpolation)
+        moment_in_m, error_m = singlet_moment(j,eta,t, Nf, moment_label, evolve_type,"-",evolution_order,error_type,interpolation=interpolation)
+        ga_gq = gamma_gq(j-1,Nf, evolve_type,"LO",interpolation=interpolation)
+        ga_qg = gamma_qg(j-1,Nf, evolve_type,"LO",interpolation=interpolation)
         if evolution_order != "LO":
-            ga_gg = gamma_gg(j-1,Nf,evolve_type,"LO",interpolation=False)
+            ga_gg = gamma_gg(j-1,Nf,evolve_type,"LO",interpolation=interpolation)
             r_qq = R_qq(j-1,Nf,evolve_type,interpolation=interpolation)
             r_qg = R_qg(j-1,Nf,evolve_type,interpolation=interpolation)
             r_gq = R_gq(j-1,Nf,evolve_type,interpolation=interpolation)
@@ -3186,7 +3384,7 @@ def evolve_conformal_moment(j,eta,t,mu,Nf=3,A0=1,particle="quark",moment_type="n
 
     def E_non_singlet_nlo(j):
     
-        ga_qq = gamma_qq(j,Nf,moment_type,evolve_type,"LO",interpolation=False)
+        ga_qq = gamma_qq(j,Nf,moment_type,evolve_type,"LO",interpolation=interpolation)
         # print("lo",j,ga_qq)
         ga_qq_nlo = gamma_qq(j,Nf,moment_type,evolve_type,"NLO",interpolation=interpolation)
         # print("nlo",j,ga_qq_nlo)
@@ -3197,8 +3395,8 @@ def evolve_conformal_moment(j,eta,t,mu,Nf=3,A0=1,particle="quark",moment_type="n
         return result
     def B_non_singlet_nlo(k):
         
-        gamma_term = (ga_qq - gamma_qq(k,Nf,moment_type,evolve_type,"LO",interpolation=False) + beta_0)
-        ga_nd = gamma_qq_nd(j-1,k,Nf,evolve_type,evolution_order,interpolation=False)
+        gamma_term = (ga_qq - gamma_qq(k,Nf,moment_type,evolve_type,"LO",interpolation=interpolation) + beta_0)
+        ga_nd = gamma_qq_nd(j-1,k,Nf,evolve_type,evolution_order,interpolation=interpolation)
         result = alpha_s_evolved/(2*np.pi) * ga_nd/gamma_term * (
             1 - alpha_frac**(gamma_term/beta_0)
         )
@@ -3266,7 +3464,7 @@ def evolve_conformal_moment(j,eta,t,mu,Nf=3,A0=1,particle="quark",moment_type="n
 
     def prf_T_nlo(k):
         ga_j_p, ga_j_m = ga_p, ga_m
-        ga_k_p, ga_k_m = gamma_pm(k-1,Nf,evolve_type,"+"), gamma_pm(k-1,Nf,evolve_type,"-")
+        ga_k_p, ga_k_m = gamma_pm(k-1,Nf,evolve_type,"+",interpolation=interpolation), gamma_pm(k-1,Nf,evolve_type,"-",interpolation=interpolation)
         alpha_term = alpha_s_evolved/(2*mp.pi)
         ga_1 = ga_j_p - ga_k_p + beta_0
         ga_2 = ga_j_p - ga_k_m + beta_0
@@ -3286,19 +3484,19 @@ def evolve_conformal_moment(j,eta,t,mu,Nf=3,A0=1,particle="quark",moment_type="n
         ga_j_p, ga_j_m = ga_p, ga_m
         
         # Only depends on "LO" anomalous dimensions so we do not interpolate
-        ga_k_p, ga_k_m = gamma_pm(k-1,Nf,evolve_type,"+"), gamma_pm(k-1,Nf,evolve_type,"-")
-        ga_qq_k = gamma_qq(k-1,evolution_order="LO",interpolation=False)
-        ga_gq_k = gamma_gq(k-1,Nf, evolve_type,"LO",interpolation=False)
-        # ga_qg_k = gamma_qg(k-1,Nf, evolve_type,"LO",interpolation=False)
-        ga_qq_nd = gamma_qq_nd(j-1,k-1,Nf,evolve_type,"NLO")
-        ga_qg_nd = gamma_qg_nd(j-1,k-1,Nf,evolve_type,"NLO")
-        ga_gq_nd = gamma_gq_nd(j-1,k-1,Nf,evolve_type,"NLO")
-        ga_gg_nd = gamma_gg_nd(j-1,k-1,Nf,evolve_type,"NLO")
+        ga_k_p, ga_k_m = gamma_pm(k-1,Nf,evolve_type,"+",interpolation=interpolation), gamma_pm(k-1,Nf,evolve_type,"-",interpolation=interpolation)
+        ga_qq_k = gamma_qq(k-1,evolution_order="LO",interpolation=interpolation)
+        ga_gq_k = gamma_gq(k-1,Nf, evolve_type,"LO",interpolation=interpolation)
+        # ga_qg_k = gamma_qg(k-1,Nf, evolve_type,"LO",interpolation=interpolation)
+        ga_qq_nd = gamma_qq_nd(j-1,k-1,Nf,evolve_type,"NLO",interpolation=interpolation)
+        ga_qg_nd = gamma_qg_nd(j-1,k-1,Nf,evolve_type,"NLO",interpolation=interpolation)
+        ga_gq_nd = gamma_gq_nd(j-1,k-1,Nf,evolve_type,"NLO",interpolation=interpolation)
+        ga_gg_nd = gamma_gg_nd(j-1,k-1,Nf,evolve_type,"NLO",interpolation=interpolation)
 
         prf_T_1, prf_T_2, prf_T_3, prf_T_4 = prf_T_nlo(k)
 
-        moment_k_p, error_k_p = singlet_moment(k,eta,t, Nf, moment_label, evolve_type,"+",evolution_order,error_type)
-        moment_k_m, error_k_m = singlet_moment(k,eta,t, Nf, moment_label, evolve_type,"-",evolution_order,error_type)
+        moment_k_p, error_k_p = singlet_moment(k,eta,t, Nf, moment_label, evolve_type,"+",evolution_order,error_type,interpolation=interpolation)
+        moment_k_m, error_k_m = singlet_moment(k,eta,t, Nf, moment_label, evolve_type,"-",evolution_order,error_type,interpolation=interpolation)
 
         T_1_top = prf_T_1 * 2 * (
             (ga_qq - ga_j_m) * ( ga_qq_nd * (ga_qq_k - ga_k_m) + ga_qg_nd * ga_gq_k )
@@ -3330,19 +3528,19 @@ def evolve_conformal_moment(j,eta,t,mu,Nf=3,A0=1,particle="quark",moment_type="n
         # Note T = 0 for j=k
         # Only depends on "LO" anomalous dimensions so we do not interpolate
         ga_j_p, ga_j_m = ga_p, ga_m
-        ga_k_p, ga_k_m = gamma_pm(k-1,Nf,evolve_type,"+"), gamma_pm(k-1,Nf,evolve_type,"-")
-        ga_qq_k = gamma_qq(k-1,evolution_order="LO",interpolation=False)
-        ga_gq_k = gamma_gq(k-1,Nf, evolve_type,"LO",interpolation=False)
+        ga_k_p, ga_k_m = gamma_pm(k-1,Nf,evolve_type,"+",interpolation=interpolation), gamma_pm(k-1,Nf,evolve_type,"-",interpolation=interpolation)
+        ga_qq_k = gamma_qq(k-1,evolution_order="LO",interpolation=interpolation)
+        ga_gq_k = gamma_gq(k-1,Nf, evolve_type,"LO",interpolation=interpolation)
         # ga_qg_k = gamma_qg(k-1,Nf, evolve_type,"LO")
-        ga_qq_nd = gamma_qq_nd(j-1,k-1,Nf,evolve_type,"NLO")
-        ga_qg_nd = gamma_qg_nd(j-1,k-1,Nf,evolve_type,"NLO")
-        ga_gq_nd = gamma_gq_nd(j-1,k-1,Nf,evolve_type,"NLO")
-        ga_gg_nd = gamma_gg_nd(j-1,k-1,Nf,evolve_type,"NLO")
+        ga_qq_nd = gamma_qq_nd(j-1,k-1,Nf,evolve_type,"NLO",interpolation=interpolation)
+        ga_qg_nd = gamma_qg_nd(j-1,k-1,Nf,evolve_type,"NLO",interpolation=interpolation)
+        ga_gq_nd = gamma_gq_nd(j-1,k-1,Nf,evolve_type,"NLO",interpolation=interpolation)
+        ga_gg_nd = gamma_gg_nd(j-1,k-1,Nf,evolve_type,"NLO",interpolation=interpolation)
 
         prf_T_1, prf_T_2, prf_T_3, prf_T_4 = prf_T_nlo(k)
 
-        moment_k_p, error_k_p = singlet_moment(k,eta,t, Nf, moment_label, evolve_type,"+",evolution_order,error_type)
-        moment_k_m, error_k_m = singlet_moment(k,eta,t, Nf, moment_label, evolve_type,"-",evolution_order,error_type)
+        moment_k_p, error_k_p = singlet_moment(k,eta,t, Nf, moment_label, evolve_type,"+",evolution_order,error_type,interpolation=interpolation)
+        moment_k_m, error_k_m = singlet_moment(k,eta,t, Nf, moment_label, evolve_type,"-",evolution_order,error_type,interpolation=interpolation)
 
         T_1_bot = prf_T_1 * 2 * (
             ga_gq * ( ga_qq_nd * (ga_qq_k - ga_k_m) + ga_qg_nd * ga_gq_k )    

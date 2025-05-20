@@ -350,28 +350,29 @@ def read_ft_from_csv(filename):
 ##########################
 class ComplexInterpolator:
     """
-    Wrapper to make complex non-global function pickleable for caching with joblib/diskcache.
+    Wrapper to make complex-valued interpolator pickleable for joblib/diskcache.
+    Handles interpolations in 2D, 3D, etc. where the first dimension is complex 
     """
     def __init__(self, re_interp, im_interp):
         self.re_interp = re_interp
         self.im_interp = im_interp
 
-    def __call__(self, j_complex: complex) -> complex:
-        pt = [j_complex.real, j_complex.imag]
+    def __call__(self, j_complex: complex, *args) -> complex:
+        pt = [j_complex.real, j_complex.imag, *args]
         return complex(self.re_interp(pt).item(), self.im_interp(pt).item())
 
 # Cache interpolation
-# @cfg.memory.cache
-def harmonic_interpolator(indices):
+@cfg.memory.cache
+def build_harmonic_interpolator(indices):
     if isinstance(indices,int):
         m1 = indices
-        filename = cfg.ANOMALOUS_DIMENSIONS_PATH / f"harmonic_m1_{m1}.csv"
+        filename = cfg.INTERPOLATION_TABLE_PATH / f"harmonic_m1_{m1}.csv"
     elif len(indices) == 2:
         m1, m2 = indices
-        filename = cfg.ANOMALOUS_DIMENSIONS_PATH / f"nested_harmonic_m1_{m1}_m2_{m2}.csv"
+        filename = cfg.INTERPOLATION_TABLE_PATH / f"nested_harmonic_m1_{m1}_m2_{m2}.csv"
     elif len(indices) == 3:
         m1, m2, m3 = indices
-        filename = cfg.ANOMALOUS_DIMENSIONS_PATH / f"nested_harmonic_m1_{m1}_m2_{m2}_m3_{m3}.csv"
+        filename = cfg.INTERPOLATION_TABLE_PATH / f"nested_harmonic_m1_{m1}_m2_{m2}_m3_{m3}.csv"
     else:
         raise ValueError("harmonic_interpolator currently only supports 3 nested harmonics")
 
@@ -412,8 +413,8 @@ def harmonic_interpolator(indices):
     return ComplexInterpolator(re_interp, im_interp)
 
 # Cache interpolation
-# @cfg.memory.cache
-def gamma_interpolator(suffix,moment_type,evolve_type,evolution_order):
+@cfg.memory.cache
+def build_gamma_interpolator(suffix,moment_type,evolve_type,evolution_order):
     if evolution_order == "LO":
         order = "lo"
     elif evolution_order == "NLO":
@@ -422,9 +423,9 @@ def gamma_interpolator(suffix,moment_type,evolve_type,evolution_order):
         raise ValueError(f"Wrong evolution_order {evolution_order}")
     
     if moment_type != "singlet" and suffix == "qq":
-        filename = cfg.ANOMALOUS_DIMENSIONS_PATH / f"gamma_{suffix}_non_singlet_{evolve_type}_{order}.csv"
+        filename = cfg.INTERPOLATION_TABLE_PATH / f"gamma_{suffix}_non_singlet_{evolve_type}_{order}.csv"
     else:
-        filename = cfg.ANOMALOUS_DIMENSIONS_PATH / f"gamma_{suffix}_{evolve_type}_{order}.csv"
+        filename = cfg.INTERPOLATION_TABLE_PATH / f"gamma_{suffix}_{evolve_type}_{order}.csv"
 
     re_j_set = set()
     im_j_set = set()
@@ -462,6 +463,7 @@ def gamma_interpolator(suffix,moment_type,evolve_type,evolution_order):
 
     # return interpolator
     return ComplexInterpolator(re_interp, im_interp)
+
 
 ##########################
 ####   Progress Bar   ####

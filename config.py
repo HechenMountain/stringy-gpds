@@ -23,7 +23,7 @@ PDF_PATH = Path("/mnt/c/Users/flori/Documents/PostDoc/Data/PDFs")
 IMPACT_PARAMETER_MOMENTS_PATH = BASE_PATH / "ImpactParameterMoments"
 MOMENTUM_SPACE_MOMENTS_PATH = BASE_PATH / "MomentumSpaceMoments"
 GPD_PATH = BASE_PATH / "GPDs" 
-ANOMALOUS_DIMENSIONS_PATH = BASE_PATH / "AnomalousDimensions"
+INTERPOLATION_TABLE_PATH = BASE_PATH / "InterpolationTables"
 
 MSTW_PATH = PDF_PATH / "MSTW.csv"
 AAC_PATH = PDF_PATH / "AAC.csv"
@@ -33,7 +33,8 @@ AAC_PATH = PDF_PATH / "AAC.csv"
 ####################
 CACHE_PATH = Path("/mnt/c/Users/flori/Documents/PostDoc/Jupyter/Python/cache")
 memory = Memory(CACHE_PATH,verbose=0)
-# May be cleared using
+# Clear after changing parameters
+# below using
 # memory.clear()
 
 ########################################
