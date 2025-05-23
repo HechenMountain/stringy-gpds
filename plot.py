@@ -112,9 +112,6 @@ def plot_mellin_barnes_gpd_integrand(x, eta, t, mu, Nf=3, particle="quark", mome
     if parity != parity_check:
         print(f"Warning: Wrong parity of {parity} for moment_type of {moment_type} for particle {particle}")
 
-    if eta == 0:
-        eta = 1e-6
-
     def integrand_real(k):
         # Plot imag
         z = j_base + 1j * k

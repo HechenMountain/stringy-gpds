@@ -7,9 +7,12 @@ import time
 import os
 import csv
 
-from scipy.integrate import quad, odeint, trapezoid
+
+from scipy.integrate import quad, odeint, trapezoid, fixed_quad
 from scipy.interpolate import interp1d, RectBivariateSpline
 from scipy.optimize import curve_fit
+
+from itertools import product
 
 from joblib import Parallel, delayed
 from tqdm import tqdm
@@ -19,122 +22,6 @@ from aac_pdf import AAC_PDF
 
 import config as cfg
 import helpers as hp
-
-def generate_moment_table(eta,solution,Nf,moment_type,moment_label, evolution_order, error_type,
-                              re_j_min=1,re_j_max=6,im_j_max=100,t_max=-10,step=.1):
-    if moment_label in ["A","B"]:
-        evolve_type = "vector"
-    elif moment_label in ["Atilde","Btilde"]:
-        evolve_type = "axial"
-
-    def compute_moment(j, eta, t):
-        if moment_type == "non_singlet_isovector":
-            return non_singlet_isovector_moment(j, eta, t,
-                                                moment_label=moment_label, evolve_type=evolve_type,
-                                                evolution_order=evolution_order, error_type=error_type)
-        elif moment_type == "non_singlet_isoscalar":
-            return non_singlet_isoscalar_moment(j, eta, t,
-                                                moment_label=moment_label, evolve_type=evolve_type,
-                                                evolution_order=evolution_order, error_type=error_type)
-        elif moment_type == "singlet":
-            val = singlet_moment(j, eta, t, Nf=Nf,
-                                  moment_label=moment_label, evolve_type=evolve_type,
-                                  solution=solution, evolution_order=evolution_order, error_type=error_type)
-            return val[0] if error_type == "central" else val[1]
-        else:
-            raise ValueError(f"Unknown moment_type {moment_type}")
-
-    # Define output filename
-    if moment_type != "singlet":
-        prefix = cfg.INTERPOLATION_TABLE_PATH / f"{moment_type}_{moment_label}_{evolution_order}"
-    else:
-        prefix = cfg.INTERPOLATION_TABLE_PATH/ f"{moment_type}_{solution}_{moment_label}_{evolution_order}"
-    filename = hp.generate_filename(eta, 0, 0, prefix, error_type)
-
-    # Grids
-    re_j = np.arange(re_j_min, re_j_max + step, step)
-    im_j = np.arange(0.0, im_j_max + step, step)  # Im ≥ 0 only
-    ts = np.arange(-t_max, 0.0 + step, step)
-
-    # Generate grid points
-    grid_points = [
-        (rj, ij, tval)
-        for rj in re_j
-        for ij in im_j
-        for tval in ts
-    ]
-
-    # Parallel compute
-    with hp.tqdm_joblib(tqdm(total=len(grid_points))) as progress_bar:
-        results = Parallel(n_jobs=-1)(
-            delayed(lambda rj, ij, tval: (rj, ij, tval, compute_moment(complex(rj, ij), eta, tval)))(
-                *args) for args in grid_points
-        )
-
-    # Add mirrored points: f(j*) = f(j)* for Im(j) < 0
-    mirrored = []
-    for rj, ij, tval, val in results[1:]:  # skip ij = 0 to avoid duplication
-        if ij > 0:
-            mirrored.append((rj, -ij, tval, np.conj(val)))
-
-    all_data = results + mirrored
-    all_data.sort(key=lambda x: (x[0], x[1], x[2]))  # sort by Re(j), Im(j), t
-
-    # Write CSV
-    with open(filename, mode='w', newline='') as csvfile:
-        writer = csv.writer(csvfile)
-        writer.writerow(["Re(j)", "Im(j)", "t", "Re(value)", "Im(value)"])
-        for rj, ij, tval, val in all_data:
-            writer.writerow([rj, ij, tval, val.real, val.imag])
-
-    print(f"Successfully wrote table to {filename}")
-
-# @cfg.memory.cache
-def build_moment_interpolator(eta,solution,moment_type,moment_label, evolution_order, error_type):
-    # Build filename
-    if moment_type != "singlet":
-        prefix = cfg.MOMENTUM_SPACE_MOMENTS_PATH / f"{moment_type}_{moment_label}_{evolution_order}"
-    else:
-        prefix = cfg.MOMENTUM_SPACE_MOMENTS_PATH / f"{moment_type}_{solution}_{moment_label}_{evolution_order}"
-    filename = hp.generate_filename(eta, 0, 0, prefix, error_type)
-
-    # Load CSV data
-    data = []
-    with open(filename, mode='r') as csvfile:
-        reader = csv.DictReader(csvfile)
-        for row in reader:
-            re_j = float(row["Re(j)"])
-            im_j = float(row["Im(j)"])
-            tval = float(row["t"])
-            re_val = float(row["Re(value)"])
-            im_val = float(row["Im(value)"])
-            data.append((re_j, im_j, tval, re_val + 1j * im_val))
-
-    # Extract grid structure
-    re_j_vals = sorted(set(row[0] for row in data))
-    im_j_vals = sorted(set(row[1] for row in data))
-    t_vals = sorted(set(row[2] for row in data))
-
-    # Build complex-valued 3D array
-    shape = (len(re_j_vals), len(im_j_vals), len(t_vals))
-    values = np.empty(shape, dtype=complex)
-    re_j_idx = {v: i for i, v in enumerate(re_j_vals)}
-    im_j_idx = {v: j for j, v in enumerate(im_j_vals)}
-    t_idx = {v: k for k, v in enumerate(t_vals)}
-
-    for rj, ij, tval, val in data:
-        i = re_j_idx[rj]
-        j = im_j_idx[ij]
-        k = t_idx[tval]
-        values[i, j, k] = val
-
-    # Build real and imaginary interpolators
-    re_interp = hp.RegularGridInterpolator((re_j_vals, im_j_vals, t_vals), values.real, bounds_error=False, fill_value=None)
-    im_interp = hp.RegularGridInterpolator((re_j_vals, im_j_vals, t_vals), values.imag, bounds_error=False, fill_value=None)
-
-    return hp.ComplexInterpolator(re_interp, im_interp)
-
-
 
 ########################################
 #### Currently enforced assumptions ####
@@ -1701,6 +1588,23 @@ def integral_polarized_gluon_pdf_regge(j,eta,alpha_p,t, evolution_order = "LO", 
             return pdf, 0
 
 # Define Reggeized conformal moments
+non_singlet_interpolation = {}
+if cfg.INTERPOLATE_INPUT_MOMENTS:
+    for moment_type, moment_label, evolution_order, error_type in product(["non_singlet_isovector","non_singlet_isoscalar"],cfg.LABELS, cfg.ORDERS, cfg.ERRORS):
+        if moment_type not in cfg.MOMENTS:
+            continue
+        params = {
+            "solution": ".",
+            "particle": "quark",
+            "moment_type": moment_type,
+            "moment_label": moment_label,
+            "evolution_order": evolution_order,
+            "error_type": error_type,
+        }
+        non_singlet_interpolation[(moment_type,moment_label, evolution_order, error_type)] = [
+            hp.build_moment_interpolator(eta, t, mu, **params)
+            for eta, t, mu in zip(cfg.ETA_ARRAY, cfg.T_ARRAY, [1])
+        ]
 def non_singlet_isovector_moment(j,eta,t, moment_label="A",evolve_type="vector", evolution_order="LO",error_type="central"):
     """
     Currently no skewness dependence!
@@ -1710,6 +1614,12 @@ def non_singlet_isovector_moment(j,eta,t, moment_label="A",evolve_type="vector",
     hp.check_evolution_order(evolution_order)
     hp.check_moment_type_label("non_singlet_isovector",moment_label)
     hp.check_evolve_type(evolve_type)
+
+    if cfg.INTERPOLATE_INPUT_MOMENTS and isinstance(j,(complex,mp.mpc)):
+        key = ("non_singlet_isovector",moment_label, evolution_order, error_type)
+        index = list(zip(cfg.ETA_ARRAY, cfg.T_ARRAY, cfg.MU_ARRAY)).index((eta, t, 1))
+        interp = non_singlet_interpolation[key][index]
+        return interp(j)
 
     alpha_prime = hp.get_regge_slope("non_singlet_isovector",moment_label,evolve_type)
 
@@ -1747,6 +1657,11 @@ def non_singlet_isoscalar_moment(j,eta,t, moment_label="A",evolve_type="vector",
     hp.check_error_type(error_type)
     hp.check_moment_type_label("non_singlet_isoscalar",moment_label)
     hp.check_evolve_type(evolve_type)
+    if cfg.INTERPOLATE_INPUT_MOMENTS and isinstance(j,(complex,mp.mpc)):
+        key = ("non_singlet_isoscalar",moment_label, evolution_order, error_type)
+        index = list(zip(cfg.ETA_ARRAY, cfg.T_ARRAY, cfg.MU_ARRAY)).index((eta, t, 1))
+        interp = non_singlet_interpolation[key][index]
+        return interp(j)
 
     alpha_prime = hp.get_regge_slope("non_singlet_isoscalar",moment_label,evolve_type)
 
@@ -1970,18 +1885,45 @@ def gluon_singlet_regge(j,eta,t,moment_label="A",evolve_type="vector", evolution
         result = norm_A * term_1 + norm_D * prf * term_2
     return result, error
 
+singlet_interpolation = {}
+if cfg.INTERPOLATE_INPUT_MOMENTS:
+    for solution, moment_label, evolution_order, error_type in product(["+","-"],cfg.LABELS, cfg.ORDERS, cfg.ERRORS):
+        if "singlet" not in cfg.MOMENTS:
+            continue
+        params = {
+            "solution": solution,
+            "particle": "quark",
+            "moment_type": "singlet",
+            "moment_label": moment_label,
+            "evolution_order": evolution_order,
+            "error_type": error_type,
+        }
+        singlet_interpolation[(solution, moment_label, evolution_order, error_type)] = [
+            hp.build_moment_interpolator(eta, t, mu, **params)
+            for eta, t, mu in zip(cfg.ETA_ARRAY, cfg.T_ARRAY, [1])
+        ]
 def singlet_moment(j,eta,t,Nf=3,moment_label="A",evolve_type="vector",solution="+",evolution_order="LO",error_type="central",interpolation=True):
     """
     Returns 0 if the moment_label = "B", in accordance with holography and quark model considerations. 
     Otherwise it returns the diagonal combination of quark + gluon moment. Error for singlet_moment at j = 1
     for solution "-" unreliable because of pole in gamma. Better reconstruct evolved moment from GPD.
     """
+    if moment_label == "B":
+        return 0, 0
     # Check type
     hp.check_error_type(error_type)
     hp.check_evolve_type(evolve_type)
+    if cfg.INTERPOLATE_INPUT_MOMENTS and isinstance(j,(complex,mp.mpc)):
+        index = list(zip(cfg.ETA_ARRAY, cfg.T_ARRAY, cfg.MU_ARRAY)).index((eta, t, 1))
+        key = (solution,moment_label, evolution_order, "central")
+        interp = singlet_interpolation[key][index]
+        if error_type == "central":
+            return interp(j), 0
+        else:
+            key_err = (solution,moment_label, evolution_order, error_type)
+            interp_err = singlet_interpolation[key_err][index]
+            return interp(j), interp_err(j)
 
-    if moment_label == "B":
-        return 0, 0
 
     # Switch sign
     if solution == "+":
@@ -2338,148 +2280,7 @@ def nested_harmonic_number(indices, j,interpolation=True,n_k=100,k_range=10,epsi
             return factor * inner_sum
         result = fractional_finite_sum(func,k_1=j,alternating_sum=alternating_sum, n_k=n_k,k_range=k_range,epsilon=epsilon,trap=trap)
     return result
-    
-def generate_harmonic_table(indices,j_re_min=0, j_re_max=10, j_im_min=0, j_im_max=110,step=0.1, n_jobs=-1):
-    def compute_values(j_re, j_im):
-        j = complex(j_re, j_im)
-        if isinstance(indices,int):
-            val = harmonic_number(indices, j)
-        else:
-            val = nested_harmonic_number(indices, j, interpolation=False)
-        row = [[j_re, j_im, val]]
-        if j_im > 0:
-            row.append([j_re, -j_im, np.conj(val)])
-        return row
 
-    re_vals = np.arange(j_re_min, j_re_max + step, step)
-    im_vals = np.arange(j_im_min, j_im_max + step, step)
-
-    if isinstance(indices,int):
-        m1 = indices
-        filename = cfg.ANOMALOUS_DIMENSIONS_PATH / f"harmonic_m1_{m1}.csv"
-    elif len(indices) == 2:
-        m1, m2 = indices
-        filename = cfg.ANOMALOUS_DIMENSIONS_PATH / f"nested_harmonic_m1_{m1}_m2_{m2}.csv"
-    elif len(indices) == 3:
-        m1, m2, m3 = indices
-        filename = cfg.ANOMALOUS_DIMENSIONS_PATH / f"nested_harmonic_m1_{m1}_m2_{m2}_m3_{m3}.csv"
-    else:
-        raise ValueError("Table generation currently only supports 3 nested harmonics")
-
-    # Generate grid points
-    grid = [(j_re, j_im) for j_re in re_vals for j_im in im_vals]
-    with hp.tqdm_joblib(tqdm(total=len(grid))) as progress_bar:
-        # Parallel computation over (j_re, j_im) pairs
-        results = Parallel(n_jobs=n_jobs)(
-            delayed(compute_values)(j_re, j_im)
-            for j_re, j_im in grid
-        )
-
-    # Flatten the list of lists
-    data = [row for sublist in results for row in sublist]
-    data.sort(key=lambda x: (x[0], x[1]))  # Sort by Re(j), Im(j)
-
-    # Write to CSV
-    with open(filename, mode='w', newline='') as csvfile:
-        writer = csv.writer(csvfile)
-        writer.writerow(["Re(j)", "Im(j)", "harmonic_number"])
-        writer.writerows(data)
-
-    print(f"Successfully wrote table to {filename}")
-    
-def generate_nested_harmonic_table(m1, m2,
-                                            j_re_min=1e-4, j_re_max=3, j_im_min=0, j_im_max=110,
-                                            step=0.1, n_jobs=-1):
-    def compute_values(j_re, j_im, m1, m2):
-        j = complex(j_re, j_im)
-        val = nested_harmonic_number([m1, m2], j, interpolation=False)
-        row = [[j_re, j_im, val]]
-        if j_im > 0:
-            row.append([j_re, -j_im, np.conj(val)])
-        return row
-
-    re_vals = np.arange(j_re_min, j_re_max + step, step)
-    im_vals = np.arange(j_im_min, j_im_max + step, step)
-
-    filename = cfg.ANOMALOUS_DIMENSIONS_PATH / f"nested_harmonic_m1_{m1}_m2_{m2}.csv"
-
-    # Generate grid points
-    grid = [(j_re, j_im) for j_re in re_vals for j_im in im_vals]
-    with hp.tqdm_joblib(tqdm(total=len(grid))) as progress_bar:
-        # Parallel computation over (j_re, j_im) pairs
-        results = Parallel(n_jobs=n_jobs)(
-            delayed(compute_values)(j_re, j_im, m1, m2)
-            for j_re, j_im in grid
-        )
-
-    # Flatten the list of lists
-    data = [row for sublist in results for row in sublist]
-    data.sort(key=lambda x: (x[0], x[1]))  # Sort by Re(j), Im(j)
-
-    # Write to CSV
-    with open(filename, mode='w', newline='') as csvfile:
-        writer = csv.writer(csvfile)
-        writer.writerow(["Re(j)", "Im(j)", "nested_harmonic_number"])
-        writer.writerows(data)
-
-    print(f"Successfully wrote table to {filename}")
-
-def generate_anomalous_dimension_table(suffix,moment_type,evolve_type,Nf=3,evolution_order="NLO",
-                                            j_re_min=1e-4, j_re_max=6, j_im_min=0, j_im_max=110,
-                                            step=0.1, n_jobs=-1):
-    def compute_values(j_re, j_im):
-        j = mp.mpc(j_re,j_im)
-        if suffix == "qq":
-            val = gamma_qq(j,Nf,moment_type,evolve_type,evolution_order,interpolation=False)
-        elif suffix == "qg":
-            val = gamma_qg(j,Nf,evolve_type,evolution_order,interpolation=False)
-        elif suffix == "gq":
-            val = gamma_gq(j,Nf,evolve_type,evolution_order,interpolation=False)
-        elif suffix == "gg":
-            val = gamma_gg(j,Nf,evolve_type,evolution_order,interpolation=False)
-        else:
-            raise ValueError(f"Wrong suffix {suffix}")
-        val = complex(val)
-        row = [[j_re, j_im, val]]
-        if j_im > 0:
-            row.append([j_re, -j_im, np.conj(val)])
-        return row
-
-    if evolution_order == "LO":
-        order = "lo"
-    elif evolution_order == "NLO":
-        order = "nlo"
-    else:
-        raise ValueError(f"Wrong evolution_order {evolution_order}")
-
-    re_vals = np.arange(j_re_min, j_re_max + step, step)
-    im_vals = np.arange(j_im_min, j_im_max + step, step)
-    
-    if moment_type != "singlet" and suffix == "qq":
-        filename = cfg.ANOMALOUS_DIMENSIONS_PATH / f"gamma_{suffix}_non_singlet_{evolve_type}_{order}.csv"
-    else:
-        filename = cfg.ANOMALOUS_DIMENSIONS_PATH / f"gamma_{suffix}_{evolve_type}_{order}.csv"
-
-    # Generate grid points
-    grid = [(j_re, j_im) for j_re in re_vals for j_im in im_vals]
-    with hp.tqdm_joblib(tqdm(total=len(grid))) as progress_bar:
-        # Parallel computation over (j_re, j_im) pairs
-        results = Parallel(n_jobs=n_jobs)(
-            delayed(compute_values)(j_re, j_im)
-            for j_re, j_im in grid
-        )
-
-    # Flatten the list of lists
-    data = [row for sublist in results for row in sublist]
-    data.sort(key=lambda x: (x[0], x[1]))  # Sort by Re(j), Im(j)
-
-    # Write to CSV
-    with open(filename, mode='w', newline='') as csvfile:
-        writer = csv.writer(csvfile)
-        writer.writerow(["Re(j)", "Im(j)", f"gamma_{suffix}"])
-        writer.writerows(data)
-
-    print(f"Successfully wrote table to {filename}")
         
 def d_weight(m,k,n):
     """
@@ -3086,18 +2887,7 @@ def digamma_A(j,k):
 def heaviside_theta(j,k):
     """Returns 1 if j > k and 0 otherwise.
     """
-    j = mp.re(j)
-    k = mp.re(k)
-    return int(j > k)
-
-    # if isinstance(j,(int,float)) and isinstance(k,(int,float)):
-    #     return int(j > k)
-    # Approximates using a Fermi-Dirac 
-    # distribution comparing the real parts.
-    # else:
-    #     epsilon = 1e-2
-    #     result = 1 / (1+ mp.exp((mp.re(j)-mp.re(k))/epsilon))
-    #     return result
+    return int(j.real > k.real) * int(j.imag > k.imag)
     
 def conformal_anomaly_qq(j,k):
     """Belitsky (4.206). Equal for vector and axial """
@@ -3242,6 +3032,7 @@ def gamma_pm(j, Nf = 3, evolve_type = "vector",solution="+",interpolation=True):
     base = gamma_qq(j,evolution_order="LO",interpolation=interpolation)+gamma_gg(j,Nf,evolve_type,evolution_order="LO",interpolation=interpolation)
     root = mp.sqrt((gamma_qq(j,evolution_order="LO",interpolation=interpolation)-gamma_gg(j,Nf,evolve_type,evolution_order="LO",interpolation=interpolation))**2
                    +4*gamma_gq(j,Nf,evolve_type,evolution_order="LO",interpolation=interpolation)*gamma_qg(j,Nf,evolve_type,evolution_order="LO",interpolation=interpolation))
+
     if solution == "+":
         return (base + root)/2
     elif solution == "-":
@@ -3296,6 +3087,27 @@ def R_gg(j,Nf=3,evolve_type="vector",interpolation=True):
     result = term1 + term2
     return result
 
+evolve_moment_interpolation = {}
+if cfg.INTERPOLATE_MOMENTS:
+    for particle,moment_type, moment_label, evolution_order, error_type in product(
+        ["quark","gluon"], cfg.MOMENTS, cfg.LABELS, cfg.ORDERS, cfg.ERRORS):
+        if particle == "gluon" and moment_type != "singlet":
+            continue
+        params = {
+            # Dummy to not regenerate the
+            # mixed input singlet moment
+            "solution": ".",
+            "particle": particle,
+            "moment_type": moment_type,
+            "moment_label": moment_label,
+            "evolution_order": evolution_order,
+            "error_type": error_type,
+        }
+        evolve_moment_interpolation[(particle,moment_type,moment_label, evolution_order, error_type)] = [
+            hp.build_moment_interpolator(eta, t, mu, **params)
+            for eta, t, mu in zip(cfg.ETA_ARRAY, cfg.T_ARRAY, cfg.MU_ARRAY)
+        ]
+
 @hp.mpmath_vectorize
 def evolve_conformal_moment(j,eta,t,mu,Nf=3,A0=1,particle="quark",moment_type="non_singlet_isovector",moment_label ="A", evolution_order = "LO", error_type = "central",interpolation=True,
                             n_k=100,k_range=10,trap=False,plot_integrand=False,n_jobs=1):
@@ -3326,6 +3138,12 @@ def evolve_conformal_moment(j,eta,t,mu,Nf=3,A0=1,particle="quark",moment_type="n
     hp.check_evolution_order(evolution_order)
     if particle == "gluon" and moment_type != "singlet":
         raise ValueError("Gluon is only singlet")
+    
+    if cfg.INTERPOLATE_MOMENTS and isinstance(j,(complex,mp.mpc)):
+        index = list(zip(cfg.ETA_ARRAY, cfg.T_ARRAY, cfg.MU_ARRAY)).index((eta, t, mu))
+        key = (particle,moment_type,moment_label,evolution_order,error_type)
+        interp = evolve_moment_interpolation[key][index]
+        return interp(j)
 
     # Set parameters
     Nc = 3
@@ -3418,7 +3236,7 @@ def evolve_conformal_moment(j,eta,t,mu,Nf=3,A0=1,particle="quark",moment_type="n
         # The switch also takes care of the relative minus sign
         ga_p, ga_m = get_gammas(solution)
         result = (ga_qq - ga_m)/(ga_p - ga_m) * alpha_frac**(ga_p/beta_0) * 2
-        # print("quark",solution,result/moment)
+        # print(ga_p,ga_m,(ga_qq - ga_m)/(ga_p - ga_m))
         return result
     
     def A_lo_gluon(solution):
@@ -3569,12 +3387,12 @@ def evolve_conformal_moment(j,eta,t,mu,Nf=3,A0=1,particle="quark",moment_type="n
         return gluon_non_diagonal_part, gluon_non_diagonal_errors
     # print("check")
     # if evolution_order == "LO"  and moment_type == "singlet" and mu != 1 and particle =="quark":
-    #     print("------")
-    #     print("A_q_+",A_lo_quark("+"))
-    #     print("A_q_-",A_lo_quark("-"))
-    #     print("A_g_+",A_lo_gluon("+"))
-    #     print("A_g_-",A_lo_gluon("-"))
-    #     print("------")
+    # print("------")
+    # print("A_q_+",A_lo_quark("+"))
+    # print("A_q_-",A_lo_quark("-"))
+    # print("A_g_+",A_lo_gluon("+"))
+    # print("A_g_-",A_lo_gluon("-"))
+    # print("------")
     # print("nlo",A_quark_nlo("+") + A_quark_nlo("-") + A_gluon_nlo("+") + A_gluon_nlo("-") 
     #      + B_quark_nlo("+") + B_quark_nlo("-") + B_gluon_nlo("+") + B_gluon_nlo("-") + T_quark_nlo() + T_gluon_nlo())
     # if mu == 1:
@@ -4342,8 +4160,8 @@ def get_j_base(particle="quark",moment_type="non_singlet_isovector", moment_labe
 
     if moment_label in ["A","B"]:
         if particle == "quark" and moment_type in ["non_singlet_isovector","non_singlet_isoscalar"]:
-            j_base, parity = .95, "none"
-            # j_base, parity = 1.2, "none"
+            # j_base, parity = .95, "none"
+            j_base, parity = 1.2, "none"
         elif particle == "quark" and moment_type == "singlet":
             # j_base, parity = 1.7, "odd"
             j_base, parity = 2.7, "odd"
@@ -4355,19 +4173,17 @@ def get_j_base(particle="quark",moment_type="non_singlet_isovector", moment_labe
             # j_base, parity = .95, "none"
             j_base, parity = 1.2, "none"
         if particle == "quark" and moment_type == "singlet":
-            # j_base, parity = 1.6, "even"
+            # j_base, parity = 1.7, "even"
             j_base, parity = 2.6, "even"
         if particle == "gluon" and moment_type == "singlet":
-            # j_base, parity = 1.6, "odd"
+            # j_base, parity = 1.7, "odd"
             j_base, parity = 2.6, "odd"
     else:
         raise ValueError(f"Wrong moment type {moment_type} and/or label {moment_label} for particle {particle}")
     
     return j_base, parity
 
-
-
-def mellin_barnes_gpd(x, eta, t, mu, Nf=3, A0=1 ,particle = "quark", moment_type="singlet",moment_label="A",evolution_order="LO", error_type="central",real_imag ="real",j_max = 15, n_jobs=-1):
+def mellin_barnes_gpd(x, eta, t, mu, Nf=3, A0=1 ,particle = "quark", moment_type="non_singlet_isovector",moment_label="A",evolution_order="LO", error_type="central",real_imag ="real",j_max = 15, n_jobs=1):
     """
     Numerically evaluate the Mellin-Barnes integral parallel to the imaginary axis to obtain the corresponding GPD
     
@@ -4398,9 +4214,8 @@ def mellin_barnes_gpd(x, eta, t, mu, Nf=3, A0=1 ,particle = "quark", moment_type
 
     j_base, parity = get_j_base(particle,moment_type,moment_label)
 
-    if eta == 0: # Avoid division by zero in the Q partial wave
-        eta = 1e-6
     # Integrand function which returns both real and imaginary parts
+    @hp.mpmath_vectorize
     def integrand(k, real_imag):
         """
         Calculates the integrand for the given k value and returns either 
@@ -4503,17 +4318,26 @@ def mellin_barnes_gpd(x, eta, t, mu, Nf=3, A0=1 ,particle = "quark", moment_type
         k_max = k_values[-1]
 
         if real_imag == 'real':
-            integral, error = quad(lambda k: integrand(k, 'real'), k_min, k_max, limit = 200)
+            # integral, error = quad(lambda k: integrand(k, 'real'), k_min, k_max, limit = 100)
+            integral, _ = fixed_quad(lambda k: integrand(k, 'real'), k_min, k_max, n = 100)
+            integral_50, _ = fixed_quad(lambda k: integrand(k, 'real'), k_min, k_max, n = 50)
+            error = abs(integral-integral_50)
             # Use symmetry of the real part of the integrand
             integral *= 2
             error *= 2
             return integral, error
         elif real_imag == 'imag':
-            integral, error = quad(lambda k: integrand(k, 'imag'), k_min, k_max, limit = 200)
+            # integral, error = quad(lambda k: integrand(k, 'imag'), k_min, k_max, limit = 100)
+            integral, _ = fixed_quad(lambda k: integrand(k, 'imag'), k_min, k_max, n = 100)
+            integral_50, _ = fixed_quad(lambda k: integrand(k, 'imag'), k_min, k_max, n = 50)
+            error = abs(integral-integral_50)
             return integral, error
         elif real_imag == 'both':
-            integral, error = mp.quad(lambda k: integrand(k, 'both'), -k_max, k_max, error=True)
+            # integral, error = mp.quad(lambda k: integrand(k, 'both'), -k_max, k_max, error=True)
+            integral, _ = fixed_quad(lambda k: integrand(k, 'both'), k_min, k_max, n = 100)
+            integral_50, _ = fixed_quad(lambda k: integrand(k, 'both'), k_min, k_max, n = 50)
             real_integral, imag_integral = np.float64(mp.re(integral)), np.float64(mp.im(integral))
+            error = abs(integral.real-integral_50.real) + 1j * abs(integral.imag-integral_50.imag)
             real_error, imag_error = np.float64(mp.re(error)), np.float64(mp.im(error))
             # real_integral, real_error = quad(lambda k: integrand(k, 'real'), k_min, k_max, limit = 200)
             # imag_integral, imag_error = quad(lambda k: integrand(k, 'imag'), k_min, k_max, limit = 200)
@@ -4583,6 +4407,230 @@ def mellin_barnes_gpd(x, eta, t, mu, Nf=3, A0=1 ,particle = "quark", moment_type
 # print(x_Array*gluon_PDF(x_Array))
 # print(vectorized_mellin_barnes_gpd(x_Array, 1e-3, -1e-4, 1, particle="gluon", moment_type="singlet", moment_label="A", j_max=100, n_jobs = -1 ))
 # del x_Array
+
+###################################
+## Generate interpolation tables ##
+###################################
+def generate_moment_table(eta,t,mu,Nf,solution,particle,moment_type,moment_label, evolution_order, error_type,
+                          im_j_max=100,step=.1):
+    """
+    Generate tables for interpolation of input and evolved moments. The real part of j is defined by the value in get_j_base
+    """
+    if moment_label in ["A","B"]:
+        evolve_type = "vector"
+    elif moment_label in ["Atilde","Btilde"]:
+        evolve_type = "axial"
+
+    def compute_moment(j):
+        # For mu != 1 we interpolate the evolved moments
+        if mu != 1 or (moment_type == "singlet" and solution not in ["+","-"]):
+            return evolve_conformal_moment(j, eta, t,mu,Nf=Nf,A0=1,particle=particle,moment_type=moment_type,
+                                           moment_label=moment_label,evolution_order=evolution_order,
+                                           error_type=error_type)
+        # For mu = 1 we use the corresponding input moments
+        elif moment_type == "non_singlet_isovector":
+            return non_singlet_isovector_moment(j,eta,t,
+                                                moment_label=moment_label, evolve_type=evolve_type,
+                                                evolution_order=evolution_order, error_type=error_type)
+        elif moment_type == "non_singlet_isoscalar":
+            return non_singlet_isoscalar_moment(j,eta,t,
+                                                moment_label=moment_label, evolve_type=evolve_type,
+                                                evolution_order=evolution_order, error_type=error_type)
+        elif moment_type == "singlet":
+            val = singlet_moment(j, eta, t, Nf=Nf,
+                                  moment_label=moment_label, evolve_type=evolve_type,
+                                  solution=solution, evolution_order=evolution_order, error_type=error_type)
+            return val[0] if error_type == "central" else val[1]
+        else:
+            raise ValueError(f"Unknown moment_type {moment_type}")
+
+    # Define output filename
+    if mu != 1 or (moment_type == "singlet" and solution not in ["+","-"]) or moment_type != "singlet":
+        prefix = cfg.INTERPOLATION_TABLE_PATH / f"{moment_type}_{particle}_moments_{moment_label}_{evolution_order}"
+    elif moment_type == "singlet":
+        prefix = cfg.INTERPOLATION_TABLE_PATH/ f"{moment_type}_{solution}_moments_{moment_label}_{evolution_order}"
+    filename = hp.generate_filename(eta, t, mu, prefix, error_type)
+
+    # Grids
+    re_j_b, _ = get_j_base(particle=particle,moment_type=moment_type,moment_label=moment_label)
+    if moment_type != "singlet":
+        re_j = [0.8, re_j_b,re_j_b + 0.4, re_j_b + 0.8]
+    else:
+        re_j = [1.8, re_j_b,re_j_b + 0.4, re_j_b + 0.8]
+    im_j = np.arange(0.0, im_j_max + step, step)  # Im ≥ 0 only
+    # Generate grid points
+    grid_points = [
+        (rj, ij)
+        for rj in re_j
+        for ij in im_j
+    ]
+    def compute_wrapper(rj, ij):
+        return (rj, ij, compute_moment(complex(rj, ij)))
+
+    with hp.tqdm_joblib(tqdm(total=len(grid_points))) as progress_bar:
+        results = Parallel(n_jobs=-1)(
+            delayed(compute_wrapper)(rj, ij) for rj, ij in grid_points
+        )
+
+    # Add mirrored points: f(j*) = f(j)* for Im(j) < 0
+    mirrored = []
+    for rj, ij, val in results[1:]:  # skip ij = 0 to avoid duplication
+        if ij > 0:
+            mirrored.append((rj, -ij, np.conj(val)))
+
+    all_data = results + mirrored
+    all_data.sort(key=lambda x: (x[0], x[1]))  # sort by Re(j), Im(j)
+
+    # Write CSV
+    with open(filename, mode='w', newline='') as csvfile:
+        writer = csv.writer(csvfile)
+        writer.writerow(["Re(j)", "Im(j)", "value"])
+        for rj, ij, val in all_data:
+            writer.writerow([rj, ij, val])
+
+    print(f"Successfully wrote table to {filename}")
+
+def generate_harmonic_table(indices,j_re_min=0, j_re_max=10, j_im_min=0, j_im_max=110,step=0.1, n_jobs=-1):
+    def compute_values(j_re, j_im):
+        j = complex(j_re, j_im)
+        if isinstance(indices,int):
+            val = harmonic_number(indices, j)
+        else:
+            val = nested_harmonic_number(indices, j, interpolation=False)
+        row = [[j_re, j_im, val]]
+        if j_im > 0:
+            row.append([j_re, -j_im, np.conj(val)])
+        return row
+
+    re_vals = np.arange(j_re_min, j_re_max + step, step)
+    im_vals = np.arange(j_im_min, j_im_max + step, step)
+
+    if isinstance(indices,int):
+        m1 = indices
+        filename = cfg.ANOMALOUS_DIMENSIONS_PATH / f"harmonic_m1_{m1}.csv"
+    elif len(indices) == 2:
+        m1, m2 = indices
+        filename = cfg.ANOMALOUS_DIMENSIONS_PATH / f"nested_harmonic_m1_{m1}_m2_{m2}.csv"
+    elif len(indices) == 3:
+        m1, m2, m3 = indices
+        filename = cfg.ANOMALOUS_DIMENSIONS_PATH / f"nested_harmonic_m1_{m1}_m2_{m2}_m3_{m3}.csv"
+    else:
+        raise ValueError("Table generation currently only supports 3 nested harmonics")
+
+    # Generate grid points
+    grid = [(j_re, j_im) for j_re in re_vals for j_im in im_vals]
+    with hp.tqdm_joblib(tqdm(total=len(grid))) as progress_bar:
+        # Parallel computation over (j_re, j_im) pairs
+        results = Parallel(n_jobs=n_jobs)(
+            delayed(compute_values)(j_re, j_im)
+            for j_re, j_im in grid
+        )
+
+    # Flatten the list of lists
+    data = [row for sublist in results for row in sublist]
+    data.sort(key=lambda x: (x[0], x[1]))  # Sort by Re(j), Im(j)
+
+    # Write to CSV
+    with open(filename, mode='w', newline='') as csvfile:
+        writer = csv.writer(csvfile)
+        writer.writerow(["Re(j)", "Im(j)", "harmonic_number"])
+        writer.writerows(data)
+
+    print(f"Successfully wrote table to {filename}")
+    
+def generate_nested_harmonic_table(m1, m2,
+                                            j_re_min=1e-4, j_re_max=3, j_im_min=0, j_im_max=110,
+                                            step=0.1, n_jobs=-1):
+    def compute_values(j_re, j_im, m1, m2):
+        j = complex(j_re, j_im)
+        val = nested_harmonic_number([m1, m2], j, interpolation=False)
+        row = [[j_re, j_im, val]]
+        if j_im > 0:
+            row.append([j_re, -j_im, np.conj(val)])
+        return row
+
+    re_vals = np.arange(j_re_min, j_re_max + step, step)
+    im_vals = np.arange(j_im_min, j_im_max + step, step)
+
+    filename = cfg.ANOMALOUS_DIMENSIONS_PATH / f"nested_harmonic_m1_{m1}_m2_{m2}.csv"
+
+    # Generate grid points
+    grid = [(j_re, j_im) for j_re in re_vals for j_im in im_vals]
+    with hp.tqdm_joblib(tqdm(total=len(grid))) as progress_bar:
+        # Parallel computation over (j_re, j_im) pairs
+        results = Parallel(n_jobs=n_jobs)(
+            delayed(compute_values)(j_re, j_im, m1, m2)
+            for j_re, j_im in grid
+        )
+
+    # Flatten the list of lists
+    data = [row for sublist in results for row in sublist]
+    data.sort(key=lambda x: (x[0], x[1]))  # Sort by Re(j), Im(j)
+
+    # Write to CSV
+    with open(filename, mode='w', newline='') as csvfile:
+        writer = csv.writer(csvfile)
+        writer.writerow(["Re(j)", "Im(j)", "nested_harmonic_number"])
+        writer.writerows(data)
+
+    print(f"Successfully wrote table to {filename}")
+
+def generate_anomalous_dimension_table(suffix,moment_type,evolve_type,Nf=3,evolution_order="NLO",
+                                            j_re_min=1e-4, j_re_max=6, j_im_min=0, j_im_max=110,
+                                            step=0.1, n_jobs=-1):
+    def compute_values(j_re, j_im):
+        j = mp.mpc(j_re,j_im)
+        if suffix == "qq":
+            val = gamma_qq(j,Nf,moment_type,evolve_type,evolution_order,interpolation=False)
+        elif suffix == "qg":
+            val = gamma_qg(j,Nf,evolve_type,evolution_order,interpolation=False)
+        elif suffix == "gq":
+            val = gamma_gq(j,Nf,evolve_type,evolution_order,interpolation=False)
+        elif suffix == "gg":
+            val = gamma_gg(j,Nf,evolve_type,evolution_order,interpolation=False)
+        else:
+            raise ValueError(f"Wrong suffix {suffix}")
+        val = complex(val)
+        row = [[j_re, j_im, val]]
+        if j_im > 0:
+            row.append([j_re, -j_im, np.conj(val)])
+        return row
+
+    if evolution_order == "LO":
+        order = "lo"
+    elif evolution_order == "NLO":
+        order = "nlo"
+    else:
+        raise ValueError(f"Wrong evolution_order {evolution_order}")
+
+    re_vals = np.arange(j_re_min, j_re_max + step, step)
+    im_vals = np.arange(j_im_min, j_im_max + step, step)
+    
+    if moment_type != "singlet" and suffix == "qq":
+        filename = cfg.ANOMALOUS_DIMENSIONS_PATH / f"gamma_{suffix}_non_singlet_{evolve_type}_{order}.csv"
+    else:
+        filename = cfg.ANOMALOUS_DIMENSIONS_PATH / f"gamma_{suffix}_{evolve_type}_{order}.csv"
+
+    # Generate grid points
+    grid = [(j_re, j_im) for j_re in re_vals for j_im in im_vals]
+    with hp.tqdm_joblib(tqdm(total=len(grid))) as progress_bar:
+        # Parallel computation over (j_re, j_im) pairs
+        results = Parallel(n_jobs=n_jobs)(
+            delayed(compute_values)(j_re, j_im)
+            for j_re, j_im in grid
+        )
+
+    # Flatten the list of lists
+    data = [row for sublist in results for row in sublist]
+    data.sort(key=lambda x: (x[0], x[1]))  # Sort by Re(j), Im(j)
+
+    # Write to CSV
+    with open(filename, mode='w', newline='') as csvfile:
+        writer = csv.writer(csvfile)
+        writer.writerow(["Re(j)", "Im(j)", f"gamma_{suffix}"])
+        writer.writerows(data)
+
+    print(f"Successfully wrote table to {filename}")
 
 ################################
 #### Additional Observables ####

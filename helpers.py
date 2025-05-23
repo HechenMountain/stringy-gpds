@@ -407,8 +407,8 @@ def build_harmonic_interpolator(indices):
             imag_grid[i, j] = val.imag
 
     # Create interpolators for real and imaginary parts
-    re_interp = RegularGridInterpolator((re_j_vals, im_j_vals), real_grid, bounds_error=False, fill_value=None)
-    im_interp = RegularGridInterpolator((re_j_vals, im_j_vals), imag_grid, bounds_error=False, fill_value=None)
+    re_interp = RegularGridInterpolator((re_j_vals, im_j_vals), real_grid, bounds_error=False, fill_value=None,method='pchip')
+    im_interp = RegularGridInterpolator((re_j_vals, im_j_vals), imag_grid, bounds_error=False, fill_value=None,method='pchip')
 
     return ComplexInterpolator(re_interp, im_interp)
 
@@ -458,12 +458,57 @@ def build_gamma_interpolator(suffix,moment_type,evolve_type,evolution_order):
             imag_grid[i, j] = val.imag
 
     # Create interpolators for real and imaginary parts
-    re_interp = RegularGridInterpolator((re_j_vals, im_j_vals), real_grid, bounds_error=False, fill_value=None)
-    im_interp = RegularGridInterpolator((re_j_vals, im_j_vals), imag_grid, bounds_error=False, fill_value=None)
+    re_interp = RegularGridInterpolator((re_j_vals, im_j_vals), real_grid, bounds_error=False, fill_value=None,method='pchip')
+    im_interp = RegularGridInterpolator((re_j_vals, im_j_vals), imag_grid, bounds_error=False, fill_value=None,method='pchip')
 
     # return interpolator
     return ComplexInterpolator(re_interp, im_interp)
 
+# Cache interpolation
+@cfg.memory.cache
+def build_moment_interpolator(eta,t,mu,solution,particle,moment_type,moment_label, evolution_order, error_type):
+    # Build filename
+    if mu != 1 or (moment_type == "singlet" and solution not in ["+","-"]) or moment_type != "singlet":
+        prefix = cfg.INTERPOLATION_TABLE_PATH / f"{moment_type}_{particle}_moments_{moment_label}_{evolution_order}"
+    elif moment_type == "singlet":
+        prefix = cfg.INTERPOLATION_TABLE_PATH/ f"{moment_type}_{solution}_moments_{moment_label}_{evolution_order}"
+    filename = generate_filename(eta, t, mu, prefix, error_type)
+
+    re_j_set = set()
+    im_j_set = set()
+    values = {}
+
+    with open(filename, newline='') as csvfile:
+        reader = csv.reader(csvfile)
+        next(reader)  # skip header
+        for row in reader:
+            re_j = float(row[0])
+            im_j = float(row[1])
+            val = complex(row[2].replace(" ", ""))
+
+            re_j_set.add(re_j)
+            im_j_set.add(im_j)
+            values[(re_j, im_j)] = val
+    
+    # Sort axes
+    re_j_vals = sorted(re_j_set)
+    im_j_vals = sorted(im_j_set)
+
+    # Create grid of complex values
+    real_grid = np.empty((len(re_j_vals), len(im_j_vals)))
+    imag_grid = np.empty((len(re_j_vals), len(im_j_vals)))
+        
+    for i, re in enumerate(re_j_vals):
+        for j, im in enumerate(im_j_vals):
+            val = values[(re, im)]
+            real_grid[i, j] = val.real
+            imag_grid[i, j] = val.imag
+
+    # Create interpolators for real and imaginary parts
+    re_interp = RegularGridInterpolator((re_j_vals, im_j_vals), real_grid, bounds_error=False, fill_value=None,method='pchip')
+    im_interp = RegularGridInterpolator((re_j_vals, im_j_vals), imag_grid, bounds_error=False, fill_value=None,method='pchip')
+
+    return ComplexInterpolator(re_interp, im_interp)
 
 ##########################
 ####   Progress Bar   ####

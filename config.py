@@ -37,6 +37,27 @@ memory = Memory(CACHE_PATH,verbose=0)
 # below using
 # memory.clear()
 
+#######################################
+## Kinematics used for interpolation ##
+##     Need to have equal length     ##
+#######################################
+INTERPOLATE_INPUT_MOMENTS = False
+INTERPOLATE_MOMENTS = False
+
+ETA_ARRAY = [0]
+T_ARRAY = [0]
+MU_ARRAY = [1]
+
+# MOMENTS = ["non_singlet_isovector","non_singlet_isoscalar","singlet"]
+MOMENTS = ["non_singlet_isovector"]
+LABELS = ["A"]
+ORDERS = ["LO","NLO"]
+ERRORS = ["central","plus","minus"]
+
+# LABELS = ["A", "B","Atilde"]
+# ORDERS = ["LO", "NLO"]
+# ERRORS = ["central", "plus","minus"]
+
 ########################################
 #### Dictionaries and data handling ####
 ####       Change as required       ####
