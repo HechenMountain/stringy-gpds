@@ -118,7 +118,7 @@ def plot_mellin_barnes_gpd_integrand(x, eta, t, mu, Nf=3, particle="quark", mome
         # Plot real
         #z = k
         dz = 1j
-        sin_term = mp.sin(mp.pi * z)
+        sin_term = mp.sin(np.pi * z)
         pw_val = sgpds.conformal_partial_wave(z, x, eta, particle, parity)
         if particle == "quark":
             if moment_type == "singlet":
@@ -151,7 +151,6 @@ def plot_mellin_barnes_gpd_integrand(x, eta, t, mu, Nf=3, particle="quark", mome
     print(f"Integrand at j_max={j_max}")
     print(integrand_real(j_max))
     print(integrand_imag(j_max))
-
     # Define k range for plotting
     k_values = np.linspace(-j_max, j_max, n_j)
     #k_values = np.linspace(1.1, 10, 300)

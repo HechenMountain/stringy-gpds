@@ -5,7 +5,7 @@ from joblib import Memory
 
 # Set precision globally
 import mpmath as mp
-mp.dps = 16
+# mp.dps = 16
 
 ####################################
 ####   Define directories for   ####
@@ -41,22 +41,37 @@ memory = Memory(CACHE_PATH,verbose=0)
 ## Kinematics used for interpolation ##
 ##     Need to have equal length     ##
 #######################################
-INTERPOLATE_INPUT_MOMENTS = False
-INTERPOLATE_MOMENTS = False
+INTERPOLATE_INPUT_MOMENTS = True
+INTERPOLATE_MOMENTS = True
 
-ETA_ARRAY = [0]
-T_ARRAY = [0]
-MU_ARRAY = [1]
+ETA_ARRAY = [0,0,0.33,0.1]
+T_ARRAY = [-0.69,-0.39,-0.69,-0.23]
+MU_ARRAY = [2,3,2,2]
 
-# MOMENTS = ["non_singlet_isovector","non_singlet_isoscalar","singlet"]
+# Atilde
+# ETA_ARRAY = [0,0,0.33]
+# T_ARRAY = [-0.69,-0.39,-0.69]
+# MU_ARRAY = [2,3,2]
+# B 
+# ETA_ARRAY = [0,0.33,0.1]
+# T_ARRAY = [-0.69,-0.69,-0.23]
+# MU_ARRAY = [2,2,2]
+
+# Duplicate for input scale
+eta_insert = [eta for eta in ETA_ARRAY]
+t_insert   = [t for t in T_ARRAY]
+mu_insert  = [1] * len(MU_ARRAY)
+
+# Prepend to originals
+ETA_ARRAY = eta_insert + ETA_ARRAY
+T_ARRAY   = t_insert   + T_ARRAY
+MU_ARRAY  = mu_insert  + MU_ARRAY
+
 MOMENTS = ["non_singlet_isovector"]
-LABELS = ["A"]
-ORDERS = ["LO","NLO"]
+# MOMENTS = ["singlet"]
+LABELS = ["Atilde","B"]
+ORDERS = ["NLO"]
 ERRORS = ["central","plus","minus"]
-
-# LABELS = ["A", "B","Atilde"]
-# ORDERS = ["LO", "NLO"]
-# ERRORS = ["central", "plus","minus"]
 
 ########################################
 #### Dictionaries and data handling ####
@@ -84,9 +99,9 @@ GPD_PUBLICATION_MAPPING = {
     ("2008.10573","non_singlet_isovector","E",0.00, -0.69, 2.00): ("mediumturquoise","000_069_200"),
     ("2008.10573","non_singlet_isovector","E",0.33, -0.69, 2.00): ("green","033_069_200"),
     ("2312.10829","non_singlet_isovector","E",0.10, -0.23, 2.00): ("orange","010_023_200"),
-    ("martha","non_singlet_isovector","E",0.00,-0.17,2.00): ("black","000_017_200"),
-    ("martha","non_singlet_isovector","Htilde",0.00,-0.17,2.00): ("black","000_017_200"),
-    ("martha","non_singlet_isovector","H",0.00,-0.17,2.00): ("black","000_017_200")
+    # ("martha","non_singlet_isovector","E",0.00,-0.17,2.00): ("black","000_017_200"),
+    # ("martha","non_singlet_isovector","Htilde",0.00,-0.17,2.00): ("black","000_017_200"),
+    # ("martha","non_singlet_isovector","H",0.00,-0.17,2.00): ("black","000_017_200")
     # ("martha","non_singlet_isovector","E",0.00,-0.65,2.00): ("black","000_065_200"),
     # ("martha","non_singlet_isovector","Htilde",0.00,-0.65,2.00): ("black","000_065_200"),
     # ("martha","non_singlet_isovector","H",0.00,-0.65,2.00): ("black","000_065_200")
@@ -102,6 +117,8 @@ GPD_LABEL_MAP ={"H": "A",
                 "E": "B",
                 "Htilde": "Atilde"
                     }
+
+INVERTED_GPD_LABEL_MAP = {v: k for k, v in GPD_LABEL_MAP.items()}
 
 #######################
 ####  Parameters  #####
@@ -187,7 +204,7 @@ MOMENT_NORMALIZATIONS = {
         "singlet": {
             "A": {
                 # "LO": (0.7914,0.7539,1.3580,0.7738),
-                # "NLO": (0.7829,0.7019, 1.3500, 0.7058),
+                # "NLO": (1.00683**(-1),0.7019, 0.987794**(-1), 0.7058),
                 "LO": (1,1,1,1),
                 "NLO": (1,1,1,1)
             },
