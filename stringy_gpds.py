@@ -17,7 +17,7 @@ from itertools import product
 from joblib import Parallel, delayed
 from tqdm import tqdm
 
-from mstw_pdf import MSTW_PDF, get_alpha_s
+from mstw_pdf import MSTW_PDF,get_alpha_s
 from aac_pdf import AAC_PDF
 
 import config as cfg
@@ -540,29 +540,22 @@ def integral_uv_pdf_regge(j,eta,alpha_p,t, evolution_order = "LO", error_type="c
     # Get the column index corresponding to the error_type
     error_col_index = error_mapping.get(error_type) 
 
-    # Get row index of entry
-    index_A_u=MSTW_PDF[MSTW_PDF["Parameter"] == "A_u"].index[0]
-    index_eta_1=MSTW_PDF[MSTW_PDF["Parameter"] == "eta_1"].index[0]
-    index_eta_2=MSTW_PDF[MSTW_PDF["Parameter"] == "eta_2"].index[0]
-    index_epsilon_u=MSTW_PDF[MSTW_PDF["Parameter"] == "epsilon_u"].index[0]
-    index_gamma_u=MSTW_PDF[MSTW_PDF["Parameter"] == "gamma_u"].index[0]
-
     # Extracting parameter values
-    A_pdf = MSTW_PDF[[evolution_order]].iloc[index_A_u,0][0]
-    eta_1 = MSTW_PDF[[evolution_order]].iloc[index_eta_1,0][0]
-    eta_2 = MSTW_PDF[[evolution_order]].iloc[index_eta_2,0][0]
-    epsilon = MSTW_PDF[[evolution_order]].iloc[index_epsilon_u,0][0]
-    gamma_pdf = MSTW_PDF[[evolution_order]].iloc[index_gamma_u,0][0]
+    A_pdf     = MSTW_PDF["A_u"][evolution_order][0]
+    eta_1     = MSTW_PDF["eta_1"][evolution_order][0]
+    eta_2     = MSTW_PDF["eta_2"][evolution_order][0]
+    epsilon   = MSTW_PDF["epsilon_u"][evolution_order][0]
+    gamma_pdf = MSTW_PDF["gamma_u"][evolution_order][0]
 
     pdf = integral_pdf_regge(A_pdf,eta_1,eta_2,epsilon,gamma_pdf,j,alpha_p,t)
 
     if error_type != "central":
     # Extracting errors
-        delta_A_pdf  = MSTW_PDF[[evolution_order]].iloc[index_A_u,0][error_col_index]
-        delta_eta_1 = MSTW_PDF[[evolution_order]].iloc[index_eta_1,0][error_col_index]
-        delta_eta_2 = MSTW_PDF[[evolution_order]].iloc[index_eta_2,0][error_col_index]
-        delta_epsilon = MSTW_PDF[[evolution_order]].iloc[index_epsilon_u,0][error_col_index]
-        delta_gamma_pdf = MSTW_PDF[[evolution_order]].iloc[index_gamma_u,0][error_col_index]
+        delta_A_pdf  = MSTW_PDF["A_u"][evolution_order][error_col_index]
+        delta_eta_1 = MSTW_PDF["eta_1"][evolution_order][error_col_index]
+        delta_eta_2 = MSTW_PDF["eta_2"][evolution_order][error_col_index]
+        delta_epsilon = MSTW_PDF["epsilon_u"][evolution_order][error_col_index]
+        delta_gamma_pdf = MSTW_PDF["gamma_u"][evolution_order][error_col_index]
 
         
         pdf_error = integral_pdf_regge_error(A_pdf,delta_A_pdf,eta_1,delta_eta_1,eta_2,delta_eta_2,epsilon,delta_epsilon,gamma_pdf,delta_gamma_pdf,j,alpha_p,t,error_type)
@@ -598,31 +591,21 @@ def integral_dv_pdf_regge(j,eta,alpha_p,t, evolution_order = "LO", error_type="c
     # Get the column index corresponding to the error_type
     error_col_index = error_mapping.get(error_type)
 
-    # Get row index of entry
-    index_A_d = MSTW_PDF[MSTW_PDF["Parameter"] == "A_d"].index[0]
-    index_eta_3 = MSTW_PDF[MSTW_PDF["Parameter"] == "eta_3"].index[0]
-    index_eta_2=MSTW_PDF[MSTW_PDF["Parameter"] == "eta_2"].index[0]
-    # Only eta_4-eta_2 given
-    index_eta_42 = MSTW_PDF[MSTW_PDF["Parameter"] == "eta_4-eta_2"].index[0]
-    index_epsilon_d = MSTW_PDF[MSTW_PDF["Parameter"] == "epsilon_d"].index[0]
-    index_gamma_d = MSTW_PDF[MSTW_PDF["Parameter"] == "gamma_d"].index[0]
-
-    # Extracting parameter values
-    A_pdf = MSTW_PDF[[evolution_order]].iloc[index_A_d,0][0]
-    eta_1 = MSTW_PDF[[evolution_order]].iloc[index_eta_3,0][0]
-    eta_2 = MSTW_PDF[[evolution_order]].iloc[index_eta_42, 0][0] + MSTW_PDF[[evolution_order]].iloc[index_eta_2, 0][0]
-    epsilon = MSTW_PDF[[evolution_order]].iloc[index_epsilon_d,0][0]
-    gamma_pdf = MSTW_PDF[[evolution_order]].iloc[index_gamma_d,0][0]
+    A_pdf     = MSTW_PDF["A_d"][evolution_order][0]
+    eta_1     = MSTW_PDF["eta_3"][evolution_order][0]
+    eta_2     = MSTW_PDF["eta_2"][evolution_order][0] + MSTW_PDF["eta_4-eta_2"][evolution_order][0]  # eta_4 ≡ eta_2 + (eta_4 - eta_2)
+    epsilon   = MSTW_PDF["epsilon_d"][evolution_order][0]
+    gamma_pdf = MSTW_PDF["gamma_d"][evolution_order][0]
 
     pdf = integral_pdf_regge(A_pdf,eta_1,eta_2,epsilon,gamma_pdf,j,alpha_p,t)
 
     if error_type != "central":
         # Extracting errors
-        delta_A_pdf  = MSTW_PDF[[evolution_order]].iloc[index_A_d,0][error_col_index]
-        delta_eta_1 = MSTW_PDF[[evolution_order]].iloc[index_eta_3,0][error_col_index]
-        delta_eta_2 = np.sign(MSTW_PDF[[evolution_order]].iloc[index_eta_42, 0][error_col_index]) * mp.sqrt(MSTW_PDF[[evolution_order]].iloc[index_eta_42, 0][error_col_index]**2+MSTW_PDF[[evolution_order]].iloc[index_eta_2, 0][error_col_index]**2)
-        delta_epsilon = MSTW_PDF[[evolution_order]].iloc[index_epsilon_d,0][error_col_index]
-        delta_gamma_pdf = MSTW_PDF[[evolution_order]].iloc[index_gamma_d,0][error_col_index]
+        delta_A_pdf  = MSTW_PDF["A_d"][evolution_order][error_col_index]
+        delta_eta_1 = MSTW_PDF["eta_3"][evolution_order][error_col_index]
+        delta_eta_2 = np.sign(MSTW_PDF["eta_4-eta_2"][evolution_order][error_col_index]) * np.sqrt(MSTW_PDF["eta_4-eta_2"][evolution_order][error_col_index]**2 + MSTW_PDF["eta_2"][evolution_order][error_col_index]**2)
+        delta_epsilon = MSTW_PDF["epsilon_d"][evolution_order][error_col_index]
+        delta_gamma_pdf = MSTW_PDF["gamma_d"][evolution_order][error_col_index]
 
 
         pdf_error = integral_pdf_regge_error(A_pdf,delta_A_pdf,eta_1,delta_eta_1,eta_2,delta_eta_2,epsilon,delta_epsilon,gamma_pdf,delta_gamma_pdf,j,alpha_p,t,error_type)
@@ -734,25 +717,20 @@ def integral_sv_pdf_regge(j,eta,alpha_p,t, evolution_order = "LO", error_type="c
     
     error_col_index = error_mapping.get(error_type)
 
-    # delta_- fixed to 0.2
-    index_A_m = MSTW_PDF[MSTW_PDF["Parameter"] == "A_-"].index[0]
-    index_eta_m = MSTW_PDF[MSTW_PDF["Parameter"] == "eta_-"].index[0]
-    index_x_0 = MSTW_PDF[MSTW_PDF["Parameter"] == "x_0"].index[0]
-
     # Extracting parameter values
-    A_m = MSTW_PDF[[evolution_order]].iloc[index_A_m,0][0]
-    delta_m = 0.2
-    eta_m = MSTW_PDF[[evolution_order]].iloc[index_eta_m,0][0]
-    x_0 = MSTW_PDF[[evolution_order]].iloc[index_x_0,0][0]
+    A_m = MSTW_PDF["A_-"][evolution_order][0]
+    delta_m = MSTW_PDF["delta_-"][evolution_order][0]
+    eta_m = MSTW_PDF["eta_-"][evolution_order][0]
+    x_0 = MSTW_PDF["x_0"][evolution_order][0]
 
     pdf = integral_sv_pdf_regge(A_m,delta_m,eta_m,x_0,j,alpha_p,t)
 
     if error_type != "central":
     # Extracting errors
-        delta_A_m  = MSTW_PDF[[evolution_order]].iloc[index_A_m,0][error_col_index]
-        delta_delta_m = 0
-        delta_eta_m = MSTW_PDF[[evolution_order]].iloc[index_eta_m,0][error_col_index]
-        delta_x_0 = MSTW_PDF[[evolution_order]].iloc[index_x_0,0][error_col_index]
+        delta_A_m  = MSTW_PDF["A_-"][evolution_order][error_col_index]
+        delta_delta_m = MSTW_PDF["delta_-"][evolution_order][error_col_index]
+        delta_eta_m = MSTW_PDF["eta_-"][evolution_order][error_col_index]
+        delta_x_0 = MSTW_PDF["x_0"][evolution_order][error_col_index]
         # Debug
         # print(A_m,delta_m,eta_m,x_0)
         # print(delta_A_m,delta_delta_m,delta_eta_m,delta_x_0)
@@ -788,28 +766,21 @@ def integral_S_pdf_regge(j,eta,alpha_p,t, evolution_order = "LO", error_type="ce
     
     error_col_index = error_mapping.get(error_type)
 
-    index_A_S = MSTW_PDF[MSTW_PDF["Parameter"] == "A_S"].index[0]
-    index_delta_S = MSTW_PDF[MSTW_PDF["Parameter"] == "delta_S"].index[0]
-    index_eta_S = MSTW_PDF[MSTW_PDF["Parameter"] == "eta_S"].index[0]
-    index_epsilon_S = MSTW_PDF[MSTW_PDF["Parameter"] == "epsilon_S"].index[0]
-    index_gamma_S = MSTW_PDF[MSTW_PDF["Parameter"] == "gamma_S"].index[0]
-
-    # Extracting parameter values
-    A_pdf = MSTW_PDF[[evolution_order]].iloc[index_A_S,0][0]
-    eta_1 = MSTW_PDF[[evolution_order]].iloc[index_delta_S,0][0]
-    eta_2 = MSTW_PDF[[evolution_order]].iloc[index_eta_S,0][0]
-    epsilon = MSTW_PDF[[evolution_order]].iloc[index_epsilon_S,0][0]
-    gamma_pdf = MSTW_PDF[[evolution_order]].iloc[index_gamma_S,0][0]
+    A_pdf      = MSTW_PDF["A_S"][evolution_order][0]
+    eta_1      = MSTW_PDF["delta_S"][evolution_order][0]
+    eta_2      = MSTW_PDF["eta_S"][evolution_order][0]
+    epsilon    = MSTW_PDF["epsilon_S"][evolution_order][0]
+    gamma_pdf  = MSTW_PDF["gamma_S"][evolution_order][0]
 
     pdf = integral_pdf_regge(A_pdf,eta_1,eta_2,epsilon,gamma_pdf,j,alpha_p,t)
 
     if error_type != "central":
     # Extracting errors
-        delta_A_pdf  = MSTW_PDF[[evolution_order]].iloc[index_A_S,0][error_col_index]
-        delta_eta_1 = MSTW_PDF[[evolution_order]].iloc[index_delta_S,0][error_col_index]
-        delta_eta_2 = MSTW_PDF[[evolution_order]].iloc[index_eta_S,0][error_col_index]
-        delta_epsilon = MSTW_PDF[[evolution_order]].iloc[index_epsilon_S,0][error_col_index]
-        delta_gamma_pdf = MSTW_PDF[[evolution_order]].iloc[index_gamma_S,0][error_col_index]
+        delta_A_pdf  = MSTW_PDF["A_S"][evolution_order][error_col_index]
+        delta_eta_1 = MSTW_PDF["delta_S"][evolution_order][error_col_index]
+        delta_eta_2 = MSTW_PDF["eta_S"][evolution_order][error_col_index]
+        delta_epsilon = MSTW_PDF["epsilon_S"][evolution_order][error_col_index]
+        delta_gamma_pdf = MSTW_PDF["gamma_S"][evolution_order][error_col_index]
 
         pdf_error = integral_pdf_regge_error(A_pdf,delta_A_pdf,eta_1,delta_eta_1,eta_2,delta_eta_2,epsilon,delta_epsilon,gamma_pdf,delta_gamma_pdf,j,alpha_p,t,error_type)
         return pdf, pdf_error
@@ -842,29 +813,21 @@ def integral_s_plus_pdf_regge(j,eta,alpha_p,t, evolution_order = "LO", error_typ
     
     error_col_index = error_mapping.get(error_type)
 
-    index_A_p = MSTW_PDF[MSTW_PDF["Parameter"] == "A_+"].index[0]
-    index_delta_S = MSTW_PDF[MSTW_PDF["Parameter"] == "delta_S"].index[0]
-    index_eta_p = MSTW_PDF[MSTW_PDF["Parameter"] == "eta_+"].index[0]
-    index_epsilon_S = MSTW_PDF[MSTW_PDF["Parameter"] == "epsilon_S"].index[0]
-    index_gamma_S = MSTW_PDF[MSTW_PDF["Parameter"] == "gamma_S"].index[0]
-
-    # Extracting parameter values
-    A_pdf = MSTW_PDF[[evolution_order]].iloc[index_A_p,0][0]
-    eta_1 = MSTW_PDF[[evolution_order]].iloc[index_delta_S,0][0]
-    eta_2 = MSTW_PDF[[evolution_order]].iloc[index_eta_p,0][0]
-    epsilon = MSTW_PDF[[evolution_order]].iloc[index_epsilon_S,0][0]
-    gamma_pdf = MSTW_PDF[[evolution_order]].iloc[index_gamma_S,0][0]
+    A_pdf      = MSTW_PDF["A_+"][evolution_order][0]
+    eta_1      = MSTW_PDF["delta_S"][evolution_order][0]
+    eta_2      = MSTW_PDF["eta_+"][evolution_order][0]
+    epsilon    = MSTW_PDF["epsilon_S"][evolution_order][0]
+    gamma_pdf  = MSTW_PDF["gamma_S"][evolution_order][0]
 
     pdf = integral_pdf_regge(A_pdf,eta_1,eta_2,epsilon,gamma_pdf,j,alpha_p,t)
 
     if error_type != "central":
         # Extracting errors
-        delta_A_pdf  = MSTW_PDF[[evolution_order]].iloc[index_A_p,0][error_col_index]
-        delta_eta_1 = MSTW_PDF[[evolution_order]].iloc[index_delta_S,0][error_col_index]
-        delta_eta_2 = MSTW_PDF[[evolution_order]].iloc[index_eta_p,0][error_col_index]
-        delta_epsilon = MSTW_PDF[[evolution_order]].iloc[index_epsilon_S,0][error_col_index]
-        delta_gamma_pdf = MSTW_PDF[[evolution_order]].iloc[index_gamma_S,0][error_col_index]
-
+        delta_A_pdf      = MSTW_PDF["A_+"][evolution_order][error_col_index]
+        delta_eta_1      = MSTW_PDF["delta_S"][evolution_order][error_col_index]
+        delta_eta_2      = MSTW_PDF["eta_+"][evolution_order][error_col_index]
+        delta_epsilon    = MSTW_PDF["epsilon_S"][evolution_order][error_col_index]
+        delta_gamma_pdf  = MSTW_PDF["gamma_S"][evolution_order][error_col_index]
 
         pdf_error = integral_pdf_regge_error(A_pdf,delta_A_pdf,eta_1,delta_eta_1,eta_2,delta_eta_2,epsilon,delta_epsilon,gamma_pdf,delta_gamma_pdf,j,alpha_p,t,error_type)
         return pdf, pdf_error
@@ -1099,29 +1062,22 @@ def integral_Delta_pdf_regge(j,eta,alpha_p,t, evolution_order = "LO", error_type
     # Get the column index corresponding to the error_type
     error_col_index = error_mapping.get(error_type) 
 
-    # Get row index of entry
-    index_A_Delta=MSTW_PDF[MSTW_PDF["Parameter"] == "A_Delta"].index[0]
-    index_eta_Delta=MSTW_PDF[MSTW_PDF["Parameter"] == "eta_Delta"].index[0]
-    index_eta_S=MSTW_PDF[MSTW_PDF["Parameter"] == "eta_S"].index[0]
-    index_delta_Delta=MSTW_PDF[MSTW_PDF["Parameter"] == "delta_Delta"].index[0]
-    index_gamma_Delta=MSTW_PDF[MSTW_PDF["Parameter"] == "gamma_Delta"].index[0]
+    A_Delta     = MSTW_PDF["A_Delta"][evolution_order][0]
+    eta_Delta   = MSTW_PDF["eta_Delta"][evolution_order][0]
+    eta_S       = MSTW_PDF["eta_S"][evolution_order][0]
+    delta_Delta = MSTW_PDF["delta_Delta"][evolution_order][0]
+    gamma_Delta = MSTW_PDF["gamma_Delta"][evolution_order][0]
 
-    # Extracting parameter values
-    A_Delta = MSTW_PDF[[evolution_order]].iloc[index_A_Delta,0][0]
-    eta_Delta = MSTW_PDF[[evolution_order]].iloc[index_eta_Delta,0][0]
-    eta_S = MSTW_PDF[[evolution_order]].iloc[index_eta_S,0][0]
-    delta_Delta = MSTW_PDF[[evolution_order]].iloc[index_delta_Delta,0][0]
-    gamma_Delta = MSTW_PDF[[evolution_order]].iloc[index_gamma_Delta,0][0]
 
     pdf = integral_Delta_pdf_regge(A_Delta,eta_Delta,eta_S,gamma_Delta,delta_Delta,j,alpha_p,t)
 
     if error_type != "central":
         # Extracting errors
-        delta_A_Delta  = MSTW_PDF[[evolution_order]].iloc[index_A_Delta,0][error_col_index]
-        delta_eta_Delta = MSTW_PDF[[evolution_order]].iloc[index_eta_Delta,0][error_col_index]
-        delta_eta_S = MSTW_PDF[[evolution_order]].iloc[index_eta_S,0][error_col_index]
-        delta_delta_Delta = MSTW_PDF[[evolution_order]].iloc[index_delta_Delta,0][error_col_index]
-        delta_gamma_Delta = MSTW_PDF[[evolution_order]].iloc[index_gamma_Delta,0][error_col_index]
+        delta_A_Delta      = MSTW_PDF["A_Delta"][evolution_order][error_col_index]
+        delta_eta_Delta    = MSTW_PDF["eta_Delta"][evolution_order][error_col_index]
+        delta_eta_S        = MSTW_PDF["eta_S"][evolution_order][error_col_index]
+        delta_delta_Delta  = MSTW_PDF["delta_Delta"][evolution_order][error_col_index]
+        delta_gamma_Delta  = MSTW_PDF["gamma_Delta"][evolution_order][error_col_index]
 
         pdf_error = integral_Delta_pdf_regge_error(A_Delta,delta_A_Delta,eta_Delta,delta_eta_Delta,eta_S,delta_eta_S,gamma_Delta,delta_gamma_Delta,delta_Delta,delta_delta_Delta,j,alpha_p,t, error_type)
         return pdf, pdf_error
@@ -1156,50 +1112,40 @@ def integral_gluon_pdf_regge(j,eta,alpha_p,t, evolution_order = "LO", error_type
     # Get the column index corresponding to the error_type
     error_col_index = error_mapping.get(error_type) 
 
-    # Get row index of entry
-    index_A_g=MSTW_PDF[MSTW_PDF["Parameter"] == "A_g"].index[0]
-    index_delta_g=MSTW_PDF[MSTW_PDF["Parameter"] == "delta_g"].index[0]
-    index_eta_g=MSTW_PDF[MSTW_PDF["Parameter"] == "eta_g"].index[0]
-    index_epsilon_g=MSTW_PDF[MSTW_PDF["Parameter"] == "epsilon_g"].index[0]
-    index_gamma_g=MSTW_PDF[MSTW_PDF["Parameter"] == "gamma_g"].index[0]
+    A_pdf     = MSTW_PDF["A_g"][evolution_order][0]
+    eta_1     = MSTW_PDF["delta_g"][evolution_order][0]
+    eta_2     = MSTW_PDF["eta_g"][evolution_order][0]
+    epsilon   = MSTW_PDF["epsilon_g"][evolution_order][0]
+    gamma_pdf = MSTW_PDF["gamma_g"][evolution_order][0]
 
-    # Extracting parameter values
-    A_pdf = MSTW_PDF[[evolution_order]].iloc[index_A_g,0][0]
-    eta_1 = MSTW_PDF[[evolution_order]].iloc[index_delta_g,0][0]
-    eta_2 = MSTW_PDF[[evolution_order]].iloc[index_eta_g,0][0]
-    epsilon = MSTW_PDF[[evolution_order]].iloc[index_epsilon_g,0][0]
-    gamma_pdf = MSTW_PDF[[evolution_order]].iloc[index_gamma_g,0][0]
 
     pdf = integral_pdf_regge(A_pdf,eta_1,eta_2,epsilon,gamma_pdf,j,alpha_p,t)
 
     # Additional term at NLO and NNLO
     if evolution_order != "LO":
         # Get row index of entry
-        index_A_g_prime=MSTW_PDF[MSTW_PDF["Parameter"] == "A_g'"].index[0]
-        index_delta_g_prime=MSTW_PDF[MSTW_PDF["Parameter"] == "delta_g'"].index[0]
-        index_eta_g_prime=MSTW_PDF[MSTW_PDF["Parameter"] == "eta_g'"].index[0]
-        A_pdf_prime = MSTW_PDF[[evolution_order]].iloc[index_A_g_prime,0][0]
-        eta_1_prime = MSTW_PDF[[evolution_order]].iloc[index_delta_g_prime,0][0]
-        eta_2_prime = MSTW_PDF[[evolution_order]].iloc[index_eta_g_prime,0][0]
+        A_pdf_prime     = MSTW_PDF["A_g'"][evolution_order][0]
+        eta_1_prime     = MSTW_PDF["delta_g'"][evolution_order][0]
+        eta_2_prime     = MSTW_PDF["eta_g'"][evolution_order][0]
+
         nlo_term = A_pdf_prime * (eta_1_prime + eta_2_prime + j - alpha_p * t) * mp.gamma(j - alpha_p *t + eta_1_prime-1)*mp.gamma(1+eta_2_prime)/\
                 mp.gamma(j-alpha_p*t+eta_1_prime+eta_2_prime + 1)
         # print(pdf,nlo_term)
         pdf += nlo_term
     if error_type != "central":
     # Extracting errors
-        delta_A_pdf  = MSTW_PDF[[evolution_order]].iloc[index_A_g,0][error_col_index]
-        delta_eta_1 = MSTW_PDF[[evolution_order]].iloc[index_delta_g,0][error_col_index]
-        delta_eta_2 = MSTW_PDF[[evolution_order]].iloc[index_eta_g,0][error_col_index]
-        delta_epsilon = MSTW_PDF[[evolution_order]].iloc[index_epsilon_g,0][error_col_index]
-        delta_gamma_pdf = MSTW_PDF[[evolution_order]].iloc[index_gamma_g,0][error_col_index]
-
+        delta_A_pdf      = MSTW_PDF["A_g"][evolution_order][error_col_index]
+        delta_eta_1      = MSTW_PDF["delta_g"][evolution_order][error_col_index]
+        delta_eta_2      = MSTW_PDF["eta_g"][evolution_order][error_col_index]
+        delta_epsilon    = MSTW_PDF["epsilon_g"][evolution_order][error_col_index]
+        delta_gamma_pdf  = MSTW_PDF["gamma_g"][evolution_order][error_col_index]
 
         pdf_error = integral_pdf_regge_error(A_pdf,delta_A_pdf,eta_1,delta_eta_1,eta_2,delta_eta_2,epsilon,delta_epsilon,gamma_pdf,delta_gamma_pdf,j,alpha_p,t,error_type)
         if evolution_order != "LO":
-            delta_A_prime_pdf  = MSTW_PDF[[evolution_order]].iloc[index_A_g_prime,0][error_col_index]
-            delta_eta_1_prime= MSTW_PDF[[evolution_order]].iloc[index_delta_g_prime,0][error_col_index]
-            delta_eta_2_prime = MSTW_PDF[[evolution_order]].iloc[index_eta_g_prime,0][error_col_index]
-            
+            delta_A_prime_pdf     = MSTW_PDF["A_g'"][evolution_order][error_col_index]
+            delta_eta_1_prime     = MSTW_PDF["delta_g'"][evolution_order][error_col_index]
+            delta_eta_2_prime     = MSTW_PDF["eta_g'"][evolution_order][error_col_index]
+
             # print(A_pdf,eta_1,eta_2,epsilon,gamma_pdf)
             # print(delta_A_pdf,delta_eta_1,delta_eta_2,delta_epsilon,delta_gamma_pdf)
             # print("-----")
@@ -1256,40 +1202,25 @@ def integral_polarized_uv_pdf_regge(j,eta,alpha_p,t, evolution_order = "LO", err
         # Get the column index corresponding to the error_type
         error_col_index = error_mapping.get(error_type, 0)  # Default to 'central' if error_type is invalid
 
-        # Get row index of entry
-        index_A_u=MSTW_PDF[MSTW_PDF["Parameter"] == "A_u"].index[0]
-        index_eta_1=MSTW_PDF[MSTW_PDF["Parameter"] == "eta_1"].index[0]
-        index_eta_2=MSTW_PDF[MSTW_PDF["Parameter"] == "eta_2"].index[0]
-        index_epsilon_u=MSTW_PDF[MSTW_PDF["Parameter"] == "epsilon_u"].index[0]
-        index_gamma_u=MSTW_PDF[MSTW_PDF["Parameter"] == "gamma_u"].index[0]
+        A_pdf     = MSTW_PDF["A_u"][evolution_order][0]
+        eta_1     = MSTW_PDF["eta_1"][evolution_order][0]
+        eta_2     = MSTW_PDF["eta_2"][evolution_order][0]
+        epsilon   = MSTW_PDF["epsilon_u"][evolution_order][0]
+        gamma_pdf = MSTW_PDF["gamma_u"][evolution_order][0]
 
-        # Get row index of entry
-        index_delta_A_u=AAC_PDF[AAC_PDF["Parameter"] == "Delta_A_u"].index[0]
-        index_alpha_u=AAC_PDF[AAC_PDF["Parameter"] == "alpha_u"].index[0]
-        index_delta_lambda_u=AAC_PDF[AAC_PDF["Parameter"] == "Delta_lambda_u"].index[0]
-        index_delta_gamma_u=AAC_PDF[AAC_PDF["Parameter"] == "Delta_gamma_u"].index[0]
-
-        # Extracting central parameter values
-        A_pdf = MSTW_PDF[[evolution_order]].iloc[index_A_u,0][0]
-        eta_1 = MSTW_PDF[[evolution_order]].iloc[index_eta_1,0][0]
-        eta_2 = MSTW_PDF[[evolution_order]].iloc[index_eta_2,0][0]
-        epsilon = MSTW_PDF[[evolution_order]].iloc[index_epsilon_u,0][0]
-        gamma_pdf = MSTW_PDF[[evolution_order]].iloc[index_gamma_u,0][0]
-        # Extracting parameter values based on error type
-        delta_A_pdf = AAC_PDF[[evolution_order]].iloc[index_delta_A_u,0][0]
-        alpha = AAC_PDF[[evolution_order]].iloc[index_alpha_u,0][0]
-        gamma_pol = AAC_PDF[[evolution_order]].iloc[index_delta_gamma_u,0][0]
-        lambda_pol = AAC_PDF[[evolution_order]].iloc[index_delta_lambda_u,0][0]
+        delta_A_pdf = AAC_PDF["Delta_A_u"][evolution_order][0]
+        alpha       = AAC_PDF["alpha_u"][evolution_order][0]
+        gamma_pol   = AAC_PDF["Delta_gamma_u"][evolution_order][0]
+        lambda_pol  = AAC_PDF["Delta_lambda_u"][evolution_order][0]
 
         pdf = integral_polarized_pdf_regge(A_pdf,eta_1,eta_2,epsilon,gamma_pdf,
                                            delta_A_pdf,alpha,gamma_pol,lambda_pol,
                                            j,alpha_p,t,evolution_order)
         if error_type != "central":
-            err_delta_A_pdf = AAC_PDF[[evolution_order]].iloc[index_delta_A_u,0][error_col_index]
-            err_alpha = AAC_PDF[[evolution_order]].iloc[index_alpha_u,0][error_col_index]
-            err_gamma_pol = AAC_PDF[[evolution_order]].iloc[index_delta_gamma_u,0][error_col_index]
-            err_lambda_pol = AAC_PDF[[evolution_order]].iloc[index_delta_lambda_u,0][error_col_index]
-
+            err_delta_A_pdf = AAC_PDF["Delta_A_u"][evolution_order][error_col_index]
+            err_alpha       = AAC_PDF["alpha_u"][evolution_order][error_col_index]
+            err_gamma_pol   = AAC_PDF["Delta_gamma_u"][evolution_order][error_col_index]
+            err_lambda_pol  = AAC_PDF["Delta_lambda_u"][evolution_order][error_col_index]
 
             pdf_error = integral_polarized_pdf_regge_error(A_pdf,eta_1,eta_2,epsilon,gamma_pdf,
                                             delta_A_pdf,err_delta_A_pdf,alpha,err_alpha,gamma_pol,err_gamma_pol,lambda_pol,err_lambda_pol,
@@ -1326,44 +1257,25 @@ def integral_polarized_dv_pdf_regge(j,eta,alpha_p,t, evolution_order = "LO", err
         # Get the column index corresponding to the error_type
         error_col_index = error_mapping.get(error_type, 0)  # Default to 'central' if error_type is invalid
 
-        # Get row index of entry
-        index_A_d = MSTW_PDF[MSTW_PDF["Parameter"] == "A_d"].index[0]
-        index_eta_3 = MSTW_PDF[MSTW_PDF["Parameter"] == "eta_3"].index[0]
-        index_eta_2=MSTW_PDF[MSTW_PDF["Parameter"] == "eta_2"].index[0]
-        # Only eta_4-eta_2 given
-        index_eta_42 = MSTW_PDF[MSTW_PDF["Parameter"] == "eta_4-eta_2"].index[0]
-        index_epsilon_d = MSTW_PDF[MSTW_PDF["Parameter"] == "epsilon_d"].index[0]
-        index_gamma_d = MSTW_PDF[MSTW_PDF["Parameter"] == "gamma_d"].index[0]
+        A_pdf     = MSTW_PDF["A_d"][evolution_order][0]
+        eta_1     = MSTW_PDF["eta_3"][evolution_order][0]
+        eta_2     = MSTW_PDF["eta_2"][evolution_order][0] + MSTW_PDF["eta_4-eta_2"][evolution_order][0]  # eta_4 ≡ eta_2 + (eta_4 - eta_2)
+        epsilon   = MSTW_PDF["epsilon_d"][evolution_order][0]
+        gamma_pdf = MSTW_PDF["gamma_d"][evolution_order][0]
 
-        # Get row index of entry
-        index_delta_A_d=AAC_PDF[AAC_PDF["Parameter"] == "Delta_A_d"].index[0]
-        index_alpha_d=AAC_PDF[AAC_PDF["Parameter"] == "alpha_d"].index[0]
-        index_delta_lambda_d=AAC_PDF[AAC_PDF["Parameter"] == "Delta_lambda_d"].index[0]
-        index_delta_gamma_d=AAC_PDF[AAC_PDF["Parameter"] == "Delta_gamma_d"].index[0]
-
-        # Extracting central parameter values
-        # Extracting parameter values
-        A_pdf = MSTW_PDF[[evolution_order]].iloc[index_A_d,0][0]
-        eta_1 = MSTW_PDF[[evolution_order]].iloc[index_eta_3,0][0]
-        eta_2 = MSTW_PDF[[evolution_order]].iloc[index_eta_42, 0][0] + MSTW_PDF[[evolution_order]].iloc[index_eta_2, 0][0]
-        epsilon = MSTW_PDF[[evolution_order]].iloc[index_epsilon_d,0][0]
-        gamma_pdf = MSTW_PDF[[evolution_order]].iloc[index_gamma_d,0][0]
-
-        # Extracting parameter values based on error type
-        Delta_A_pdf = AAC_PDF[[evolution_order]].iloc[index_delta_A_d,0][0]
-        alpha = AAC_PDF[[evolution_order]].iloc[index_alpha_d,0][0]
-        gamma_pol = AAC_PDF[[evolution_order]].iloc[index_delta_gamma_d,0][0]
-        lambda_pol = AAC_PDF[[evolution_order]].iloc[index_delta_lambda_d,0][0]
+        Delta_A_pdf = AAC_PDF["Delta_A_d"][evolution_order][0]
+        alpha       = AAC_PDF["alpha_d"][evolution_order][0]
+        gamma_pol   = AAC_PDF["Delta_gamma_d"][evolution_order][0]
+        lambda_pol  = AAC_PDF["Delta_lambda_d"][evolution_order][0]
 
         pdf = integral_polarized_pdf_regge(A_pdf,eta_1,eta_2,epsilon,gamma_pdf,
                                            Delta_A_pdf,alpha,gamma_pol,lambda_pol,
                                            j,alpha_p,t,evolution_order)
         if error_type != "central":
-            err_delta_A_pdf = AAC_PDF[[evolution_order]].iloc[index_delta_A_d,0][error_col_index]
-            err_alpha = AAC_PDF[[evolution_order]].iloc[index_alpha_d,0][error_col_index]
-            err_gamma_pol = AAC_PDF[[evolution_order]].iloc[index_delta_gamma_d,0][error_col_index]
-            err_lambda_pol = AAC_PDF[[evolution_order]].iloc[index_delta_lambda_d,0][error_col_index]
-
+            err_delta_A_pdf = AAC_PDF["Delta_A_d"][evolution_order][error_col_index]
+            err_alpha       = AAC_PDF["alpha_d"][evolution_order][error_col_index]
+            err_gamma_pol   = AAC_PDF["Delta_gamma_d"][evolution_order][error_col_index]
+            err_lambda_pol  = AAC_PDF["Delta_lambda_d"][evolution_order][error_col_index]
 
             pdf_error = integral_polarized_pdf_regge_error(A_pdf,eta_1,eta_2,epsilon,gamma_pdf,
                                             Delta_A_pdf,err_delta_A_pdf,alpha,err_alpha,gamma_pol,err_gamma_pol,lambda_pol,err_lambda_pol,
@@ -1401,40 +1313,25 @@ def integral_polarized_S_pdf_regge(j,eta,alpha_p,t, evolution_order = "LO", erro
         # Get the column index corresponding to the error_type
         error_col_index = error_mapping.get(error_type, 0)  # Default to 'central' if error_type is invalid
 
-        # Get row index of entry
-        index_A_S=MSTW_PDF[MSTW_PDF["Parameter"] == "A_S"].index[0]
-        index_delta_S=MSTW_PDF[MSTW_PDF["Parameter"] == "delta_S"].index[0]
-        index_eta_S=MSTW_PDF[MSTW_PDF["Parameter"] == "eta_S"].index[0]
-        index_epsilon_S=MSTW_PDF[MSTW_PDF["Parameter"] == "epsilon_S"].index[0]
-        index_gamma_S=MSTW_PDF[MSTW_PDF["Parameter"] == "gamma_S"].index[0]
+        A_pdf     = MSTW_PDF["A_S"][evolution_order][0]
+        eta_1     = MSTW_PDF["delta_S"][evolution_order][0]
+        eta_2     = MSTW_PDF["eta_S"][evolution_order][0]
+        epsilon   = MSTW_PDF["epsilon_S"][evolution_order][0]
+        gamma_pdf = MSTW_PDF["gamma_S"][evolution_order][0]
 
-        index_delta_A_S=AAC_PDF[AAC_PDF["Parameter"] == "Delta_A_S"].index[0]
-        index_alpha_S=AAC_PDF[AAC_PDF["Parameter"] == "alpha_S"].index[0]
-        index_delta_lambda_S=AAC_PDF[AAC_PDF["Parameter"] == "Delta_lambda_S"].index[0]
-        index_delta_gamma_S=AAC_PDF[AAC_PDF["Parameter"] == "Delta_gamma_S"].index[0]
-
-
-        # Extracting central parameter values
-        A_pdf = MSTW_PDF[[evolution_order]].iloc[index_A_S,0][0]
-        eta_1 = MSTW_PDF[[evolution_order]].iloc[index_delta_S,0][0]
-        eta_2 = MSTW_PDF[[evolution_order]].iloc[index_eta_S,0][0]
-        epsilon = MSTW_PDF[[evolution_order]].iloc[index_epsilon_S,0][0]
-        gamma_pdf = MSTW_PDF[[evolution_order]].iloc[index_gamma_S,0][0]
-
-        delta_A_pdf = AAC_PDF[[evolution_order]].iloc[index_delta_A_S,0][0]
-        alpha = AAC_PDF[[evolution_order]].iloc[index_alpha_S,0][0]
-        gamma_pol = AAC_PDF[[evolution_order]].iloc[index_delta_gamma_S,0][0]
-        lambda_pol = AAC_PDF[[evolution_order]].iloc[index_delta_lambda_S,0][0]
+        delta_A_pdf = AAC_PDF["Delta_A_S"][evolution_order][0]
+        alpha       = AAC_PDF["alpha_S"][evolution_order][0]
+        gamma_pol   = AAC_PDF["Delta_gamma_S"][evolution_order][0]
+        lambda_pol  = AAC_PDF["Delta_lambda_S"][evolution_order][0]
 
         pdf = integral_polarized_pdf_regge(A_pdf,eta_1,eta_2,epsilon,gamma_pdf,
                                             delta_A_pdf,alpha,gamma_pol,lambda_pol,
                                            j,alpha_p,t,evolution_order)
         if error_type != "central":
-            err_delta_A_pdf = AAC_PDF[[evolution_order]].iloc[index_delta_A_S,0][error_col_index]
-            err_alpha = AAC_PDF[[evolution_order]].iloc[index_alpha_S,0][error_col_index]
-            err_gamma_pol = AAC_PDF[[evolution_order]].iloc[index_delta_gamma_S,0][error_col_index]
-            err_lambda_pol = AAC_PDF[[evolution_order]].iloc[index_delta_lambda_S,0][error_col_index]
-
+            err_delta_A_pdf = AAC_PDF["Delta_A_S"][evolution_order][error_col_index]
+            err_alpha       = AAC_PDF["alpha_S"][evolution_order][error_col_index]
+            err_gamma_pol   = AAC_PDF["Delta_gamma_S"][evolution_order][error_col_index]
+            err_lambda_pol  = AAC_PDF["Delta_lambda_S"][evolution_order][error_col_index]
             pdf_error = integral_polarized_pdf_regge_error(A_pdf,eta_1,eta_2,epsilon,gamma_pdf,
                                            delta_A_pdf,err_delta_A_pdf,alpha,err_alpha,gamma_pol,err_gamma_pol,lambda_pol,err_lambda_pol,
                                            j,alpha_p,t,evolution_order,error_type)
@@ -1475,46 +1372,27 @@ def integral_polarized_gluon_pdf_regge(j,eta,alpha_p,t, evolution_order = "LO", 
         # Get the column index corresponding to the error_type
         error_col_index = error_mapping.get(error_type, 0)  # Default to 'central' if error_type is invalid
 
-        # Get row index of entry
-        index_A_g=MSTW_PDF[MSTW_PDF["Parameter"] == "A_g"].index[0]
-        index_delta_g=MSTW_PDF[MSTW_PDF["Parameter"] == "delta_g"].index[0]
-        index_eta_g=MSTW_PDF[MSTW_PDF["Parameter"] == "eta_g"].index[0]
-        index_epsilon_g=MSTW_PDF[MSTW_PDF["Parameter"] == "epsilon_g"].index[0]
-        index_gamma_g=MSTW_PDF[MSTW_PDF["Parameter"] == "gamma_g"].index[0]
-
-        # Get row index of entry
-        index_delta_A_g=AAC_PDF[AAC_PDF["Parameter"] == "Delta_A_g"].index[0]
-        index_alpha_g=AAC_PDF[AAC_PDF["Parameter"] == "alpha_g"].index[0]
-        index_delta_lambda_g=AAC_PDF[AAC_PDF["Parameter"] == "Delta_lambda_g"].index[0]
-        index_delta_gamma_g=AAC_PDF[AAC_PDF["Parameter"] == "Delta_gamma_g"].index[0]
-
-
         # Extracting central parameter values
-        A_pdf = MSTW_PDF[[evolution_order]].iloc[index_A_g,0][0]
-        eta_1 = MSTW_PDF[[evolution_order]].iloc[index_delta_g,0][0]
-        eta_2 = MSTW_PDF[[evolution_order]].iloc[index_eta_g,0][0]
-        epsilon = MSTW_PDF[[evolution_order]].iloc[index_epsilon_g,0][0]
-        gamma_pdf = MSTW_PDF[[evolution_order]].iloc[index_gamma_g,0][0]
+        A_pdf = MSTW_PDF["A_g"][evolution_order][0]
+        eta_1 = MSTW_PDF["delta_g"][evolution_order][0]
+        eta_2 = MSTW_PDF["eta_g"][evolution_order][0]
+        epsilon = MSTW_PDF["epsilon_g"][evolution_order][0]
+        gamma_pdf = MSTW_PDF["gamma_g"][evolution_order][0]
         # Extracting parameter values based on error type
-        delta_A_pdf = AAC_PDF[[evolution_order]].iloc[index_delta_A_g,0][0]
-        alpha = AAC_PDF[[evolution_order]].iloc[index_alpha_g,0][0]
-        gamma_pol = AAC_PDF[[evolution_order]].iloc[index_delta_gamma_g,0][0]
-        lambda_pol = AAC_PDF[[evolution_order]].iloc[index_delta_lambda_g,0][0]
-
-        # print(A_pdf,eta_1,eta_2,epsilon,gamma_pdf)
-        # print(delta_A_pdf,alpha,gamma_pol,lambda_pol)
+        delta_A_pdf = AAC_PDF["Delta_A_g"][evolution_order][0]
+        alpha = AAC_PDF["alpha_g"][evolution_order][0]
+        gamma_pol = AAC_PDF["Delta_gamma_g"][evolution_order][0]
+        lambda_pol = AAC_PDF["Delta_lambda_g"][evolution_order][0]
 
         pdf = integral_polarized_pdf_regge(A_pdf,eta_1,eta_2,epsilon,gamma_pdf,
                                            delta_A_pdf,alpha,gamma_pol,lambda_pol,
                                            j,alpha_p,t,evolution_order)
         if evolution_order != "LO":
             # Additional gluon contribution at NLO and NNLO that is not of the LO form
-            index_A_g_prime=MSTW_PDF[MSTW_PDF["Parameter"] == "A_g'"].index[0]
-            index_delta_g_prime=MSTW_PDF[MSTW_PDF["Parameter"] == "delta_g'"].index[0]
-            index_eta_g_prime=MSTW_PDF[MSTW_PDF["Parameter"] == "eta_g'"].index[0]
-            A_pdf_prime = MSTW_PDF[[evolution_order]].iloc[index_A_g_prime,0][0]
-            eta_1_prime = MSTW_PDF[[evolution_order]].iloc[index_delta_g_prime,0][0]
-            eta_2_prime = MSTW_PDF[[evolution_order]].iloc[index_eta_g_prime,0][0]
+            A_pdf_prime   = MSTW_PDF["A_g'"][evolution_order][0]
+            eta_1_prime   = MSTW_PDF["delta_g'"][evolution_order][0]
+            eta_2_prime   = MSTW_PDF["eta_g'"][evolution_order][0]
+
 
             pdf += A_pdf_prime * delta_A_pdf *mp.gamma(1+eta_2_prime) * (
                     (1-gamma_pol)*mp.gamma(eta_1_prime + j + alpha - alpha_p * t - 1)/
@@ -1523,18 +1401,11 @@ def integral_polarized_gluon_pdf_regge(j,eta,alpha_p,t, evolution_order = "LO", 
                     mp.gamma(eta_1_prime + eta_2_prime + j + alpha - alpha_p * t + lambda_pol)
             )
 
-            # pdf += A_pdf_prime * delta_A_pdf * mp.gamma(1+eta_2_prime) * (
-            #         gamma_pol * mp.gamma(-1 + eta_1_prime + j + alpha - alpha_p * t + lambda_pol)/
-            #         mp.gamma(eta_1_prime + eta_2_prime + j + alpha - alpha_p * t  + lambda_pol) +
-            #         (1- gamma_pol) * mp.gamma(eta_1_prime + j + alpha - alpha_p * t - 1)/
-            #         mp.gamma(eta_1_prime + eta_2_prime + j + alpha - alpha_p * t)
-            # )
-
         if error_type != "central":
-            err_delta_A_pdf = AAC_PDF[[evolution_order]].iloc[index_delta_A_g,0][error_col_index]
-            err_alpha = AAC_PDF[[evolution_order]].iloc[index_alpha_g,0][error_col_index]
-            err_gamma_pol = AAC_PDF[[evolution_order]].iloc[index_delta_gamma_g,0][error_col_index]
-            err_lambda_pol = AAC_PDF[[evolution_order]].iloc[index_delta_lambda_g,0][error_col_index]
+            err_delta_A_pdf = AAC_PDF["Delta_A_g"][evolution_order][error_col_index]
+            err_alpha = AAC_PDF["alpha_g"][evolution_order][error_col_index]
+            err_gamma_pol = AAC_PDF["Delta_gamma_g"][evolution_order][error_col_index]
+            err_lambda_pol = AAC_PDF["Delta_lambda_g"][evolution_order][error_col_index]
             # print(err_delta_A_pdf,err_alpha,err_gamma_pol,err_lambda_pol)
 
             pdf_error = integral_polarized_pdf_regge_error(A_pdf,eta_1,eta_2,epsilon,gamma_pdf,
@@ -4287,7 +4158,7 @@ def mellin_barnes_gpd(x, eta, t, mu, Nf=3, A0=1 ,particle = "quark", moment_type
 
         if real_imag == 'real':
             # integral, error = quad(lambda k: integrand(k, 'real'), k_min, k_max, limit = 200)
-            integral, _ = fixed_quad(lambda k: integrand(k, 'real'), k_min, k_max, n = 120)
+            integral, _ = fixed_quad(lambda k: integrand(k, 'real'), k_min, k_max, n = 130)
             integral_50, _ = fixed_quad(lambda k: integrand(k, 'real'), k_min, k_max, n = 70)
             error = abs(integral-integral_50)
             # Use symmetry of the real part of the integrand

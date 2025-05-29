@@ -5,7 +5,7 @@ from joblib import Memory
 
 # Set precision globally
 import mpmath as mp
-# mp.dps = 16
+mp.dps = 16
 
 ####################################
 ####   Define directories for   ####
