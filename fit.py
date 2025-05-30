@@ -4,10 +4,80 @@ import helpers as hp
 import stringy_gpds as sgpds
 import config as cfg
 import csv
+import os
 from scipy.optimize import curve_fit
 import matplotlib.pyplot as plt
 from mstw_pdf import get_alpha_s
 from joblib import Parallel, delayed
+
+def dipole_fit_lattice_moments(n,particle,moment_type,moment_label,pub_id,error_type="central",plot_fit=False, write_to_file=True):
+    # Accessor functions for -t, values, and errors
+    def t_values(moment_type, moment_label, pub_id):
+        """Return the -t values for a given moment type, label, and publication ID."""
+        data, n_to_row_map = hp.load_lattice_moment_data(particle,moment_type, moment_label, pub_id)
+
+        if data is None and n_to_row_map is None:
+            print(f"No data found for {moment_type} {moment_label} {pub_id}. Skipping.")
+            return None 
+        
+        if data is not None:
+            # Safely access data[:, 0] since data is not None
+            return data[:, 0]
+        else:
+            print(f"Data is None for {moment_type} {moment_label} {pub_id}. Skipping.")
+        return None
+
+    def dipole_form(t, A_D, m_D2):
+        return A_D / (1 - t / m_D2)**2
+
+    data, n_to_row_map = hp.load_lattice_moment_data(particle,moment_type, moment_label, pub_id)
+    if data is None or n not in n_to_row_map:
+        raise ValueError(f"No data on file system for {particle} {moment_type} {moment_label} in {pub_id}")
+    
+    t_vals = -t_values(moment_type, moment_label, pub_id)
+    # Extract values and errors
+    Fn0_vals = hp.Fn0_values(n, particle, moment_type, moment_label, pub_id)
+    if error_type != "central":
+        Fn0_errs = hp.Fn0_errors(n, particle, moment_type, moment_label, pub_id)
+        Fn0_vals += hp.error_sign(Fn0_errs,error_type)
+
+    # Initial parameter guess: A_D ~ max(f_vals), m_D2 ~ 1.0 
+    initial_guess = [np.max(data), 1.0]
+    bounds = ([-np.inf, 0], [np.inf, np.inf])
+
+    popt, pcov = curve_fit(dipole_form, t_vals, Fn0_vals, p0=initial_guess,bounds=bounds)
+    AD_fit, m_D2_fit = popt
+    if plot_fit:
+        t_fit = np.linspace(0, -max(abs(t_vals)), 100)
+        f_fit = dipole_form(t_fit, *popt)
+        # Plot data and fit
+        plt.figure(figsize=(8, 5))
+        plt.plot(-t_vals, Fn0_vals, 'o', label='Data')
+        plt.plot(-t_fit, f_fit, '-')
+        plt.xlabel('-t')
+        plt.ylabel('f(t)')
+        plt.ylim([0,1.1 * AD_fit])
+        plt.legend()
+        plt.grid(True)
+        plt.tight_layout()
+        plt.show()
+    if write_to_file:
+        if error_type != "central":
+            file_path = cfg.MOMENTUM_SPACE_MOMENTS_PATH / f"dipole_moments_{pub_id}_{error_type}.csv"
+        else:
+            file_path = cfg.MOMENTUM_SPACE_MOMENTS_PATH / f"dipole_moments_{pub_id}.csv"
+        hp.update_dipole_csv(
+            file_path=file_path,
+            particle=particle,
+            moment_type=moment_type,
+            moment_label=moment_label,
+            n=n,
+            # use pub_id as key
+            evolution_order=pub_id,
+            A_D=AD_fit,
+            m_D2=m_D2_fit,
+            lattice=True
+        )
 
 def dipole_fit_moment(n,eta,mu,Nf=3,particle="quark",moment_type="non_singlet_isovector",moment_label="Atilde",evolution_order="LO",error_type="central",plot_fit=False,write_to_file=True):
     """
@@ -22,56 +92,39 @@ def dipole_fit_moment(n,eta,mu,Nf=3,particle="quark",moment_type="non_singlet_is
     - write_to_file (bool optional): Write the fit results to a csv table
     - error_type (str. optional): central, plus, minus
     """
-    def update_dipole_csv(file_path, particle, moment_type, moment_label, n, evolution_order, A_D, m_D2):
-        file_path = cfg.Path(file_path)
-        file_path.parent.mkdir(parents=True, exist_ok=True)
 
-        header = ["particle", "moment_type", "moment_label", "n", "evolution_order", "A_D", "m_D2"]
-        key = (particle, moment_type, moment_label, str(n), evolution_order)
-
-        rows = []
-        found = False
-
-        if file_path.exists():
-            with open(file_path, newline='') as f:
-                reader = csv.reader(f)
-                rows = list(reader)
-
-            # Ensure header exists
-            if rows and rows[0] != header:
-                raise ValueError("CSV file header does not match expected format.")
-
-            # Check and update existing row
-            for i, row in enumerate(rows[1:], start=1):
-                if tuple(row[:5]) == key:
-                    rows[i] = [particle, moment_type, moment_label, str(n), evolution_order, f"{A_D:.5f}", f"{m_D2:.5f}"]
-                    found = True
-                    break
-
-        if not found:
-            if not rows:
-                rows.append(header)
-            rows.append([particle, moment_type, moment_label, str(n), evolution_order, f"{A_D:.5f}", f"{m_D2:.5f}"])
-
-        with open(file_path, 'w', newline='') as f:
-            writer = csv.writer(f)
-            writer.writerows(rows)
     gpd_label = cfg.INVERTED_GPD_LABEL_MAP.get(moment_label)
     if gpd_label is None:
         print(f"Value {moment_label} not found in GPD_LABEL_MAP - abort")
         return
     def dipole_form(t, A_D, m_D2):
         return A_D / (1 - t / m_D2)**2
-    
-    if moment_type == "singlet" and n == 1:
-        # Reconstruct first singlet moment from evolved GPDs
-        t_vals, f_vals = sgpds.first_singlet_moment(eta=eta,mu=mu,particle=particle,gpd_label=gpd_label,evolution_order=evolution_order,error_type=error_type)
+    n_int = os.cpu_count() if os.cpu_count() > 10 else 10
+
+    t_vals = np.linspace(-1e-6,-10,n_int)
+    f_vals = Parallel(n_jobs=-1)(
+            delayed(lambda t: float(sgpds.evolve_conformal_moment(n, eta, t, mu,Nf, 1,
+                                                                  particle=particle, moment_type=moment_type,
+                                                                  moment_label=moment_label, evolution_order=evolution_order,
+                                                                  error_type=error_type).real))(t)
+            for t in t_vals
+        )
+    f_vals = np.array(f_vals)
+    # check for crossing behavior
+    num_pos = np.sum(f_vals > 0)
+    num_neg = np.sum(f_vals < 0) 
+
+    if num_pos and num_neg:
+        print(f"Warning: zero-crossing detected. Positive values:{num_pos}, Negative values: {num_neg}")
+
+    if num_pos >= num_neg:
+        mask = f_vals > 0
     else:
-        t_vals = np.linspace(-1e-6,-3,16)
-        f_vals = Parallel(n_jobs=-1)(
-                delayed(lambda t: float(sgpds.evolve_conformal_moment(n, eta, t, mu, Nf, 1,particle=particle, moment_type=moment_type, moment_label=moment_label, evolution_order=evolution_order, error_type=error_type).real))(t)
-                for t in t_vals
-            )
+        mask = f_vals < 0
+
+    t_vals = t_vals[mask]
+    f_vals = f_vals[mask]
+
     # Initial parameter guess: A_D ~ max(f_vals), m_D2 ~ 1.0 
     initial_guess = [np.max(f_vals), 1.0]
     bounds = ([-np.inf, 0], [np.inf, np.inf])
@@ -80,12 +133,13 @@ def dipole_fit_moment(n,eta,mu,Nf=3,particle="quark",moment_type="non_singlet_is
     AD_fit, m_D2_fit = popt
 
     if plot_fit:
-        t_fit = np.linspace(0, -3, 100)
+        t_fit = np.linspace(0, -10, 100)
         f_fit = dipole_form(t_fit, *popt)
         # Plot data and fit
         plt.figure(figsize=(8, 5))
         plt.plot(-t_vals, f_vals, 'o', label='Data')
         plt.plot(-t_fit, f_fit, '-')
+        plt.title(f'{moment_type} {particle} {moment_label} {error_type}')
         plt.xlabel('-t')
         plt.ylabel('f(t)')
         plt.ylim([0,1.1 * AD_fit])
@@ -96,7 +150,7 @@ def dipole_fit_moment(n,eta,mu,Nf=3,particle="quark",moment_type="non_singlet_is
     if write_to_file:
         prefix = "dipole_moments"
         file_path = hp.generate_filename(eta,0,mu,cfg.MOMENTUM_SPACE_MOMENTS_PATH / prefix,error_type)
-        update_dipole_csv(
+        hp.update_dipole_csv(
             file_path=file_path,
             particle=particle,
             moment_type=moment_type,
@@ -645,13 +699,13 @@ def fit_singlet_slopes_Atilde(Nf=3,evolution_order="LO",plot=True):
         return results
     
     # Generate pseudo data
-    t_vals = np.linspace(-1e-6,-2,10)
+    t_vals = np.linspace(-1e-6,-10,10)
     pseudo_data_quark_A = quark_A(t_vals)
     popt_A_q, pcov_A_q = curve_fit(quark_singlet_A, t_vals, pseudo_data_quark_A, p0=p0, bounds=bounds)
     print(f"quark A: norm = {popt_A_q[0]:.4f}, alpha_p = {popt_A_q[1]:.4f}")
 
-    # Use less data points for plot
-    t_vals = np.linspace(-1e-6,-2,50)
+    # Use more data points for plot
+    t_vals = np.linspace(-1e-6,-10,50)
     pseudo_data_quark_A = quark_A(t_vals)
 
     if plot:

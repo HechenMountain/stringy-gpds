@@ -246,7 +246,7 @@ def plot_fourier_transform_transverse_moments_grid(j_max,eta,mu,particle="quark"
 
     for j in range(1, j_max + 1):
         for i, mom_type in enumerate(moment_types):
-            READ_WRITE_PATH = cfg.IMPACT_PARAMETER_MOMENTS_PATH + "imp_param_transv_pol_moment_j_" + str(j) + "_"  + mom_type 
+            READ_WRITE_PATH = cfg.IMPACT_PARAMETER_MOMENTS_PATH /  f"imp_param_transv_pol_moment_j_{j}_{mom_type}"
             row, col = j-1, i
             ax = axs[row, col]
 

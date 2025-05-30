@@ -6,7 +6,6 @@
 # ############################################### #
 #
 # Dependencies
-import pandas as pd
 import csv
 import numpy as np
 import matplotlib.pyplot as plt
@@ -21,11 +20,6 @@ from mstw_pdf import (
 import config as cfg
 
 from helpers import check_error_type
-
-# Set display options
-pd.set_option('display.max_columns', None)  # Show all columns
-pd.set_option('display.width', 1000)        # Set width to avoid wrapping
-pd.set_option('display.max_colwidth', None) # Show full content of each column
 
 # Columns for the DataFrame
 columns = ["Parameter", "LO", "NLO", "NNLO"]

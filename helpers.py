@@ -62,10 +62,8 @@ def check_parity(parity):
 
 def error_sign(error,error_type):
     check_error_type(error_type)
-    if error_type == "minus":
-        return -error
-    else:
-        return error
+    sign = -1 if error_type == "minus" else 1
+    return sign * np.asarray(error)
     
 def get_regge_slope(moment_type, moment_label, evolve_type, evolution_order="LO"):
     check_moment_type_label(moment_type, moment_label)
@@ -188,6 +186,23 @@ def load_Cz_data(particle,moment_type,pub_id_A,pub_id_Atilde):
     Atilde20_err = Fn0_errors(2,particle,moment_type,"Atilde",pub_id_Atilde)
     A_tilde_t_vals = t_values(moment_type,"Atilde",pub_id_Atilde)
 
+    # Filter for NaN
+    all_arrays = [
+        A10_val, A10_err, A_t_vals,
+        Atilde20_val, Atilde20_err, A_tilde_t_vals
+    ]
+    mask = np.ones_like(A10_val, dtype=bool)
+    for arr in all_arrays:
+        mask &= ~np.isnan(arr)
+        
+    A10_val       = A10_val[mask]
+    A10_err       = A10_err[mask]
+    A_t_vals      = A_t_vals[mask]
+
+    Atilde20_val  = Atilde20_val[mask]
+    Atilde20_err  = Atilde20_err[mask]
+    A_tilde_t_vals = A_tilde_t_vals[mask]
+
     if (A10_val is None or (isinstance(A10_val, np.ndarray) and A10_val.size == 0)) or \
     (Atilde20_val is None or (isinstance(Atilde20_val, np.ndarray) and Atilde20_val.size == 0)):
         #print("No data found")
@@ -201,6 +216,65 @@ def load_Cz_data(particle,moment_type,pub_id_A,pub_id_Atilde):
     Cz_err = np.sqrt(A10_err**2+Atilde20_err**2)/2
 
     return A_t_vals, Cz, Cz_err
+
+def load_Lz_data(particle,moment_type,pub_id_A,pub_id_B,pub_id_Atilde):
+    def t_values(moment_type, moment_label, pub_id):
+        """Return the -t values for a given moment type, label, and publication ID."""
+        data, n_to_row_map = load_lattice_moment_data(particle,moment_type, moment_label, pub_id)
+        
+        if data is not None:
+            # Safely access data[:, 0] since data is not None
+            return data[:, 0]
+        return None  
+
+    A20_val = Fn0_values(2, particle,moment_type, moment_label="A", pub_id=pub_id_A)
+    A20_err = Fn0_errors(2, particle,moment_type, moment_label="A", pub_id=pub_id_A)
+    A_t_vals = t_values(moment_type,"A",pub_id_A)
+
+    B20_val = Fn0_values(2, particle,moment_type, moment_label="B", pub_id=pub_id_A)
+    B20_err = Fn0_errors(2, particle,moment_type, moment_label="B", pub_id=pub_id_A)
+    B_t_vals = t_values(moment_type,"B",pub_id_B)
+
+    Atilde10_val = Fn0_values(1,particle,moment_type,"Atilde",pub_id_Atilde)
+    Atilde10_err = Fn0_errors(1,particle,moment_type,"Atilde",pub_id_Atilde)
+    A_tilde_t_vals = t_values(moment_type,"Atilde",pub_id_Atilde)
+
+    # Filter for NaN
+    all_arrays = [
+        A20_val, A20_err, A_t_vals,
+        B20_val, B20_err, B_t_vals,
+        Atilde10_val, Atilde10_err, A_tilde_t_vals
+    ]
+    mask = np.ones_like(A20_val, dtype=bool)
+    for arr in all_arrays:
+        mask &= ~np.isnan(arr)
+
+    A20_val       = A20_val[mask]
+    A20_err       = A20_err[mask]
+    A_t_vals      = A_t_vals[mask]
+
+    B20_val       = B20_val[mask]
+    B20_err       = B20_err[mask]
+    B_t_vals      = B_t_vals[mask]
+
+    Atilde10_val  = Atilde10_val[mask]
+    Atilde10_err  = Atilde10_err[mask]
+    A_tilde_t_vals = A_tilde_t_vals[mask]
+    
+    if (A20_val is None or (isinstance(A20_val, np.ndarray) and A20_val.size == 0)) or \
+    (Atilde10_val is None or (isinstance(Atilde10_val, np.ndarray) and Atilde10_val.size == 0)) or \
+    (B20_val is None or (isinstance(B20_val, np.ndarray) and B20_val.size == 0)):
+        #print("No data found")
+        return  None, None, None
+
+    if np.any((A_tilde_t_vals != A_t_vals) | (A_t_vals != B_t_vals)):
+        print("Warning: different t values encountered.")
+        print(A_t_vals)
+        print(A_tilde_t_vals)
+    Lz = .5 * (A20_val + B20_val - Atilde10_val)
+    Lz_err = .5 * np.sqrt((A20_err**2 + B20_err**2 + Atilde10_err**2))
+
+    return A_t_vals, Lz, Lz_err
 
 def generate_filename(eta, t, mu, prefix="FILE_NAME",error_type="central"):
     """
@@ -344,6 +418,45 @@ def read_ft_from_csv(filename):
     data = data_flat.reshape(len(b_y_fm), len(b_x_fm))  # Must match original shape
 
     return b_x_fm, b_y_fm, data
+
+def update_dipole_csv(file_path, particle, moment_type, moment_label, n, evolution_order, A_D, m_D2,lattice=False):
+    file_path = cfg.Path(file_path)
+    file_path.parent.mkdir(parents=True, exist_ok=True)
+
+    # For laticce moments we use the pub_id instead of evolution_order
+    if lattice :
+        header = ["particle", "moment_type", "moment_label", "n", "pub_id", "A_D", "m_D2"]
+    else:
+        header = ["particle", "moment_type", "moment_label", "n", "evolution_order", "A_D", "m_D2"]
+    key = (particle, moment_type, moment_label, str(n), evolution_order)
+
+    rows = []
+    found = False
+
+    if file_path.exists():
+        with open(file_path, newline='') as f:
+            reader = csv.reader(f)
+            rows = list(reader)
+
+        # Ensure header exists
+        if rows and rows[0] != header:
+            raise ValueError("CSV file header does not match expected format.")
+
+        # Check and update existing row
+        for i, row in enumerate(rows[1:], start=1):
+            if tuple(row[:5]) == key:
+                rows[i] = [particle, moment_type, moment_label, str(n), evolution_order, f"{A_D:.5f}", f"{m_D2:.5f}"]
+                found = True
+                break
+
+    if not found:
+        if not rows:
+            rows.append(header)
+        rows.append([particle, moment_type, moment_label, str(n), evolution_order, f"{A_D:.5f}", f"{m_D2:.5f}"])
+
+    with open(file_path, 'w', newline='') as f:
+        writer = csv.writer(f)
+        writer.writerows(rows)
 
 ##########################
 ####   Interpolation  ####

@@ -41,12 +41,16 @@ memory = Memory(CACHE_PATH,verbose=0)
 ## Kinematics used for interpolation ##
 ##     Need to have equal length     ##
 #######################################
-INTERPOLATE_INPUT_MOMENTS = True
-INTERPOLATE_MOMENTS = True
+INTERPOLATE_INPUT_MOMENTS = False
+INTERPOLATE_MOMENTS = False
 
-ETA_ARRAY = [0,0,0.33,0.1]
-T_ARRAY = [-0.69,-0.39,-0.69,-0.23]
-MU_ARRAY = [2,3,2,2]
+# ETA_ARRAY = [0,0,0.33,0.1]
+# T_ARRAY = [-0.69,-0.39,-0.69,-0.23]
+# MU_ARRAY = [2,3,2,2]
+
+ETA_ARRAY = [0]
+T_ARRAY = [-0.69]
+MU_ARRAY = [2]
 
 # Atilde
 # ETA_ARRAY = [0,0,0.33]
@@ -172,8 +176,8 @@ REGGE_SLOPES = {
         },
         "singlet": {
             "Atilde": {
-                "LO": (0.2974, 1.179, 0.490, 0.744),
-                "NLO": (0.3140, 1.179, 0.490, 0.744)
+                "LO": (0.8454, 1.179, 0.490, 0.744),
+                "NLO": (0.7186, 1.179, 0.490, 0.744)
             },
         }
     }
@@ -203,8 +207,6 @@ MOMENT_NORMALIZATIONS = {
         },
         "singlet": {
             "A": {
-                # "LO": (0.7914,0.7539,1.3580,0.7738),
-                # "NLO": (1.00683**(-1),0.7019, 0.987794**(-1), 0.7058),
                 "LO": (1,1,1,1),
                 "NLO": (1,1,1,1)
             },

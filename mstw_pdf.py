@@ -1,13 +1,7 @@
 # Dependencies
-import pandas as pd
 import csv
 import numpy as np
 import matplotlib.pyplot as plt
-
-# Set display options
-pd.set_option('display.max_columns', None)  # Show all columns
-pd.set_option('display.width', 1000)        # Set width to avoid wrapping
-pd.set_option('display.max_colwidth', None) # Show full content of each column
 
 import config as cfg
 from helpers import check_evolution_order, check_error_type
