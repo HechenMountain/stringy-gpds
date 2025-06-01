@@ -11,18 +11,18 @@ import numpy as np
 import matplotlib.pyplot as plt
 
 # Unpolarized PDFs needed for parametrization
-from mstw_pdf import (
+from .mstw_pdf import (
     uv_pdf, dv_pdf, gluon_pdf,
     sv_pdf,s_plus_pdf, S_pdf,
     Delta_pdf
 )
 
-import config as cfg
+from . import config as cfg
 
-from helpers import check_error_type
+from .helpers import check_error_type
 
 # Columns for the DataFrame
-columns = ["Parameter", "LO", "NLO", "NNLO"]
+columns = ["Parameter", "lo", "nlo", "nnlo"]
 
 # Read the CSV file and parse it
 data = []
@@ -43,14 +43,14 @@ with open(cfg.AAC_PATH, 'r',newline='') as file:
 
 
 # Create the pandas DataFrame
-AAC_PDF =  {row[0]: {"LO": row[1], "NLO": row[2], "NNLO": row[3]} for row in data}
+AAC_PDF =  {row[0]: {"lo": row[1], "nlo": row[2], "nnlo": row[3]} for row in data}
     
 # PDFs
 def polarized_pdf(x,delta_A_pdf,alpha_pdf,delta_lambda_pdf,delta_gamma_pdf,evolution_order):
     """
     Returns the bare value (without the unpolarized input PDF) of the polarized PDF
     """
-    if evolution_order != "LO":
+    if evolution_order != "lo":
         result = delta_A_pdf * x**(alpha_pdf)*(1+delta_gamma_pdf * (x**(delta_lambda_pdf)-1))
     else:
         result = delta_A_pdf * x**(alpha_pdf)*(1+delta_gamma_pdf* x**(delta_lambda_pdf))
@@ -66,7 +66,7 @@ def polarized_pdf_error(x,delta_A_pdf,delta_delta_A_pdf,alpha_pdf,delta_alpha_pd
     dpdf_dlambda = delta_A_pdf* x**(alpha_pdf+delta_lambda_pdf)*(delta_gamma_pdf)*np.log(x)
     dpdf_dgamma = delta_A_pdf* x**(alpha_pdf+delta_lambda_pdf)
 
-    if evolution_order != "LO":
+    if evolution_order != "lo":
         dpdf_dA_pdf += -x**alpha_pdf*delta_gamma_pdf
         dpdf_dalpha += -delta_A_pdf*x**alpha_pdf*delta_gamma_pdf
         dpdf_dgamma += -delta_A_pdf*x**alpha_pdf
@@ -79,7 +79,7 @@ def polarized_pdf_error(x,delta_A_pdf,delta_delta_A_pdf,alpha_pdf,delta_alpha_pd
     result = np.sqrt(Delta_A**2+Delta_alpha**2+Delta_lambda**2+Delta_gamma**2)
     return result
 
-def polarized_uv_pdf(x, evolution_order="LO",error_type="central"):
+def polarized_uv_pdf(x, evolution_order="nlo",error_type="central"):
     """
     Compute the polarized uv(x) PDF and returns either it's central value or the corresponding error
     
@@ -118,7 +118,7 @@ def polarized_uv_pdf(x, evolution_order="LO",error_type="central"):
 
     return result
 
-def polarized_dv_pdf(x, evolution_order="LO",error_type="central"):
+def polarized_dv_pdf(x, evolution_order="nlo",error_type="central"):
     """
     Compute the polarized dv(x) PDF and returns either it's central value or the corresponding error
     
@@ -157,7 +157,7 @@ def polarized_dv_pdf(x, evolution_order="LO",error_type="central"):
 
     return result
 
-def polarized_gluon_pdf(x, evolution_order="LO",error_type="central"):
+def polarized_gluon_pdf(x, evolution_order="nlo",error_type="central"):
     """
     Compute the polarized gluon(x) PDF and returns either it's central value or the corresponding error
     
@@ -196,7 +196,7 @@ def polarized_gluon_pdf(x, evolution_order="LO",error_type="central"):
 
     return result
 
-def polarized_s_pdf(x, evolution_order="LO",error_type="central"):
+def polarized_s_pdf(x, evolution_order="nlo",error_type="central"):
     """
     Compute the polarized sv(x) PDF and returns either it's central value or the corresponding error
     
@@ -239,7 +239,7 @@ def polarized_s_pdf(x, evolution_order="LO",error_type="central"):
 
     return result
 
-def polarized_sbar_pdf(x, evolution_order="LO",error_type="central"):
+def polarized_sbar_pdf(x, evolution_order="nlo",error_type="central"):
     """
     Compute the polarized sv(x) PDF and returns either it's central value or the corresponding error
     
@@ -279,7 +279,7 @@ def polarized_sbar_pdf(x, evolution_order="LO",error_type="central"):
 
     return result
 
-def polarized_s_plus_pdf(x, evolution_order="LO",error_type="central"):
+def polarized_s_plus_pdf(x, evolution_order="nlo",error_type="central"):
     """
     Compute the polarized sv(x) PDF and returns either it's central value or the corresponding error
     
@@ -318,7 +318,7 @@ def polarized_s_plus_pdf(x, evolution_order="LO",error_type="central"):
     
     return result
 
-def polarized_ubar_pdf(x, evolution_order="LO",error_type="central"):
+def polarized_ubar_pdf(x, evolution_order="nlo",error_type="central"):
     """
     Compute the polarized ubar(x) PDF and returns either it's central value or the corresponding error
     
@@ -361,7 +361,7 @@ def polarized_ubar_pdf(x, evolution_order="LO",error_type="central"):
 
     return result
 
-def polarized_dbar_pdf(x, evolution_order="LO",error_type="central"):
+def polarized_dbar_pdf(x, evolution_order="nlo",error_type="central"):
     """
     Compute the polarized dbar(x) PDF and returns either it's central value or the corresponding error
     
@@ -401,7 +401,7 @@ def polarized_dbar_pdf(x, evolution_order="LO",error_type="central"):
         
     return result
 
-def polarized_S_pdf(x, evolution_order="LO",error_type="central"):
+def polarized_S_pdf(x, evolution_order="nlo",error_type="central"):
     """
     Compute the polarized S(x) PDF and returns either it's central value or the corresponding error
     
@@ -442,7 +442,7 @@ def polarized_S_pdf(x, evolution_order="LO",error_type="central"):
     return result
 
 
-def polarized_uv_minus_dv_pdf(x, evolution_order="LO",error_type="central"):
+def polarized_uv_minus_dv_pdf(x, evolution_order="nlo",error_type="central"):
     """
     Compute the polarized uv-dv(x) PDF and returns either it's central value or the corresponding error
     
@@ -462,7 +462,7 @@ def polarized_uv_minus_dv_pdf(x, evolution_order="LO",error_type="central"):
         result = np.sqrt(polarized_uv**2+polarized_dv**2)
     return result
 
-def polarized_uv_plus_dv_plus_S_pdf(x, evolution_order="LO",error_type="central"):
+def polarized_uv_plus_dv_plus_S_pdf(x, evolution_order="nlo",error_type="central"):
     """
     Compute the polarized uv+dv+S(x) PDF and returns either it's central value or the corresponding error
     
@@ -486,7 +486,7 @@ def polarized_uv_plus_dv_plus_S_pdf(x, evolution_order="LO",error_type="central"
 ### Plot Functions ###
 ######################
 
-def plot_polarized_uv_pdf(x_0=1e-2,evolution_order="LO",logplot = False,error_bars=True):
+def plot_polarized_uv_pdf(x_0=1e-2,evolution_order="nlo",logplot = False,error_bars=True):
     vectorized_polarized_uv_pdf = np.vectorize(polarized_uv_pdf)
     if logplot:
         x_vals = np.logspace(np.log10(x_0), np.log10(1 - 1e-4), 100)
@@ -509,7 +509,7 @@ def plot_polarized_uv_pdf(x_0=1e-2,evolution_order="LO",logplot = False,error_ba
         plt.xscale('log')
     plt.show()
 
-def plot_polarized_dv_pdf(x_0=1e-2,evolution_order="LO",logplot = False,error_bars=True):
+def plot_polarized_dv_pdf(x_0=1e-2,evolution_order="nlo",logplot = False,error_bars=True):
     vectorized_polarized_dv_pdf = np.vectorize(polarized_dv_pdf)
     if logplot:
         x_vals = np.logspace(np.log10(x_0), np.log10(1 - 1e-4), 100)
@@ -533,7 +533,7 @@ def plot_polarized_dv_pdf(x_0=1e-2,evolution_order="LO",logplot = False,error_ba
     plt.show()
 
 
-def plot_polarized_ubar_pdf(x_0=1e-2,evolution_order="LO",logplot = False,error_bars=True):
+def plot_polarized_ubar_pdf(x_0=1e-2,evolution_order="nlo",logplot = False,error_bars=True):
     vectorized_polarized_ubar_pdf = np.vectorize(polarized_ubar_pdf)
     if logplot:
         x_vals = np.logspace(np.log10(x_0), np.log10(1 - 1e-4), 100)
@@ -556,7 +556,7 @@ def plot_polarized_ubar_pdf(x_0=1e-2,evolution_order="LO",logplot = False,error_
         plt.xscale('log')
     plt.show()
 
-def plot_polarized_uv_minus_dv_pdf(x_0=1e-2,evolution_order="LO",logplot = False,error_bars=True):
+def plot_polarized_uv_minus_dv_pdf(x_0=1e-2,evolution_order="nlo",logplot = False,error_bars=True):
     vectorized_polarized_uv_minus_dv_pdf = np.vectorize(polarized_uv_minus_dv_pdf)
     if logplot:
         x_vals = np.logspace(np.log10(x_0), np.log10(1 - 1e-4), 100)
@@ -579,7 +579,7 @@ def plot_polarized_uv_minus_dv_pdf(x_0=1e-2,evolution_order="LO",logplot = False
         plt.xscale('log')
     plt.show()
 
-def plot_polarized_uv_plus_dv_plus_S_pdf(x_0=1e-2,evolution_order="LO",logplot = False,error_bars=True):
+def plot_polarized_uv_plus_dv_plus_S_pdf(x_0=1e-2,evolution_order="nlo",logplot = False,error_bars=True):
     vectorized_polarized_uv_plus_dv_plus_S_pdf = np.vectorize(polarized_uv_plus_dv_plus_S_pdf)
     if logplot:
         x_vals = np.logspace(np.log10(x_0), np.log10(1 - 1e-4), 100)
@@ -602,7 +602,7 @@ def plot_polarized_uv_plus_dv_plus_S_pdf(x_0=1e-2,evolution_order="LO",logplot =
         plt.xscale('log')
     plt.show()
 
-def plot_polarized_gluon_pdf(x_0=1e-2,y_0=-1,y_1=1,evolution_order="LO",logplot = False,error_bars=True):
+def plot_polarized_gluon_pdf(x_0=1e-2,y_0=-1,y_1=1,evolution_order="nlo",logplot = False,error_bars=True):
     vectorized_polarized_gluon_pdf = np.vectorize(polarized_gluon_pdf)
     if logplot:
         x_vals = np.logspace(np.log10(x_0), np.log10(1 - 1e-4), 100)

@@ -1,14 +1,15 @@
 import numpy as np
-import config as cfg
-import helpers as hp
 import matplotlib.pyplot as plt
-import stringy_gpds as sgpds
+
+from . import config as cfg
+from . import helpers as hp
+from . import core
 
 from joblib import Parallel, delayed
 from scipy.interpolate import RectBivariateSpline
-from config import mp
+from .config import mp
 
-def plot_evolved_moment_over_j(eta,t,mu,Nf = 3,j_base = 3,particle="quark",moment_type="non_singlet_isovector",moment_label ="A",evolution_order="LO", 
+def plot_evolved_moment_over_j(eta,t,mu,Nf = 3,j_base = 3,particle="quark",moment_type="non_singlet_isovector",moment_label ="A",evolution_order="nlo", 
                             error_type = "central", j_max=5, num_points=200):
     """
     Plot the real and imaginary parts of the evolved conformal moment 
@@ -34,7 +35,7 @@ def plot_evolved_moment_over_j(eta,t,mu,Nf = 3,j_base = 3,particle="quark",momen
 
     # Evaluate the function for each z
     evolved_moment = np.array(
-        Parallel(n_jobs=-1)(delayed(sgpds.evolve_conformal_moment)(z, eta, t, mu, Nf, 1,
+        Parallel(n_jobs=-1)(delayed(core.evolve_conformal_moment)(z, eta, t, mu, Nf, 1,
                                                         particle, moment_type, moment_label, evolution_order, error_type) for z in z_vals),
                 dtype=complex)
     # evolved_moment = np.array([evolve_conformal_moment(z, eta, t, mu, Nf, 
@@ -65,10 +66,10 @@ def plot_conformal_partial_wave_over_j(x,eta,particle="quark",moment_type="non_s
     hp.check_particle_type(particle)
     hp.check_parity(parity)
 
-    j_base, parity = sgpds.get_j_base(particle,moment_type,moment_label)
+    j_base, parity = core.get_j_base(particle,moment_type,moment_label)
     k_values = np.linspace(-15, 15, 200)
     j_values = j_base + 1j * k_values
-    y_values = np.array(Parallel(n_jobs=-1)(delayed(sgpds.conformal_partial_wave)(j, x, eta , particle, parity) for j in j_values)
+    y_values = np.array(Parallel(n_jobs=-1)(delayed(core.conformal_partial_wave)(j, x, eta , particle, parity) for j in j_values)
                         ,dtype=complex)
 
     # Create subplots for real and imaginary parts
@@ -89,7 +90,7 @@ def plot_conformal_partial_wave_over_j(x,eta,particle="quark",moment_type="non_s
     plt.tight_layout()  # Adjust spacing between subplots
     plt.show()
 
-def plot_mellin_barnes_gpd_integrand(x, eta, t, mu, Nf=3, particle="quark", moment_type="singlet", moment_label="A",evolution_order="LO", parity = "none", error_type="central", j_max=7.5,n_j=150):
+def plot_mellin_barnes_gpd_integrand(x, eta, t, mu, Nf=3, particle="quark", moment_type="singlet", moment_label="A",evolution_order="nlo", parity = "none", error_type="central", j_max=7.5,n_j=150):
     """
     Plot the real and imaginary parts of the integrand of the Mellin-Barnes integral over k with j = j_base + i*k.
 
@@ -108,7 +109,7 @@ def plot_mellin_barnes_gpd_integrand(x, eta, t, mu, Nf=3, particle="quark", mome
     hp.check_particle_type(particle)
     hp.check_moment_type_label(moment_type,moment_label)
 
-    j_base, parity_check = sgpds.get_j_base(particle,moment_type,moment_label)
+    j_base, parity_check = core.get_j_base(particle,moment_type,moment_label)
     if parity != parity_check:
         print(f"Warning: Wrong parity of {parity} for moment_type of {moment_type} for particle {particle}")
 
@@ -119,14 +120,14 @@ def plot_mellin_barnes_gpd_integrand(x, eta, t, mu, Nf=3, particle="quark", mome
         #z = k
         dz = 1j
         sin_term = mp.sin(np.pi * z)
-        pw_val = sgpds.conformal_partial_wave(z, x, eta, particle, parity)
+        pw_val = core.conformal_partial_wave(z, x, eta, particle, parity)
         if particle == "quark":
             if moment_type == "singlet":
-                mom_val = sgpds.evolve_quark_singlet(z, eta, t, mu, Nf,1, moment_label, evolution_order, error_type)
+                mom_val = core.evolve_quark_singlet(z, eta, t, mu, Nf,1, moment_label, evolution_order, error_type)
             else:
-                mom_val = sgpds.evolve_quark_non_singlet(z, eta, t, mu, Nf,1, moment_type, moment_label, evolution_order, error_type)
+                mom_val = core.evolve_quark_non_singlet(z, eta, t, mu, Nf,1, moment_type, moment_label, evolution_order, error_type)
         else:
-            mom_val = sgpds.evolve_gluon_singlet(z, eta, t, mu, Nf,1, moment_label, evolution_order, error_type)
+            mom_val = core.evolve_gluon_singlet(z, eta, t, mu, Nf,1, moment_label, evolution_order, error_type)
         result = -0.5j * dz * pw_val * mom_val / sin_term
         return result.real
 
@@ -137,14 +138,14 @@ def plot_mellin_barnes_gpd_integrand(x, eta, t, mu, Nf=3, particle="quark", mome
         #z = k
         dz = 1j
         sin_term = mp.sin(mp.pi * z)
-        pw_val = sgpds.conformal_partial_wave(z, x, eta, particle, parity)
+        pw_val = core.conformal_partial_wave(z, x, eta, particle, parity)
         if particle == "quark":
             if moment_type == "singlet":
-                mom_val = sgpds.evolve_quark_singlet(z, eta, t, mu, Nf,1, moment_label, evolution_order, error_type)
+                mom_val = core.evolve_quark_singlet(z, eta, t, mu, Nf,1, moment_label, evolution_order, error_type)
             else:
-                mom_val = sgpds.evolve_quark_non_singlet(z, eta, t, mu, Nf,1, moment_type, moment_label, evolution_order, error_type)
+                mom_val = core.evolve_quark_non_singlet(z, eta, t, mu, Nf,1, moment_type, moment_label, evolution_order, error_type)
         else:
-            mom_val = (-1) * sgpds.evolve_gluon_singlet(z, eta, t, mu, Nf,1,moment_label, evolution_order, error_type)
+            mom_val = (-1) * core.evolve_gluon_singlet(z, eta, t, mu, Nf,1,moment_label, evolution_order, error_type)
         result = -0.5j * dz * pw_val * mom_val / sin_term
         return result.imag
 

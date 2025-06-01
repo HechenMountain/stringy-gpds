@@ -41,25 +41,17 @@ memory = Memory(CACHE_PATH,verbose=0)
 ## Kinematics used for interpolation ##
 ##     Need to have equal length     ##
 #######################################
-INTERPOLATE_INPUT_MOMENTS = False
-INTERPOLATE_MOMENTS = False
+INTERPOLATE_INPUT_MOMENTS = True
+INTERPOLATE_MOMENTS = True
+
+# If no lattice data:
+ETA_ARRAY = [0.33,0,0.1]
+T_ARRAY = [-0.69,-0.69,-0.23]
+MU_ARRAY = [2,2,2]
 
 # ETA_ARRAY = [0,0,0.33,0.1]
 # T_ARRAY = [-0.69,-0.39,-0.69,-0.23]
 # MU_ARRAY = [2,3,2,2]
-
-ETA_ARRAY = [0]
-T_ARRAY = [-0.69]
-MU_ARRAY = [2]
-
-# Atilde
-# ETA_ARRAY = [0,0,0.33]
-# T_ARRAY = [-0.69,-0.39,-0.69]
-# MU_ARRAY = [2,3,2]
-# B 
-# ETA_ARRAY = [0,0.33,0.1]
-# T_ARRAY = [-0.69,-0.69,-0.23]
-# MU_ARRAY = [2,2,2]
 
 # Duplicate for input scale
 eta_insert = [eta for eta in ETA_ARRAY]
@@ -71,10 +63,13 @@ ETA_ARRAY = eta_insert + ETA_ARRAY
 T_ARRAY   = t_insert   + T_ARRAY
 MU_ARRAY  = mu_insert  + MU_ARRAY
 
-MOMENTS = ["non_singlet_isovector"]
-# MOMENTS = ["singlet"]
-LABELS = ["Atilde","B"]
-ORDERS = ["NLO"]
+MOMENTS = ["singlet"]
+# MOMENTS = ["non_singlet_isoscalar"]
+# MOMENTS = ["non_singlet_isovector"]
+# MOMENTS = ["non_singlet_isovector",on_singlet_isoscalar,"singlet"]
+LABELS = ["Atilde"]
+# LABELS = ["A"]
+ORDERS = ["nlo"]
 ERRORS = ["central","plus","minus"]
 
 ########################################
@@ -128,56 +123,59 @@ INVERTED_GPD_LABEL_MAP = {v: k for k, v in GPD_LABEL_MAP.items()}
 ####  Parameters  #####
 #######################
 
+# Set number of flavors
+N_F = 3
+
 REGGE_SLOPES = {
     "vector": {
         "non_singlet_isovector": {
             "A": {
-                "LO": 0.6582,
-                "NLO": 0.6345
+                "lo": 0.6582,
+                "nlo": 0.6345
             },
             "B": {
-                "LO": 1.4581,
-                "NLO": 1.3929
+                "lo": 1.4581,
+                "nlo": 1.3929
             }
         },
         "non_singlet_isoscalar": {
             "A": {
-                "LO": 0.9426,
-                "NLO": 0.9492
+                "lo": 0.9426,
+                "nlo": 0.9492
             },
             "B": {
-                "LO": 1.1298,
-                "NLO": 1.1368
+                "lo": 1.1298,
+                "nlo": 1.1368
             }
         },
         "singlet": {
             "A": {
-                "LO": (0.5306,1.9267, 0.6552, 5.1354),
-                "NLO": (0.5044,1.9657, 0.5584, 5.2081)
+                "lo": (0.5306,1.9267, 0.6552, 5.1354),
+                "nlo": (0.5044,1.9657, 0.5584, 5.2081)
             },
             "B": {
-                "LO": (0,0,0),
-                "NLO": (0,0,0)
+                "lo": (0,0,0),
+                "nlo": (0,0,0)
             }
         }
     },
     "axial": {
         "non_singlet_isovector": {
             "Atilde": {
-                "LO": 0.4553,
-                "NLO": 0.3140
+                "lo": 0.4553,
+                "nlo": 0.3140
             }
         },
         "non_singlet_isoscalar": {
             "Atilde": {
-                "LO": 0.2974,
-                "NLO": 0.3140
+                "lo": 0.2974,
+                "nlo": 0.3140
             }
         },
         "singlet": {
             "Atilde": {
-                "LO": (0.8454, 1.179, 0.490, 0.744),
-                "NLO": (0.7186, 1.179, 0.490, 0.744)
+                "lo": (0.8454, 1.179, 0.490, 0.744),
+                "nlo": (0.7186, 1.179, 0.490, 0.744)
             },
         }
     }
@@ -187,52 +185,52 @@ MOMENT_NORMALIZATIONS = {
     "vector": {
         "non_singlet_isovector": {
             "A": {
-                "LO": 1,
-                "NLO": 1
+                "lo": 1,
+                "nlo": 1
             },
             "B": {
-                "LO": 3.8319,
-                "NLO": 3.8170
+                "lo": 3.8319,
+                "nlo": 3.8170
             }
         },
         "non_singlet_isoscalar": {
             "A": {
-                "LO": 0.9879,
-                "NLO": 0.9703
+                "lo": 0.9879,
+                "nlo": 0.9703
             },
             "B": {
-                "LO": -0.1215,
-                "NLO": -0.1194
+                "lo": -0.1215,
+                "nlo": -0.1194
             }
         },
         "singlet": {
             "A": {
-                "LO": (1,1,1,1),
-                "NLO": (1,1,1,1)
+                "lo": (1,1,1,1),
+                "nlo": (1,1,1,1)
             },
             "B": {
-                "LO": (1,1,1,1),
-                "NLO": (1,1,1,1)
+                "lo": (1,1,1,1),
+                "nlo": (1,1,1,1)
             }
         }
     },
     "axial": {
         "non_singlet_isovector": {
             "Atilde": {
-                "LO": 1.0010,
-                "NLO": 0.9890
+                "lo": 1.0010,
+                "nlo": 0.9890
             }
         },
         "non_singlet_isoscalar": {
             "Atilde": {
-                "LO": 0.7129,
-                "NLO": 0.7152
+                "lo": 0.7129,
+                "nlo": 0.7152
             }
         },
         "singlet": {
             "Atilde": {
-                "LO": (1,1,1,1),
-                "NLO": (1,1,1,1)
+                "lo": (1,1,1,1),
+                "nlo": (1,1,1,1)
             },
         }
     }

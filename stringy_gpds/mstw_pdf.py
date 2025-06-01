@@ -3,13 +3,13 @@ import csv
 import numpy as np
 import matplotlib.pyplot as plt
 
-import config as cfg
-from helpers import check_evolution_order, check_error_type
+from . import config as cfg
+from .helpers import check_evolution_order, check_error_type
 
 ############################################
 ############################################
 # Columns for the DataFrame
-columns = ["Parameter", "LO", "NLO", "NNLO"]
+columns = ["Parameter", "lo", "nlo", "nnlo"]
 
 # Read the CSV file and parse it
 data = []
@@ -29,16 +29,16 @@ with open(cfg.MSTW_PATH, 'r',newline='') as file:
         data.append([parameter, lo_values, nlo_values, nnlo_values])
 
 # Create the pandas DataFrame
-MSTW_PDF =  {row[0]: {"LO": row[1], "NLO": row[2], "NNLO": row[3]} for row in data}
+MSTW_PDF =  {row[0]: {"lo": row[1], "nlo": row[2], "nnlo": row[3]} for row in data}
 
 ############################################
 ############################################
-def get_alpha_s(evolution_order="LO"):
+def get_alpha_s(evolution_order="nlo"):
     """
     Returns alpha_s at the input scale of 1 GeV from the MSTW PDF best fit.
     Note that the MSTW best fit obtains alpha_S(mu=1 GeV**2)=0.68183, different from the world average
     Parameters:
-    - evolution_order (str. optional): LO, NLO or NNLO
+    - evolution_order (str. optional): lo, nlo or nnlo
     """
     check_evolution_order(evolution_order)
     alpha_s_in = MSTW_PDF["alpha_S(Q0^2)"][evolution_order][0]
@@ -46,7 +46,7 @@ def get_alpha_s(evolution_order="LO"):
 
 def pdf(x,A_pdf,eta_1,eta_2,epsilon,gamma_pdf):
     """
-    PDF parametrization for uv, dv, S, g. Note that at NLO the gluon parametrization gets aditional
+    PDF parametrization for uv, dv, S, g. Note that at nlo the gluon parametrization gets aditional
     terms. This is handled separately in the gluon PDF:
     """
     result = A_pdf * (1-x)**eta_2*x**(eta_1-1)*(1+epsilon*np.sqrt(x)+gamma_pdf*x)
@@ -77,9 +77,9 @@ def pdf_error(x,A_pdf,delta_A_pdf,eta_1,delta_eta_1,eta_2,delta_eta_2,
     return result
 
 # Define the PDFs using Eqs. (6-12) in  0901.0002 
-def uv_pdf(x, evolution_order="LO",error_type="central"):
+def uv_pdf(x, evolution_order="nlo",error_type="central"):
     """
-    Compute the uv(x) PDF based on the given LO parameters and selected errors.
+    Compute the uv(x) PDF based on the given lo parameters and selected errors.
     
     Arguments:
     x -- The value of parton x.
@@ -119,7 +119,7 @@ def uv_pdf(x, evolution_order="LO",error_type="central"):
         result = pdf_error(x,A_pdf,delta_A_pdf,eta_1,delta_eta_1,eta_2,delta_eta_2,epsilon,delta_epsilon,gamma_pdf,delta_gamma_pdf,error_type)
     return result
 
-def dv_pdf(x, evolution_order="LO",error_type="central"):
+def dv_pdf(x, evolution_order="nlo",error_type="central"):
     # Define a dictionary that maps the error_type to column indices
     error_mapping = {
         "central": 0,  # The column with the central value
@@ -150,7 +150,7 @@ def dv_pdf(x, evolution_order="LO",error_type="central"):
         result = pdf_error(x,A_pdf,delta_A_pdf,eta_1,delta_eta_1,eta_2,delta_eta_2,epsilon,delta_epsilon,gamma_pdf,delta_gamma_pdf,error_type)
     return result
 
-def sv_pdf(x, evolution_order="LO",error_type="central"):
+def sv_pdf(x, evolution_order="nlo",error_type="central"):
     error_mapping = {
         "central": 0,
         "plus": 1,
@@ -187,7 +187,7 @@ def sv_pdf(x, evolution_order="LO",error_type="central"):
 
     return result
 
-def S_pdf(x, evolution_order="LO",error_type="central"):
+def S_pdf(x, evolution_order="nlo",error_type="central"):
     error_mapping = {
         "central": 0,
         "plus": 1,
@@ -217,7 +217,7 @@ def S_pdf(x, evolution_order="LO",error_type="central"):
 
     return result
 
-def s_plus_pdf(x, evolution_order="LO",error_type="central"):
+def s_plus_pdf(x, evolution_order="nlo",error_type="central"):
     error_mapping = {
         "central": 0,
         "plus": 1,
@@ -247,9 +247,9 @@ def s_plus_pdf(x, evolution_order="LO",error_type="central"):
 
     return result
 
-def Delta_pdf(x, evolution_order="LO",error_type="central"):
+def Delta_pdf(x, evolution_order="nlo",error_type="central"):
     """
-    Compute the Delta(x)=dbar-ubar PDF based on the given LO parameters and selected errors.
+    Compute the Delta(x)=dbar-ubar PDF based on the given lo parameters and selected errors.
     """
      # Define a dictionary that maps the error_type to column indices
     error_mapping = {
@@ -284,7 +284,7 @@ def Delta_pdf(x, evolution_order="LO",error_type="central"):
     
     return result
 
-def gluon_pdf(x, evolution_order="LO",error_type="central"):
+def gluon_pdf(x, evolution_order="nlo",error_type="central"):
      # Define a dictionary that maps the error_type to column indices
     error_mapping = {
         "central": 0,  # The column with the central value
@@ -308,7 +308,7 @@ def gluon_pdf(x, evolution_order="LO",error_type="central"):
 
     if error_type == "central":
         result = pdf(x,A_pdf,eta_1,eta_2,epsilon,gamma_pdf)
-        if evolution_order != "LO":
+        if evolution_order != "lo":
             result += pdf(x,A_pdf_prime,eta_1_prime,eta_2_prime,0,0)
     else:
         # Extracting errors
@@ -318,7 +318,7 @@ def gluon_pdf(x, evolution_order="LO",error_type="central"):
         delta_epsilon    = MSTW_PDF["epsilon_g"][evolution_order][error_col_index]
         delta_gamma_pdf  = MSTW_PDF["gamma_g"][evolution_order][error_col_index]
         result = pdf_error(x,A_pdf,delta_A_pdf,eta_1,delta_eta_1,eta_2,delta_eta_2,epsilon,delta_epsilon,gamma_pdf,delta_gamma_pdf,error_type)
-        if evolution_order != "LO":
+        if evolution_order != "lo":
             # Extracting errors
             delta_A_prime_pdf     = MSTW_PDF["A_g'"][evolution_order][error_col_index]
             delta_eta_1_prime     = MSTW_PDF["delta_g'"][evolution_order][error_col_index]
@@ -335,7 +335,7 @@ def gluon_pdf(x, evolution_order="LO",error_type="central"):
             result += np.sqrt(Delta_A_prime**2+Delta_eta_1_prime**2+Delta_eta_2_prime**2)
     return result
 
-def uv_minus_dv_pdf(x, evolution_order="LO",error_type="central"):
+def uv_minus_dv_pdf(x, evolution_order="nlo",error_type="central"):
     uv = uv_pdf(x,evolution_order,error_type)
     dv= dv_pdf(x,evolution_order,error_type)
     if error_type == "central":
@@ -344,7 +344,7 @@ def uv_minus_dv_pdf(x, evolution_order="LO",error_type="central"):
         result = np.sqrt(uv**2+dv**2)
     return result
 
-def uv_plus_dv_plus_S_pdf(x, evolution_order="LO",error_type="central"):
+def uv_plus_dv_plus_S_pdf(x, evolution_order="nlo",error_type="central"):
     uv = uv_pdf(x,evolution_order,error_type)
     dv = dv_pdf(x,evolution_order,error_type)
     Spdf = S_pdf(x,evolution_order,error_type)
@@ -358,7 +358,7 @@ def uv_plus_dv_plus_S_pdf(x, evolution_order="LO",error_type="central"):
 ### Plot Functions ###
 ######################
 
-def plot_uv_pdf(x_0=1e-2,evolution_order="LO",logplot=False,error_bars=True):
+def plot_uv_pdf(x_0=1e-2,evolution_order="nlo",logplot=False,error_bars=True):
     vectorized_uv_pdf = np.vectorize(uv_pdf)
     if logplot:
         x_vals = np.logspace(np.log10(x_0), np.log10(1 - 1e-4), 100)
@@ -381,7 +381,7 @@ def plot_uv_pdf(x_0=1e-2,evolution_order="LO",logplot=False,error_bars=True):
     plt.grid(True)
     plt.show()
 
-def plot_dv_pdf(x_0=1e-2,evolution_order="LO",logplot=False,error_bars=True):
+def plot_dv_pdf(x_0=1e-2,evolution_order="nlo",logplot=False,error_bars=True):
     vectorized_dv_pdf = np.vectorize(dv_pdf)
     if logplot:
         x_vals = np.logspace(np.log10(x_0), np.log10(1 - 1e-4), 100)
@@ -404,7 +404,7 @@ def plot_dv_pdf(x_0=1e-2,evolution_order="LO",logplot=False,error_bars=True):
     plt.grid(True)
     plt.show()
 
-def plot_uv_minus_dv_pdf(x_0=1e-2,evolution_order="LO",logplot=False,error_bars=True):
+def plot_uv_minus_dv_pdf(x_0=1e-2,evolution_order="nlo",logplot=False,error_bars=True):
     vectorized_uv_minus_dv_pdf = np.vectorize(uv_minus_dv_pdf)
     if logplot:
         x_vals = np.logspace(np.log10(x_0), np.log10(1 - 1e-4), 100)
@@ -427,7 +427,7 @@ def plot_uv_minus_dv_pdf(x_0=1e-2,evolution_order="LO",logplot=False,error_bars=
     plt.grid(True)
     plt.show()
 
-def plot_uv_plus_dv_plus_S_pdf(x_0=1e-2,evolution_order="LO",logplot=False,error_bars=True):
+def plot_uv_plus_dv_plus_S_pdf(x_0=1e-2,evolution_order="nlo",logplot=False,error_bars=True):
     vectorized_uv_plus_dv_plus_S_pdf = np.vectorize(uv_plus_dv_plus_S_pdf)
     if logplot:
         x_vals = np.logspace(np.log10(x_0), np.log10(1 - 1e-4), 100)
@@ -450,7 +450,7 @@ def plot_uv_plus_dv_plus_S_pdf(x_0=1e-2,evolution_order="LO",logplot=False,error
     plt.grid(True)
     plt.show()
 
-def plot_gluon_pdf(x_0=1e-2,evolution_order="LO",logplot=False,error_bars=True):
+def plot_gluon_pdf(x_0=1e-2,evolution_order="nlo",logplot=False,error_bars=True):
     vectorized_gluon_pdf = np.vectorize(gluon_pdf)
     if logplot:
         x_vals = np.logspace(np.log10(x_0), np.log10(1 - 1e-4), 100)

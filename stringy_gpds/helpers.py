@@ -6,8 +6,8 @@ import os
 from scipy.interpolate import RegularGridInterpolator
 from joblib.parallel import BatchCompletionCallBack
 
-import config as cfg
-from config import mp
+from . import config as cfg
+from .config import mp
 
 ##########################
 #### Helper functions ####
@@ -28,7 +28,7 @@ def mpmath_vectorize(fn):
 ####################
 
 def check_evolution_order(evolution_order):
-    if evolution_order not in ["LO","NLO","NNLO"]:
+    if evolution_order not in ["lo","nlo","nnlo"]:
         raise ValueError(f"Wrong evolution_order {evolution_order} for evolution equation")
 
 def check_error_type(error_type):
@@ -65,7 +65,7 @@ def error_sign(error,error_type):
     sign = -1 if error_type == "minus" else 1
     return sign * np.asarray(error)
     
-def get_regge_slope(moment_type, moment_label, evolve_type, evolution_order="LO"):
+def get_regge_slope(moment_type, moment_label, evolve_type, evolution_order="nlo"):
     check_moment_type_label(moment_type, moment_label)
     check_evolve_type(evolve_type)
 
@@ -74,7 +74,7 @@ def get_regge_slope(moment_type, moment_label, evolve_type, evolution_order="LO"
     except KeyError:
         raise ValueError(f"Missing Regge slope for: evolve_type={evolve_type}, moment_type={moment_type}, moment_label={moment_label}, evolution_order={evolution_order}")
     
-def get_moment_normalizations(moment_type, moment_label, evolve_type, evolution_order="LO"):
+def get_moment_normalizations(moment_type, moment_label, evolve_type, evolution_order="nlo"):
     check_moment_type_label(moment_type, moment_label)
     check_evolve_type(evolve_type)
 
@@ -312,7 +312,7 @@ def parse_filename(filename, prefix="FILE_NAME"):
         return eta, t, mu, error_type
     return None
 
-def save_gpd_data(x_values, eta, t, mu,y_values,particle="quark",gpd_type="non_singlet_isovector",gpd_label="H",evolution_order="LO",error_type="central"):
+def save_gpd_data(x_values, eta, t, mu,y_values,particle="quark",gpd_type="non_singlet_isovector",gpd_label="H",evolution_order="nlo",error_type="central"):
     """
     Save the function f(x, eta, t, mu) evaluated at x_values to a CSV file.
     """
@@ -325,7 +325,7 @@ def save_gpd_data(x_values, eta, t, mu,y_values,particle="quark",gpd_type="non_s
     np.savetxt(filename, data, delimiter=",")
     print(f"Saved data to {filename}")
 
-def load_gpd_data(eta, t, mu,particle="quark",gpd_type="non_singlet_isovector",gpd_label="H",evolution_order="LO",error_type ="central"):
+def load_gpd_data(eta, t, mu,particle="quark",gpd_type="non_singlet_isovector",gpd_label="H",evolution_order="nlo",error_type ="central"):
     """
     Load data from CSV if it exists, otherwise return None.
     """
@@ -528,17 +528,11 @@ def build_harmonic_interpolator(indices):
 # Cache interpolation
 @cfg.memory.cache
 def build_gamma_interpolator(suffix,moment_type,evolve_type,evolution_order):
-    if evolution_order == "LO":
-        order = "lo"
-    elif evolution_order == "NLO":
-        order = "nlo"
-    else:
-        raise ValueError(f"Wrong evolution_order {evolution_order}")
-    
+    check_evolution_order(evolution_order)
     if moment_type != "singlet" and suffix == "qq":
-        filename = cfg.INTERPOLATION_TABLE_PATH / f"gamma_{suffix}_non_singlet_{evolve_type}_{order}.csv"
+        filename = cfg.INTERPOLATION_TABLE_PATH / f"gamma_{suffix}_non_singlet_{evolution_order}.csv"
     else:
-        filename = cfg.INTERPOLATION_TABLE_PATH / f"gamma_{suffix}_{evolve_type}_{order}.csv"
+        filename = cfg.INTERPOLATION_TABLE_PATH / f"gamma_{suffix}_{evolve_type}_{evolution_order}.csv"
 
     re_j_set = set()
     im_j_set = set()
@@ -580,6 +574,10 @@ def build_gamma_interpolator(suffix,moment_type,evolve_type,evolution_order):
 # Cache interpolation
 @cfg.memory.cache
 def build_moment_interpolator(eta,t,mu,solution,particle,moment_type,moment_label, evolution_order, error_type):
+    check_particle_type(particle)
+    check_error_type(error_type)
+    check_moment_type_label(moment_type,moment_label)
+    check_evolution_order(evolution_order)
     # Build filename
     if mu != 1 or (moment_type == "singlet" and solution not in ["+","-"]) or moment_type != "singlet":
         prefix = cfg.INTERPOLATION_TABLE_PATH / f"{moment_type}_{particle}_moments_{moment_label}_{evolution_order}"
