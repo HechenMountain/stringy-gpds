@@ -41,13 +41,18 @@ memory = Memory(CACHE_PATH,verbose=0)
 ## Kinematics used for interpolation ##
 ##     Need to have equal length     ##
 #######################################
-INTERPOLATE_INPUT_MOMENTS = True
-INTERPOLATE_MOMENTS = True
+INTERPOLATE_INPUT_MOMENTS = False
+INTERPOLATE_MOMENTS = False
 
 # If no lattice data:
-ETA_ARRAY = [0.33,0,0.1]
+ETA_ARRAY = [0,0.33,0.1]
 T_ARRAY = [-0.69,-0.69,-0.23]
 MU_ARRAY = [2,2,2]
+
+# Unpolarized
+# ETA_ARRAY = [0,0.33,0.1]
+# T_ARRAY = [0,-0.69,-0.23]
+# MU_ARRAY = [2,2,2]
 
 # ETA_ARRAY = [0,0,0.33,0.1]
 # T_ARRAY = [-0.69,-0.39,-0.69,-0.23]
@@ -63,12 +68,11 @@ ETA_ARRAY = eta_insert + ETA_ARRAY
 T_ARRAY   = t_insert   + T_ARRAY
 MU_ARRAY  = mu_insert  + MU_ARRAY
 
-MOMENTS = ["singlet"]
+MOMENTS = ["non_singlet_isovector","non_singlet_isoscalar","singlet"]
 # MOMENTS = ["non_singlet_isoscalar"]
+# MOMENTS = ["singlet"]
 # MOMENTS = ["non_singlet_isovector"]
-# MOMENTS = ["non_singlet_isovector",on_singlet_isoscalar,"singlet"]
-LABELS = ["Atilde"]
-# LABELS = ["A"]
+LABELS = ["A"]
 ORDERS = ["nlo"]
 ERRORS = ["central","plus","minus"]
 

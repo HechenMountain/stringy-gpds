@@ -2,8 +2,11 @@
 import numpy as np
 import matplotlib.pyplot as plt
 import time
+import sys
 import os
 import csv
+import importlib
+
 
 # mpmath precision set in config
 from .config import mp
@@ -12,7 +15,6 @@ from scipy.integrate import quad, odeint, trapezoid, fixed_quad
 from scipy.interpolate import interp1d, RectBivariateSpline
 
 from itertools import product
-
 from joblib import Parallel, delayed
 from tqdm import tqdm
 
@@ -3980,7 +3982,7 @@ def mellin_barnes_gpd(x, eta, t, mu,  A0=1 ,particle = "quark", moment_type="non
         error = np.sqrt(sum(result[1]**2 for result in results))
     # print(integral,error)
     # Check for the estimated error
-    if np.abs(error) > 1e-3:
+    if np.abs(error) > 1e-2:
         print(f"Warning: Large error estimate for (x,eta,t)={x,eta,t}: {error}")
     return float(integral)
 
@@ -4001,6 +4003,67 @@ def mellin_barnes_gpd(x, eta, t, mu,  A0=1 ,particle = "quark", moment_type="non
 ###################################
 ## Generate interpolation tables ##
 ###################################
+def generate_all_moment_tables(reload = True):
+    """
+    Automatically generates all tabes for the moments specified in config.py.
+
+    :param reload: Reload modules upon table generation to allow for GPD computation using interpolated (evolved) moments
+    :type reload: bool, optional
+    """
+    def update_param(filename, key, new_value):
+        with open(filename, 'r') as file:
+            lines = file.readlines()
+
+        with open(filename, 'w') as file:
+            for line in lines:
+                if line.strip().startswith(f"{key} ="):
+                    file.write(f"{key} = {repr(new_value)}\n")
+                else:
+                    file.write(line)
+    mod = False # Keep track of whether INTERPOLATE_INPUT_MOMENTS has already been changed
+    cfg_path = cfg.Path(cfg.__file__)
+    for eta, t, mu in zip(cfg.ETA_ARRAY, cfg.T_ARRAY, cfg.MU_ARRAY):
+        for particle,moment_type, moment_label, evolution_order, error_type in product(["quark","gluon"],cfg.MOMENTS, cfg.LABELS, cfg.ORDERS,cfg.ERRORS):
+            if particle == "gluon" and moment_type != "singlet":
+                continue
+            if mu != 1 and not mod:
+                print('Reloading modules to interpolate input moments...')
+                update_param(cfg_path,'INTERPOLATE_INPUT_MOMENTS',True)
+                mod = True
+                # Reload to interpolate input moments
+                importlib.reload(cfg)
+                importlib.reload(sys.modules[__name__])
+                print('Modules reloaded. Proceeding with table generation...')
+            if mu == 1 and moment_type == "singlet":
+                # Skipping "gluon" for input moments 
+                # such that table is not generated twice
+                if particle == "gluon":
+                    continue
+                solution = "+"
+                print(f"Working on {moment_type,solution,moment_label, evolution_order, error_type} at (eta,t,mu) = {eta,t,mu}...")
+                generate_moment_table(eta,t,mu,solution="+",particle=particle,moment_type=moment_type,moment_label=moment_label,evolution_order=evolution_order,error_type=error_type,step=.1)
+                solution = "-"
+                print(f"Working on {moment_type,solution,moment_label, evolution_order, error_type} at (eta,t,mu) = {eta,t,mu}...")
+                generate_moment_table(eta,t,mu,solution="-",particle=particle,moment_type=moment_type,moment_label=moment_label,evolution_order=evolution_order,error_type=error_type,step=.1)
+            else:
+                print(f"Working on {particle,moment_type,moment_label, evolution_order, error_type} at (eta,t,mu) = {eta,t,mu}...")
+                generate_moment_table(eta,t,mu,solution=".",particle=particle,moment_type=moment_type,moment_label=moment_label,evolution_order=evolution_order,error_type=error_type,step=.1)
+
+    if any("singlet" in m for m in cfg.MOMENTS):            
+        print("Generating quark and gluon singlet moments at input scale")
+        moment_type = "singlet"
+        for eta, t, mu in zip(cfg.ETA_ARRAY, cfg.T_ARRAY, cfg.MU_ARRAY):
+            if mu != 1:
+                continue
+            for particle, moment_label, evolution_order, error_type in product(["quark","gluon"], cfg.LABELS, cfg.ORDERS,cfg.ERRORS):
+                print(f"Working on {particle,moment_type,moment_label, evolution_order, error_type} at (eta,t,mu) = {eta,t,mu}...")
+                generate_moment_table(eta,t,mu,solution=".",particle=particle,moment_type=moment_type,moment_label=moment_label,evolution_order=evolution_order,error_type=error_type,step=.1)
+    update_param(cfg_path,'INTERPOLATE_MOMENTS',True) # Switch to interpolation of evolved moments
+    if reload:
+        importlib.reload(cfg)
+        importlib.reload(sys.modules[__name__])
+    print("Done")
+
 def generate_moment_table(eta,t,mu,solution,particle,moment_type,moment_label, evolution_order, error_type,
                           im_j_max=100,step=.1):
     """
@@ -4255,7 +4318,7 @@ def spin_orbit_corelation(eta,t,mu, A0 = 1, particle="quark",moment_type="non_si
 
     return result, error_plus, error_minus
 
-def total_spin(t,mu,A0=1,particle="quark",moment_type="non_singlet_isovector",evolution_order="nlo"):
+def total_spin(eta,t,mu,A0=1,particle="quark",moment_type="non_singlet_isovector",evolution_order="nlo"):
     """ Returns the total spin of moment_type including errors
 
     Parameters:
@@ -4271,16 +4334,16 @@ def total_spin(t,mu,A0=1,particle="quark",moment_type="non_singlet_isovector",ev
                            "non_singlet_isovector"]:
         raise ValueError(f"Wrong moment type {moment_type}")
 
-    term_1 = evolve_conformal_moment(2,0,t,mu,A0,particle=particle,moment_type=moment_type,moment_label="A",evolution_order=evolution_order,error_type="central")
-    term_2 = evolve_conformal_moment(2,0,t,mu,A0,particle=particle,moment_type=moment_type,moment_label="B",evolution_order=evolution_order,error_type="central")
+    term_1 = evolve_conformal_moment(2,eta,t,mu,A0,particle=particle,moment_type=moment_type,moment_label="A",evolution_order=evolution_order,error_type="central")
+    term_2 = evolve_conformal_moment(2,eta,t,mu,A0,particle=particle,moment_type=moment_type,moment_label="B",evolution_order=evolution_order,error_type="central")
     result = (term_1 + term_2)/2
 
-    term_1_plus = evolve_conformal_moment(2,0,t,mu,A0,particle=particle,moment_type=moment_type,moment_label="A",evolution_order=evolution_order,error_type="plus")
-    term_2_plus = evolve_conformal_moment(2,0,t,mu,A0,particle=particle,moment_type=moment_type,moment_label="B",evolution_order=evolution_order,error_type="plus")
+    term_1_plus = evolve_conformal_moment(2,eta,t,mu,A0,particle=particle,moment_type=moment_type,moment_label="A",evolution_order=evolution_order,error_type="plus")
+    term_2_plus = evolve_conformal_moment(2,eta,t,mu,A0,particle=particle,moment_type=moment_type,moment_label="B",evolution_order=evolution_order,error_type="plus")
     error_plus = np.sqrt((term_1_plus-term_1)**2+(term_2_plus-term_2)**2)/2
 
-    term_1_minus = evolve_conformal_moment(2,0,t,mu,A0,particle=particle,moment_type=moment_type,moment_label="A",evolution_order=evolution_order,error_type="minus")
-    term_2_minus = evolve_conformal_moment(2,0,t,mu,A0,particle=particle,moment_type=moment_type,moment_label="B",evolution_order=evolution_order,error_type="minus")
+    term_1_minus = evolve_conformal_moment(2,eta,t,mu,A0,particle=particle,moment_type=moment_type,moment_label="A",evolution_order=evolution_order,error_type="minus")
+    term_2_minus = evolve_conformal_moment(2,eta,t,mu,A0,particle=particle,moment_type=moment_type,moment_label="B",evolution_order=evolution_order,error_type="minus")
     error_minus = np.sqrt((term_1_minus-term_1)**2+(term_2_minus-term_2)**2)/2
 
     return result, error_plus, error_minus
@@ -4563,7 +4626,8 @@ def plot_moments_on_grid(eta, y_label, t_max=3, A0=1, particle="quark", moment_t
 
     if publication_data:
         max_n_value = max(publication_data.values())
-        if moment_type == "singlet":
+        # Exclude first unpolarized singlet moment
+        if moment_type == "singlet" and moment_label == "A":
             max_n_value+=1
     else:
         max_n_value = 4
@@ -4647,7 +4711,8 @@ def plot_moments_on_grid(eta, y_label, t_max=3, A0=1, particle="quark", moment_t
     for i in range(max_n_value, len(axes)):
         fig.delaxes(axes[i])
 
-    if moment_type == "singlet":
+    if moment_type == "singlet" and moment_label == "A":
+        # Delete empty plot for unpolarized singlet
         fig.delaxes(axes[0])
 
     # Adjust GridSpec to remove whitespace
@@ -4942,7 +5007,7 @@ def plot_fourier_transform_transverse_moments(n,eta,mu,particle="quark",moment_t
             if mom_type not in cache:
                 if read_from_file:
                     file_name = hp.generate_filename(eta,0,mu,READ_WRITE_PATH,"central")
-                    b_x_fm, b_y_fm, fourier_transform_moment_values_flat = hp.read_fT_From_csv(file_name)
+                    b_x_fm, b_y_fm, fourier_transform_moment_values_flat = hp.read_ft_from_csv(file_name)
                     n_b = len(fourier_transform_moment_values_flat)
                     b_x = np.linspace(-b_max, b_max, n_b)
                     b_y = np.linspace(-b_max, b_max, n_b)
@@ -4960,7 +5025,7 @@ def plot_fourier_transform_transverse_moments(n,eta,mu,particle="quark",moment_t
         if mom_type in ["u","d"]:
             if read_from_file:
                 file_name = hp.generate_filename(eta,0,mu,READ_WRITE_PATH,"central")
-                b_x_fm, b_y_fm, _ = hp.read_fT_From_csv(file_name)
+                b_x_fm, b_y_fm, _ = hp.read_ft_from_csv(file_name)
             elif interpolation:
                 b_x = np.linspace(-b_max, b_max, n_b)
                 b_y = np.linspace(-b_max, b_max, n_b)
@@ -5118,7 +5183,7 @@ def plot_fourier_transform_quark_spin_orbit_correlation(eta, mu,  moment_type="n
             if mom_type not in cache:
                 if read_from_file:
                     file_name = hp.generate_filename(eta,0,mu,READ_WRITE_PATH,"central")
-                    b_x_fm, b_y_fm, fourier_transform_moment_values_flat = hp.read_fT_From_csv(file_name)
+                    b_x_fm, b_y_fm, fourier_transform_moment_values_flat = hp.read_ft_from_csv(file_name)
                     n_b = len(fourier_transform_moment_values_flat)
                     b_x = np.linspace(-b_max, b_max, n_b)
                     b_y = np.linspace(-b_max, b_max, n_b)
@@ -5137,9 +5202,9 @@ def plot_fourier_transform_quark_spin_orbit_correlation(eta, mu,  moment_type="n
             if plot_option in ["lower", "both"]:
                 if read_from_file:
                     file_name = hp.generate_filename(eta,0,mu,READ_WRITE_PATH,"plus")
-                    _, _, fourier_transform_moment_values_flat_plus = hp.read_fT_From_csv(file_name)
+                    _, _, fourier_transform_moment_values_flat_plus = hp.read_ft_from_csv(file_name)
                     file_name = hp.generate_filename(eta,0,mu,READ_WRITE_PATH,"minus")
-                    _, _, fourier_transform_moment_values_flat_minus = hp.read_fT_From_csv(file_name)
+                    _, _, fourier_transform_moment_values_flat_minus = hp.read_ft_from_csv(file_name)
                 else:
                     fourier_transform_moment_values_flat_plus = Parallel(n_jobs=-1)(delayed(ft_spin_orbit)(
                         b_vec,moment_type=mom_type,error_type="plus") for b_vec in b_vecs)
@@ -5161,7 +5226,7 @@ def plot_fourier_transform_quark_spin_orbit_correlation(eta, mu,  moment_type="n
         if mom_type in ["u","d"]:
             if read_from_file:
                 file_name = hp.generate_filename(eta,0,mu,READ_WRITE_PATH,"central")
-                b_x_fm, b_y_fm, _ = hp.read_fT_From_csv(file_name)
+                b_x_fm, b_y_fm, _ = hp.read_ft_from_csv(file_name)
             elif interpolation:
                 b_x = np.linspace(-b_max, b_max, n_b)
                 b_y = np.linspace(-b_max, b_max, n_b)
@@ -5352,7 +5417,7 @@ def plot_fourier_transform_quark_helicity(eta, mu,  moment_type="non_singlet_iso
             if mom_type not in cache:
                 if read_from_file:
                     file_name = hp.generate_filename(eta,0,mu,READ_WRITE_PATH,"central")
-                    b_x_fm, b_y_fm, fourier_transform_moment_values_flat = hp.read_fT_From_csv(file_name)
+                    b_x_fm, b_y_fm, fourier_transform_moment_values_flat = hp.read_ft_from_csv(file_name)
                     n_b = len(fourier_transform_moment_values_flat)
                     b_x = np.linspace(-b_max, b_max, n_b)
                     b_y = np.linspace(-b_max, b_max, n_b)
@@ -5372,9 +5437,9 @@ def plot_fourier_transform_quark_helicity(eta, mu,  moment_type="non_singlet_iso
                 if plot_option in ["lower", "both"]:
                     if read_from_file:
                         file_name = hp.generate_filename(eta,0,mu,READ_WRITE_PATH,"plus")
-                        _, _, fourier_transform_moment_values_flat_plus = hp.read_fT_From_csv(file_name)
+                        _, _, fourier_transform_moment_values_flat_plus = hp.read_ft_from_csv(file_name)
                         file_name = hp.generate_filename(eta,0,mu,READ_WRITE_PATH,"minus")
-                        _, _, fourier_transform_moment_values_flat_minus = hp.read_fT_From_csv(file_name)
+                        _, _, fourier_transform_moment_values_flat_minus = hp.read_ft_from_csv(file_name)
                     else:
                         fourier_transform_moment_values_flat_plus =  Parallel(n_jobs=-1)(delayed(ft_quark_helicity)(
                         b_vec, moment_type = mom_type, error_type = "plus") for b_vec in b_vecs)
@@ -5396,7 +5461,7 @@ def plot_fourier_transform_quark_helicity(eta, mu,  moment_type="non_singlet_iso
         if mom_type in ["u","d"]:
             if read_from_file:
                 file_name = hp.generate_filename(eta,0,mu,READ_WRITE_PATH,"central")
-                b_x_fm, b_y_fm, _ = hp.read_fT_From_csv(file_name)
+                b_x_fm, b_y_fm, _ = hp.read_ft_from_csv(file_name)
             elif interpolation:
                 b_x = np.linspace(-b_max, b_max, n_b)
                 b_y = np.linspace(-b_max, b_max, n_b)
@@ -5557,7 +5622,7 @@ def plot_fourier_transform_singlet_helicity(eta, mu,  particle = "gluon",evoluti
 
     if read_from_file:
         file_name = hp.generate_filename(eta,0,mu,READ_WRITE_PATH,"central")
-        b_x_fm, b_y_fm, fourier_transform_moment_values_flat = hp.read_fT_From_csv(file_name)
+        b_x_fm, b_y_fm, fourier_transform_moment_values_flat = hp.read_ft_from_csv(file_name)
     else:
         fourier_transform_moment_values_flat = Parallel(n_jobs=-1)(delayed(ft_singlet_helicity)(
                     b_vec, error_type = "central") for b_vec in b_vecs)
@@ -5570,9 +5635,9 @@ def plot_fourier_transform_singlet_helicity(eta, mu,  particle = "gluon",evoluti
     if plot_option in ["lower", "both"]:
         if read_from_file:
             file_name = hp.generate_filename(eta,0,mu,READ_WRITE_PATH,"plus")
-            _, _, fourier_transform_moment_values_flat_plus = hp.read_fT_From_csv(file_name)
+            _, _, fourier_transform_moment_values_flat_plus = hp.read_ft_from_csv(file_name)
             file_name = hp.generate_filename(eta,0,mu,READ_WRITE_PATH,"minus")
-            _, _, fourier_transform_moment_values_flat_minus = hp.read_fT_From_csv(file_name)
+            _, _, fourier_transform_moment_values_flat_minus = hp.read_ft_from_csv(file_name)
         else:
             fourier_transform_moment_values_flat_plus = Parallel(n_jobs=-1)(delayed(ft_singlet_helicity)(
                     b_vec, error_type = "plus") for b_vec in b_vecs)
@@ -5717,7 +5782,7 @@ def plot_fourier_transform_singlet_spin_orbit_correlation(eta, mu,  particle = "
 
     if read_from_file:
         file_name = hp.generate_filename(eta,0,mu,READ_WRITE_PATH,"central")
-        b_x_fm, b_y_fm, fourier_transform_moment_values_flat = hp.read_fT_From_csv(file_name)
+        b_x_fm, b_y_fm, fourier_transform_moment_values_flat = hp.read_ft_from_csv(file_name)
     else:
         fourier_transform_moment_values_flat = Parallel(n_jobs=-1)(delayed(ft_singlet_spin_orbit)(
                     b_vec, error_type = "central") for b_vec in b_vecs)
@@ -5730,9 +5795,9 @@ def plot_fourier_transform_singlet_spin_orbit_correlation(eta, mu,  particle = "
     if plot_option in ["lower", "both"]:
         if read_from_file:
             file_name = hp.generate_filename(eta,0,mu,READ_WRITE_PATH,"plus")
-            _, _, fourier_transform_moment_values_flat_plus = hp.read_fT_From_csv(file_name)
+            _, _, fourier_transform_moment_values_flat_plus = hp.read_ft_from_csv(file_name)
             file_name = hp.generate_filename(eta,0,mu,READ_WRITE_PATH,"minus")
-            _, _, fourier_transform_moment_values_flat_minus = hp.read_fT_From_csv(file_name)
+            _, _, fourier_transform_moment_values_flat_minus = hp.read_ft_from_csv(file_name)
         else:
             fourier_transform_moment_values_flat_plus = Parallel(n_jobs=-1)(delayed(ft_singlet_spin_orbit)(
                     b_vec, error_type = "plus") for b_vec in b_vecs)
@@ -5867,7 +5932,7 @@ def plot_fourier_transform_quark_orbital_angular_momentum(eta, mu,  moment_type=
         # Update the grid to data contained in file
         if read_from_file:
             file_name = hp.generate_filename(eta,0,mu,READ_WRITE_PATH,"central")
-            b_x_fm, b_y_fm, fourier_transform_moment_values_flat = hp.read_fT_From_csv(file_name)
+            b_x_fm, b_y_fm, fourier_transform_moment_values_flat = hp.read_ft_from_csv(file_name)
 
 
         row, col = divmod(i, 4)  # Map index to subplot location
@@ -5895,7 +5960,7 @@ def plot_fourier_transform_quark_orbital_angular_momentum(eta, mu,  moment_type=
             if mom_type not in cache:
                 if read_from_file:
                     file_name = hp.generate_filename(eta,0,mu,READ_WRITE_PATH,"central")
-                    b_x_fm, b_y_fm, fourier_transform_moment_values_flat = hp.read_fT_From_csv(file_name)
+                    b_x_fm, b_y_fm, fourier_transform_moment_values_flat = hp.read_ft_from_csv(file_name)
                     # Extract shape for reshaping
                     n_b = len(fourier_transform_moment_values_flat)
                     b_x = np.linspace(-b_max, b_max, n_b)
@@ -5915,9 +5980,9 @@ def plot_fourier_transform_quark_orbital_angular_momentum(eta, mu,  moment_type=
                 if plot_option in ["lower", "both"]:
                     if read_from_file:
                         file_name = hp.generate_filename(eta,0,mu,READ_WRITE_PATH,"plus")
-                        _, _, fourier_transform_moment_values_flat_plus = hp.read_fT_From_csv(file_name)
+                        _, _, fourier_transform_moment_values_flat_plus = hp.read_ft_from_csv(file_name)
                         file_name = hp.generate_filename(eta,0,mu,READ_WRITE_PATH,"minus")
-                        _, _, fourier_transform_moment_values_flat_minus = hp.read_fT_From_csv(file_name)
+                        _, _, fourier_transform_moment_values_flat_minus = hp.read_ft_from_csv(file_name)
                     else:
                         fourier_transform_moment_values_flat_plus = Parallel(n_jobs=-1)(delayed(ft_oam)(
                         b_vec,moment_type = mom_type, error_type =  "plus") for b_vec in b_vecs)
@@ -5939,7 +6004,7 @@ def plot_fourier_transform_quark_orbital_angular_momentum(eta, mu,  moment_type=
         if mom_type in ["u","d"]:
             if read_from_file:
                 file_name = hp.generate_filename(eta,0,mu,READ_WRITE_PATH,"central")
-                b_x_fm, b_y_fm, _ = hp.read_fT_From_csv(file_name)
+                b_x_fm, b_y_fm, _ = hp.read_ft_from_csv(file_name)
             elif interpolation:
                 b_x = np.linspace(-b_max, b_max, n_b)
                 b_y = np.linspace(-b_max, b_max, n_b)
@@ -6101,7 +6166,7 @@ def plot_fourier_transform_singlet_orbital_angular_momentum(eta, mu,  particle =
 
     if read_from_file:
         file_name = hp.generate_filename(eta,0,mu,READ_WRITE_PATH,"central")
-        b_x_fm, b_y_fm, fourier_transform_moment_values_flat = hp.read_fT_From_csv(file_name)
+        b_x_fm, b_y_fm, fourier_transform_moment_values_flat = hp.read_ft_from_csv(file_name)
     else:
         fourier_transform_moment_values_flat = Parallel(n_jobs=-1)(delayed(ft_oam)(
                     b_vec, error_type = "central") for b_vec in b_vecs)
@@ -6114,9 +6179,9 @@ def plot_fourier_transform_singlet_orbital_angular_momentum(eta, mu,  particle =
     if plot_option in ["lower", "both"]:
         if read_from_file:
             file_name = hp.generate_filename(eta,0,mu,READ_WRITE_PATH,"plus")
-            _, _, fourier_transform_moment_values_flat_plus = hp.read_fT_From_csv(file_name)
+            _, _, fourier_transform_moment_values_flat_plus = hp.read_ft_from_csv(file_name)
             file_name = hp.generate_filename(eta,0,mu,READ_WRITE_PATH,"minus")
-            _, _, fourier_transform_moment_values_flat_minus = hp.read_fT_From_csv(file_name)
+            _, _, fourier_transform_moment_values_flat_minus = hp.read_ft_from_csv(file_name)
         else:
             fourier_transform_moment_values_flat_plus = Parallel(n_jobs=-1)(delayed(ft_oam)(
                     b_vec, error_type = "plus") for b_vec in b_vecs)
@@ -6567,7 +6632,10 @@ def plot_gpds(eta_array, t_array, mu_array, colors,A0=1,  particle="quark",gpd_t
             x_values = np.append(x_values,eta)
         if - eta not in x_values and x_0 < 0:
             x_values = np.append(x_values,-eta)
+        # Sort
         x_values = np.sort(x_values)
+        # Exclude x = 0 as it is unphysical
+        x_values = x_values[x_values != 0]
         if read_from_file:
                 x_values = None
                 x_values, results = hp.load_gpd_data(eta,t,mu,particle,gpd_type,gpd_label,evolution_order)
@@ -6576,7 +6644,8 @@ def plot_gpds(eta_array, t_array, mu_array, colors,A0=1,  particle="quark",gpd_t
         else:
             # results = Parallel(n_jobs=-1)(delayed(compute_result)(x,eta,t,mu) for x in x_values)
             with hp.tqdm_joblib(tqdm(total=len(x_values))) as progress_bar:
-                results = Parallel(n_jobs=-1)(delayed(compute_result)(x,eta,t,mu) for x in x_values)
+                results = Parallel(n_jobs=-1)(delayed(compute_result)(x,eta,t,mu)
+                                              for x in x_values)
         # Error bar computations
         if error_bars:
             if read_from_file:
@@ -6585,10 +6654,12 @@ def plot_gpds(eta_array, t_array, mu_array, colors,A0=1,  particle="quark",gpd_t
             else:
                 # results_plus = Parallel(n_jobs=-1)(delayed(compute_result)(x,eta,t,mu, error_type="plus") for x in x_values)
                 with hp.tqdm_joblib(tqdm(total=len(x_values))) as progress_bar:
-                    results_plus = Parallel(n_jobs=-1)(delayed(compute_result)(x,eta,t,mu, error_type="plus") for x in x_values)
+                    results_plus = Parallel(n_jobs=-1)(delayed(compute_result)(x,eta,t,mu, error_type="plus")
+                                                       for x in x_values)
                 # results_minus = Parallel(n_jobs=-1)(delayed(compute_result)(x,eta,t,mu, error_type="minus") for x in x_values)
                 with hp.tqdm_joblib(tqdm(total=len(x_values))) as progress_bar:
-                    results_minus = Parallel(n_jobs=-1)(delayed(compute_result)(x,eta,t,mu, error_type="minus") for x in x_values)
+                    results_minus = Parallel(n_jobs=-1)(delayed(compute_result)(x,eta,t,mu, error_type="minus")
+                                                        for x in x_values)
         else:
             results_plus = results
             results_minus = results

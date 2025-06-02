@@ -7,7 +7,6 @@ from scipy.interpolate import RegularGridInterpolator
 from joblib.parallel import BatchCompletionCallBack
 
 from . import config as cfg
-from .config import mp
 
 ##########################
 #### Helper functions ####
