@@ -1425,30 +1425,6 @@ def integral_polarized_gluon_pdf_regge(j,eta,alpha_p,t, evolution_order = "nlo",
         else:
             return pdf, 0
 
-# Define Reggeized conformal moments
-non_singlet_interpolation = {}
-if cfg.INTERPOLATE_INPUT_MOMENTS:
-    for moment_type, moment_label, evolution_order, error_type in product(["non_singlet_isovector","non_singlet_isoscalar"],cfg.LABELS, cfg.ORDERS, cfg.ERRORS):
-        if moment_type not in cfg.MOMENTS:
-            continue
-        params = {
-            "solution": ".",
-            "particle": "quark",
-            "moment_type": moment_type,
-            "moment_label": moment_label,
-            "evolution_order": evolution_order,
-            "error_type": error_type,
-        }
-        selected_triples = [
-            (eta, t, mu)
-            for eta, t, mu in zip(cfg.ETA_ARRAY, cfg.T_ARRAY, cfg.MU_ARRAY)
-            if mu == 1
-        ]
-
-        non_singlet_interpolation[(moment_type, moment_label, evolution_order, error_type)] = [
-            hp.build_moment_interpolator(eta, t, mu, **params)
-            for eta, t, mu in selected_triples
-        ]
 def non_singlet_isovector_moment(j,eta,t, moment_label="A",evolve_type="vector", evolution_order="nlo",error_type="central"):
     """
     Currently no skewness dependence!
@@ -1458,17 +1434,6 @@ def non_singlet_isovector_moment(j,eta,t, moment_label="A",evolve_type="vector",
     hp.check_evolution_order(evolution_order)
     hp.check_moment_type_label("non_singlet_isovector",moment_label)
     hp.check_evolve_type(evolve_type)
-
-    if cfg.INTERPOLATE_INPUT_MOMENTS and isinstance(j,(complex,mp.mpc)):
-        key = ("non_singlet_isovector",moment_label, evolution_order, error_type)
-        selected_triples = [
-            (eta_, t_, mu_)
-            for eta_, t_, mu_ in zip(cfg.ETA_ARRAY, cfg.T_ARRAY, cfg.MU_ARRAY)
-            if mu_ == 1
-        ]
-        index = selected_triples.index((eta, t, 1)) 
-        interp = non_singlet_interpolation[key][index]
-        return interp(j)
 
     alpha_prime = hp.get_regge_slope("non_singlet_isovector",moment_label,evolve_type,evolution_order)
 
@@ -1506,16 +1471,6 @@ def non_singlet_isoscalar_moment(j,eta,t, moment_label="A",evolve_type="vector",
     hp.check_error_type(error_type)
     hp.check_moment_type_label("non_singlet_isoscalar",moment_label)
     hp.check_evolve_type(evolve_type)
-    if cfg.INTERPOLATE_INPUT_MOMENTS and isinstance(j,(complex,mp.mpc)):
-        key = ("non_singlet_isoscalar",moment_label, evolution_order, error_type)
-        selected_triples = [
-            (eta_, t_, mu_)
-            for eta_, t_, mu_ in zip(cfg.ETA_ARRAY, cfg.T_ARRAY, cfg.MU_ARRAY)
-            if mu_ == 1
-        ]
-        index = selected_triples.index((eta, t, 1)) 
-        interp = non_singlet_interpolation[key][index]
-        return interp(j)
 
     alpha_prime = hp.get_regge_slope("non_singlet_isoscalar",moment_label,evolve_type,evolution_order)
 
@@ -1741,29 +1696,6 @@ def gluon_singlet_regge(j,eta,t,moment_label="A",evolve_type="vector", evolution
         result = norm_A * term_1 + norm_D * prf * term_2
     return result, error
 
-singlet_interpolation = {}
-if cfg.INTERPOLATE_INPUT_MOMENTS:
-    for solution, moment_label, evolution_order, error_type in product(["+","-"],cfg.LABELS, cfg.ORDERS, cfg.ERRORS):
-        if "singlet" not in cfg.MOMENTS:
-            continue
-        params = {
-            "solution": solution,
-            "particle": "quark",
-            "moment_type": "singlet",
-            "moment_label": moment_label,
-            "evolution_order": evolution_order,
-            "error_type": error_type,
-        }
-        selected_triples = [
-            (eta, t, mu)
-            for eta, t, mu in zip(cfg.ETA_ARRAY, cfg.T_ARRAY, cfg.MU_ARRAY)
-            if mu == 1
-        ]
-
-        singlet_interpolation[(solution, moment_label, evolution_order, error_type)] = [
-            hp.build_moment_interpolator(eta, t, mu, **params)
-            for eta, t, mu in selected_triples
-        ]
 def singlet_moment(j,eta,t,moment_label="A",evolve_type="vector",solution="+",evolution_order="nlo",error_type="central",interpolation=True):
     """
     Returns 0 if the moment_label = "B", in accordance with holography and quark model considerations. 
@@ -1775,22 +1707,6 @@ def singlet_moment(j,eta,t,moment_label="A",evolve_type="vector",solution="+",ev
     # Check type
     hp.check_error_type(error_type)
     hp.check_evolve_type(evolve_type)
-    if cfg.INTERPOLATE_INPUT_MOMENTS and isinstance(j,(complex,mp.mpc)):
-        key = (solution,moment_label, evolution_order, "central")
-        selected_triples = [
-            (eta_, t_, mu_)
-            for eta_, t_, mu_ in zip(cfg.ETA_ARRAY, cfg.T_ARRAY, cfg.MU_ARRAY)
-            if mu_ == 1
-        ]
-        index = selected_triples.index((eta, t, 1)) 
-        interp = singlet_interpolation[key][index]
-        if error_type == "central":
-            return interp(j), 0
-        else:
-            key_err = (solution,moment_label, evolution_order, error_type)
-            interp_err = singlet_interpolation[key_err][index]
-            return interp(j), interp_err(j)
-
 
     # Switch sign
     if solution == "+":
@@ -2885,7 +2801,7 @@ def R_gg(j,evolve_type="vector",interpolation=True):
 evolve_moment_interpolation = {}
 if cfg.INTERPOLATE_MOMENTS:
     for particle,moment_type, moment_label, evolution_order, error_type in product(
-        ["quark","gluon"], cfg.MOMENTS, cfg.LABELS, cfg.ORDERS, cfg.ERRORS):
+        cfg.PARTICLES, cfg.MOMENTS, cfg.LABELS, cfg.ORDERS, cfg.ERRORS):
         if particle == "gluon" and moment_type != "singlet":
             continue
         params = {
@@ -3340,7 +3256,7 @@ def fourier_transform_moment(n,eta,mu,b_vec,A0=1,particle="quark",moment_type="n
 
     # Create a meshgrid for delta_x, delta_y
     Delta_x_grid, Delta_y_grid = np.meshgrid(Delta_x_vals, Delta_y_vals)
-
+ 
     def integrand(Delta_x,Delta_y,b_x,b_y):
         t = -(Delta_x**2+Delta_y**2)
         exponent = -1j * (b_x * Delta_x + b_y * Delta_y)
@@ -3759,19 +3675,23 @@ def get_j_base(particle="quark",moment_type="non_singlet_isovector", moment_labe
     hp.check_moment_type_label(moment_type,moment_label)
 
     if moment_label in ["A","B"]:
+        # Vector exchange
         if particle == "quark" and moment_type in ["non_singlet_isovector","non_singlet_isoscalar"]:
-            j_base, parity = .95, "none"
+            j_base, parity = 0.95, "none"
+        # Tensor exchanges
         elif particle == "quark" and moment_type == "singlet":
-            j_base, parity = 1.75, "odd"
+            j_base, parity = 1.95, "odd"
         elif particle == "gluon" and moment_type == "singlet":
-            j_base, parity = 1.75, "even"
+            j_base, parity = 1.95, "even"
     elif moment_label == "Atilde":
+        # Vector exchange
         if particle == "quark" and moment_type in ["non_singlet_isovector","non_singlet_isoscalar"]:
-            j_base, parity = .95, "none"
+            j_base, parity = 0.95, "none"
+        # Vector exchanges
         if particle == "quark" and moment_type == "singlet":
-            j_base, parity = 1.75, "even"
+            j_base, parity = 0.95, "even"
         if particle == "gluon" and moment_type == "singlet":
-            j_base, parity = 1.75, "odd"
+            j_base, parity = 0.95, "odd"
     else:
         raise ValueError(f"Wrong moment type {moment_type} and/or label {moment_label} for particle {particle}")
     
@@ -3840,6 +3760,7 @@ def mellin_barnes_gpd(x, eta, t, mu,  A0=1 ,particle = "quark", moment_type="non
             # (-1) from shift in Sommerfeld-Watson transform
             mom_val = (-1) * evolve_gluon_singlet(z,eta,t,mu,A0,moment_label,evolution_order,error_type)
         result = -.5j * dz * pw_val * mom_val / sin_term
+        # print(z,dz,sin_term,pw_val,mom_val)
         if real_imag == 'real':
             return np.float64(mp.re(result))
         elif real_imag == 'imag':
@@ -3848,7 +3769,8 @@ def mellin_barnes_gpd(x, eta, t, mu,  A0=1 ,particle = "quark", moment_type="non
             return result
         else:
             raise ValueError("real_imag must be either 'real', 'imag', or 'both'")
- 
+    # print(integrand(.2,'real'))
+    # return
     def find_integration_bound(integrand, j_max, tolerance=1e-2, step=10, max_iterations=50):
         """
         Finds an appropriate upper integration bound for an oscillating integrand.
@@ -3911,25 +3833,25 @@ def mellin_barnes_gpd(x, eta, t, mu,  A0=1 ,particle = "quark", moment_type="non
 
         if real_imag == 'real':
             # integral, error = quad(lambda k: integrand(k, 'real'), k_min, k_max, limit = 200)
-            integral, _ = fixed_quad(lambda k: integrand(k, 'real'), k_min, k_max, n = 130)
-            integral_50, _ = fixed_quad(lambda k: integrand(k, 'real'), k_min, k_max, n = 70)
-            error = abs(integral-integral_50)
+            integral, _ = fixed_quad(lambda k: integrand(k, 'real'), k_min, k_max, n = 150)
+            integral_low, _ = fixed_quad(lambda k: integrand(k, 'real'), k_min, k_max, n = 80)
+            error = abs(integral-integral_low)
             # Use symmetry of the real part of the integrand
             integral *= 2
             error *= 2
             return integral, error
         elif real_imag == 'imag':
             # integral, error = quad(lambda k: integrand(k, 'imag'), k_min, k_max, limit = 100)
-            integral, _ = fixed_quad(lambda k: integrand(k, 'imag'), k_min, k_max, n = 100)
-            integral_50, _ = fixed_quad(lambda k: integrand(k, 'imag'), k_min, k_max, n = 50)
-            error = abs(integral-integral_50)
+            integral, _ = fixed_quad(lambda k: integrand(k, 'imag'), k_min, k_max, n = 150)
+            integral_low, _ = fixed_quad(lambda k: integrand(k, 'imag'), k_min, k_max, n = 80)
+            error = abs(integral-integral_low)
             return integral, error
         elif real_imag == 'both':
             # integral, error = mp.quad(lambda k: integrand(k, 'both'), -k_max, k_max, error=True)
-            integral, _ = fixed_quad(lambda k: integrand(k, 'both'), k_min, k_max, n = 100)
-            integral_50, _ = fixed_quad(lambda k: integrand(k, 'both'), k_min, k_max, n = 50)
+            integral, _ = fixed_quad(lambda k: integrand(k, 'both'), k_min, k_max, n = 150)
+            integral_low, _ = fixed_quad(lambda k: integrand(k, 'both'), k_min, k_max, n = 80)
             real_integral, imag_integral = np.float64(mp.re(integral)), np.float64(mp.im(integral))
-            error = abs(integral.real-integral_50.real) + 1j * abs(integral.imag-integral_50.imag)
+            error = abs(integral.real-integral_low.real) + 1j * abs(integral.imag-integral_low.imag)
             real_error, imag_error = np.float64(mp.re(error)), np.float64(mp.im(error))
             # real_integral, real_error = quad(lambda k: integrand(k, 'real'), k_min, k_max, limit = 200)
             # imag_integral, imag_error = quad(lambda k: integrand(k, 'imag'), k_min, k_max, limit = 200)
@@ -3984,7 +3906,7 @@ def mellin_barnes_gpd(x, eta, t, mu,  A0=1 ,particle = "quark", moment_type="non
     # Check for the estimated error
     if np.abs(error) > 1e-2:
         print(f"Warning: Large error estimate for (x,eta,t)={x,eta,t}: {error}")
-    return float(integral)
+    return float(integral) if real_imag in ["real","imag"] else float(integral.real) + 1j * float(integral.imag)
 
 # Check normalizations:
 # vectorized_mellin_barnes_gpd=np.vectorize(mellin_barnes_gpd)
@@ -4003,67 +3925,6 @@ def mellin_barnes_gpd(x, eta, t, mu,  A0=1 ,particle = "quark", moment_type="non
 ###################################
 ## Generate interpolation tables ##
 ###################################
-def generate_all_moment_tables(reload = True):
-    """
-    Automatically generates all tabes for the moments specified in config.py.
-
-    :param reload: Reload modules upon table generation to allow for GPD computation using interpolated (evolved) moments
-    :type reload: bool, optional
-    """
-    def update_param(filename, key, new_value):
-        with open(filename, 'r') as file:
-            lines = file.readlines()
-
-        with open(filename, 'w') as file:
-            for line in lines:
-                if line.strip().startswith(f"{key} ="):
-                    file.write(f"{key} = {repr(new_value)}\n")
-                else:
-                    file.write(line)
-    mod = False # Keep track of whether INTERPOLATE_INPUT_MOMENTS has already been changed
-    cfg_path = cfg.Path(cfg.__file__)
-    for eta, t, mu in zip(cfg.ETA_ARRAY, cfg.T_ARRAY, cfg.MU_ARRAY):
-        for particle,moment_type, moment_label, evolution_order, error_type in product(["quark","gluon"],cfg.MOMENTS, cfg.LABELS, cfg.ORDERS,cfg.ERRORS):
-            if particle == "gluon" and moment_type != "singlet":
-                continue
-            if mu != 1 and not mod:
-                print('Reloading modules to interpolate input moments...')
-                update_param(cfg_path,'INTERPOLATE_INPUT_MOMENTS',True)
-                mod = True
-                # Reload to interpolate input moments
-                importlib.reload(cfg)
-                importlib.reload(sys.modules[__name__])
-                print('Modules reloaded. Proceeding with table generation...')
-            if mu == 1 and moment_type == "singlet":
-                # Skipping "gluon" for input moments 
-                # such that table is not generated twice
-                if particle == "gluon":
-                    continue
-                solution = "+"
-                print(f"Working on {moment_type,solution,moment_label, evolution_order, error_type} at (eta,t,mu) = {eta,t,mu}...")
-                generate_moment_table(eta,t,mu,solution="+",particle=particle,moment_type=moment_type,moment_label=moment_label,evolution_order=evolution_order,error_type=error_type,step=.1)
-                solution = "-"
-                print(f"Working on {moment_type,solution,moment_label, evolution_order, error_type} at (eta,t,mu) = {eta,t,mu}...")
-                generate_moment_table(eta,t,mu,solution="-",particle=particle,moment_type=moment_type,moment_label=moment_label,evolution_order=evolution_order,error_type=error_type,step=.1)
-            else:
-                print(f"Working on {particle,moment_type,moment_label, evolution_order, error_type} at (eta,t,mu) = {eta,t,mu}...")
-                generate_moment_table(eta,t,mu,solution=".",particle=particle,moment_type=moment_type,moment_label=moment_label,evolution_order=evolution_order,error_type=error_type,step=.1)
-
-    if any("singlet" in m for m in cfg.MOMENTS):            
-        print("Generating quark and gluon singlet moments at input scale")
-        moment_type = "singlet"
-        for eta, t, mu in zip(cfg.ETA_ARRAY, cfg.T_ARRAY, cfg.MU_ARRAY):
-            if mu != 1:
-                continue
-            for particle, moment_label, evolution_order, error_type in product(["quark","gluon"], cfg.LABELS, cfg.ORDERS,cfg.ERRORS):
-                print(f"Working on {particle,moment_type,moment_label, evolution_order, error_type} at (eta,t,mu) = {eta,t,mu}...")
-                generate_moment_table(eta,t,mu,solution=".",particle=particle,moment_type=moment_type,moment_label=moment_label,evolution_order=evolution_order,error_type=error_type,step=.1)
-    update_param(cfg_path,'INTERPOLATE_MOMENTS',True) # Switch to interpolation of evolved moments
-    if reload:
-        importlib.reload(cfg)
-        importlib.reload(sys.modules[__name__])
-    print("Done")
-
 def generate_moment_table(eta,t,mu,solution,particle,moment_type,moment_label, evolution_order, error_type,
                           im_j_max=100,step=.1):
     """
@@ -4259,7 +4120,7 @@ def generate_anomalous_dimension_table(suffix,moment_type,evolve_type,evolution_
     im_vals = np.arange(j_im_min, j_im_max + step, step)
     
     if moment_type != "singlet" and suffix == "qq":
-        filename = cfg.INTERPOLATION_TABLE_PATH / f"gamma_{suffix}_non_singlet_{evolve_type}_{evolution_order}.csv"
+        filename = cfg.INTERPOLATION_TABLE_PATH / f"gamma_{suffix}_non_singlet_{evolution_order}.csv"
     else:
         filename = cfg.INTERPOLATION_TABLE_PATH / f"gamma_{suffix}_{evolve_type}_{evolution_order}.csv"
 
@@ -4408,10 +4269,6 @@ def quark_gluon_helicity(eta,t,mu,A0=1, particle="quark",moment_type="non_single
 
     term_1 = evolve_conformal_moment(1,eta,t,mu,A0,particle=particle,moment_type=moment_type,moment_label="Atilde",evolution_order=evolution_order,error_type="minus")/2
     error_minus = abs(result - term_1)
-    if particle == "gluon":
-        result *= 2
-        error_plus *= 2
-        error_minus *= 2
     return result, error_plus, error_minus
 
 def quark_helicity(eta,t,mu,A0=1, moment_type="non_singlet_isovector",evolution_order="nlo"):
@@ -6581,11 +6438,6 @@ def plot_gpds(eta_array, t_array, mu_array, colors,A0=1,  particle="quark",gpd_t
     if len({len(eta_array), len(t_array), len(mu_array), len(colors)}) > 1:
         print("Arrays containing kinematical variables have unequal lengths - abort")
         return
-
-    # eta_array = [1e-3,0.1,1/3]
-    # t_array = [-1e-3,-0.23,-0.69]
-    # mu_array = [2,2,2]
-    # colors = ["purple","orange","green"]
 
     if moment_type == "singlet":
         x_0 = 1e-2

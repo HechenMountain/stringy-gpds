@@ -41,38 +41,25 @@ memory = Memory(CACHE_PATH,verbose=0)
 ## Kinematics used for interpolation ##
 ##     Need to have equal length     ##
 #######################################
-INTERPOLATE_INPUT_MOMENTS = False
-INTERPOLATE_MOMENTS = False
+INTERPOLATE_MOMENTS = True
 
 # If no lattice data:
-ETA_ARRAY = [0,0.33,0.1]
-T_ARRAY = [-0.69,-0.69,-0.23]
-MU_ARRAY = [2,2,2]
-
-# Unpolarized
 # ETA_ARRAY = [0,0.33,0.1]
-# T_ARRAY = [0,-0.69,-0.23]
+# T_ARRAY = [-0.69,-0.69,-0.23]
 # MU_ARRAY = [2,2,2]
+
+ETA_ARRAY = [0]
+T_ARRAY = [0]
+MU_ARRAY = [1]
 
 # ETA_ARRAY = [0,0,0.33,0.1]
 # T_ARRAY = [-0.69,-0.39,-0.69,-0.23]
 # MU_ARRAY = [2,3,2,2]
 
-# Duplicate for input scale
-eta_insert = [eta for eta in ETA_ARRAY]
-t_insert   = [t for t in T_ARRAY]
-mu_insert  = [1] * len(MU_ARRAY)
-
-# Prepend to originals
-ETA_ARRAY = eta_insert + ETA_ARRAY
-T_ARRAY   = t_insert   + T_ARRAY
-MU_ARRAY  = mu_insert  + MU_ARRAY
-
-MOMENTS = ["non_singlet_isovector","non_singlet_isoscalar","singlet"]
-# MOMENTS = ["non_singlet_isoscalar"]
-# MOMENTS = ["singlet"]
-# MOMENTS = ["non_singlet_isovector"]
-LABELS = ["A"]
+# MOMENTS = ["non_singlet_isovector","non_singlet_isoscalar","singlet"]
+PARTICLES = ["gluon"]
+MOMENTS = ["singlet"]
+LABELS = ["Atilde"]
 ORDERS = ["nlo"]
 ERRORS = ["central","plus","minus"]
 
@@ -96,6 +83,10 @@ PUBLICATION_MAPPING = {
 
 GPD_PUBLICATION_MAPPING = {
     # publication ID, GPD type, GPD label, eta, t ,mu
+    ("2008.10573","non_singlet_isovector","H",0.00, -0.69, 2.00): ("mediumturquoise","000_069_200"),
+    ("2008.10573","non_singlet_isovector","H",0.33, -0.69, 2.00): ("green","033_069_200"),
+    ("2008.12474","non_singlet_isovector","H",0.00, -0.39, 3.00): ("purple","000_039_300"),
+    ("2312.10829","non_singlet_isovector","H",0.10, -0.23, 2.00): ("orange","010_023_200"),
     ("2008.10573","non_singlet_isovector","Htilde",0.00, -0.69, 2.00): ("mediumturquoise","000_069_200"),
     ("2008.10573","non_singlet_isovector","Htilde",0.33, -0.69, 2.00): ("green","033_069_200"),
     ("2112.07519","non_singlet_isovector","Htilde",0.00, -0.39, 3.00): ("purple","000_039_300"),
