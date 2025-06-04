@@ -3601,6 +3601,7 @@ def fourier_transform_quark_orbital_angular_momentum(eta,mu,b_vec,moment_type="n
 
 
 # Define conformal partial waves
+@hp.mpmath_vectorize
 def conformal_partial_wave(j, x, eta, particle = "quark", parity="none"):
     """
     Calculate the conformal partial waves for quark and gluon GPDs and generate their
@@ -3627,32 +3628,31 @@ def conformal_partial_wave(j, x, eta, particle = "quark", parity="none"):
     if parity not in ["even", "odd","none"]:
         raise ValueError("Parity must be even, odd or none")
     
-    # Precompute factors that do not change
     if particle == "quark":
-        gamma_term = lambda j: 2.0**j * mp.gamma(1.5 + j) / (mp.gamma(0.5) * mp.gamma(j))
-        sin_term = lambda j: mp.sin(mp.pi * j) / mp.pi
         def cal_P(x,eta):
+            gamma_term = 2.0**j * mp.gamma(1.5 + j) / (mp.gamma(0.5) * mp.gamma(j))
             eta = 1e-6 if eta < 1e-6 else eta
             arg = (1 + x / eta)
             hyp = mp.hyp2f1(-j, j + 1, 2, 0.5 * arg)
-            result = 1 / eta**j  * arg * hyp * gamma_term(j)
+            result = 1 / eta**j  * arg * hyp * gamma_term
             return result
         def cal_Q(x,eta):
+            sin_term = mp.sin(mp.pi * j) / mp.pi
             hyp = mp.hyp2f1(0.5 * j, 0.5 * (j + 1), 1.5 + j, (eta / x)**2) 
-            result = 1 / x**j * hyp * sin_term(j)
+            result = 1 / x**j * hyp * sin_term
             return result
     else:   
-        gamma_term = lambda j: 2.0**(j-1) * mp.gamma(1.5 + j) / (mp.gamma(0.5) * mp.gamma(j-1))
-        sin_term =lambda j: mp.sin(mp.pi * (j+1))  / mp.pi 
         def cal_P(x,eta):
+            gamma_term = 2.0**(j-1) * mp.gamma(1.5 + j) / (mp.gamma(0.5) * mp.gamma(j-1))
             eta = 1e-6 if eta < 1e-6 else eta
             arg = (1. + x / eta)
             hyp = mp.hyp2f1(-j, j + 1, 3, 0.5 * arg)
-            result = 1 / eta**(j-1) * arg**2 * hyp * gamma_term(j)
+            result = 1 / eta**(j-1) * arg**2 * hyp * gamma_term
             return result
         def cal_Q(x,eta):
+            sin_term = mp.sin(mp.pi * (j+1))  / mp.pi 
             hyp = mp.hyp2f1(0.5 * (j-1), 0.5 * j, 1.5 + j, (eta / x)**2) 
-            result = 1 / x**(j-1) * hyp * sin_term(j)
+            result = 1 / x**(j-1) * hyp * sin_term
             return result
 
     def p_j(x):
@@ -6499,7 +6499,7 @@ def plot_gpds(eta_array, t_array, mu_array, colors,A0=1,  particle="quark",gpd_t
                 x_values = None
                 x_values, results = hp.load_gpd_data(eta,t,mu,particle,gpd_type,gpd_label,evolution_order)
                 if x_values is None:
-                    raise ValueError("No data found on system. Change write_to_file = True")
+                    raise ValueError(f"No data found on system for {gpd_type,gpd_label,eta,t,mu}. Change write_to_file = True")
         else:
             # results = Parallel(n_jobs=-1)(delayed(compute_result)(x,eta,t,mu) for x in x_values)
             with hp.tqdm_joblib(tqdm(total=len(x_values))) as progress_bar:

@@ -54,17 +54,15 @@ def plot_evolved_moment_over_j(eta,t,mu,Nf = 3,j_base = 3,particle="quark",momen
     plt.grid()
     plt.show()
 
-def plot_conformal_partial_wave_over_j(x,eta,particle="quark",moment_type="non_singlet_isovector",moment_label ="A",parity="none"):
+def plot_conformal_partial_wave_over_j(x,eta,particle="quark",moment_type="non_singlet_isovector",moment_label ="A"):
     """Plots the conformal parftial wave over conformal spin-j for given eta, particle and parity.
 
     Parameters:
     - j (float): conformal spin
     - eta (float): skewness
     - particle (str., optiona): quark or gluon. Default is quark
-    - parity (str., optional): even, odd, or none. Default is none
     """
     hp.check_particle_type(particle)
-    hp.check_parity(parity)
 
     j_base, parity = core.get_j_base(particle,moment_type,moment_label)
     k_values = np.linspace(-15, 15, 200)
@@ -84,6 +82,39 @@ def plot_conformal_partial_wave_over_j(x,eta,particle="quark",moment_type="non_s
     #plt.subplot(2, 1, 2)
     plt.plot(k_values, y_values.imag)
     plt.xlabel("j")
+    plt.ylabel("Imaginary Part")
+    plt.title(f"Imaginary Part of Conformal Partial Wave for {particle} with Parity {parity}")
+
+    plt.tight_layout()  # Adjust spacing between subplots
+    plt.show()
+
+def plot_conformal_partial_wave_over_x(j_b,eta,particle="quark",moment_type="non_singlet_isovector",moment_label ="A"):
+    """Plots the conformal parftial wave over conformal spin-j for given eta, particle and parity.
+
+    Parameters:
+    - j_b (float): conformal spin
+    - eta (float): skewness
+    - particle (str., optiona): quark or gluon. Default is quark
+    """
+    hp.check_particle_type(particle)
+    
+    _, parity = core.get_j_base(particle,moment_type,moment_label)
+    x_values = np.linspace(1e-2, .99, 100)
+    y_values = np.array(Parallel(n_jobs=-1)(delayed(core.conformal_partial_wave)(j_b, x, eta , particle, parity) for x in x_values)
+                        ,dtype=complex)
+
+    # Create subplots for real and imaginary parts
+    plt.figure(figsize=(10, 6))  # Adjust figure size for better visualization
+
+    #plt.subplot(2, 1, 1)
+    plt.plot(x_values, y_values.real)
+    plt.xlabel("x")
+    plt.ylabel("Real Part")
+    plt.title(f"Real Part of Conformal Partial Wave for {particle} with Parity {parity}")
+
+    #plt.subplot(2, 1, 2)
+    plt.plot(x_values, y_values.imag)
+    plt.xlabel("x")
     plt.ylabel("Imaginary Part")
     plt.title(f"Imaginary Part of Conformal Partial Wave for {particle} with Parity {parity}")
 

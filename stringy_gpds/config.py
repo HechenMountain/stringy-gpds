@@ -41,7 +41,7 @@ memory = Memory(CACHE_PATH,verbose=0)
 ## Kinematics used for interpolation ##
 ##     Need to have equal length     ##
 #######################################
-INTERPOLATE_MOMENTS = True
+INTERPOLATE_MOMENTS = False
 
 # If no lattice data:
 ETA_ARRAY = [0,0.33,0.1]
