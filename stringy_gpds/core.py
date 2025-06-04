@@ -1121,10 +1121,17 @@ def integral_gluon_pdf_regge(j,eta,alpha_p,t, evolution_order = "nlo", error_typ
 
             dpdf_dA = mp.gamma(j - alpha_p *t + eta_1_prime-1)*mp.gamma(1+eta_2_prime)/\
                 mp.gamma(j-alpha_p*t+eta_1_prime+eta_2_prime)
-            dpdf_deta_1 = (A_pdf_prime * mp.gamma(1+eta_2_prime) * mp.gamma(j - alpha_p *t + eta_1_prime-1)/\
-                mp.gamma(j-alpha_p*t+eta_1_prime+eta_2_prime) * \
-            (mp.digamma(eta_1_prime + 1 )-mp.digamma(eta_1_prime + eta_2_prime + j - alpha_p * t))
-            )
+            dpdf_deta_1 = A_pdf_prime * \
+                mp.gamma(eta_2_prime + 1) * \
+                mp.gamma(eta_1_prime + j - alpha_p * t - 1) * \
+                ( \
+                    (eta_1_prime + eta_2_prime + j - alpha_p * t) * \
+                        mp.digamma(eta_1_prime + j - alpha_p * t - 1) - \
+                    (eta_1_prime + eta_2_prime + j - alpha_p * t) * \
+                        mp.digamma(eta_1_prime + eta_2_prime + j - alpha_p * t + 1) + \
+                    1 \
+                ) / \
+                mp.gamma(eta_1_prime + eta_2_prime + j - alpha_p * t + 1)
             dpdf_deta_2 = (A_pdf_prime * mp.gamma(1+eta_2_prime) * mp.gamma(j - alpha_p *t + eta_1_prime-1)/\
               mp.gamma(j-alpha_p*t+eta_1_prime+eta_2_prime + 1) * \
              (1 + (eta_1_prime + eta_2_prime + j -alpha_p * t) * (mp.digamma(eta_2_prime + 1) - mp.digamma(eta_1_prime + eta_2_prime + j -alpha_p * t + 1)))
@@ -1722,7 +1729,7 @@ def singlet_moment(j,eta,t,moment_label="A",evolve_type="vector",solution="+",ev
     gluon_prf = .5 * (gamma_qg(j-1,evolve_type,"lo",interpolation=interpolation)/
                     (gamma_qq(j-1,"singlet",evolve_type,"lo",interpolation=interpolation)-gamma_pm(j-1,evolve_type,solution,interpolation=interpolation)))
     gluon_in, gluon_in_error = gluon_singlet_regge(j,eta,t,moment_label,evolve_type,evolution_order,error_type)
-    sum_squared = quark_prf**1 * quark_in_error**2 + gluon_prf**2*gluon_in_error**2
+    sum_squared = quark_prf**2 * quark_in_error**2 + gluon_prf**2*gluon_in_error**2
     error = abs(mp.sqrt(sum_squared))
     result = quark_prf * quark_in + gluon_prf * gluon_in
     return result, error
@@ -6533,8 +6540,9 @@ def plot_gpds(eta_array, t_array, mu_array, colors,A0=1,  particle="quark",gpd_t
 
         if write_to_file:
             hp.save_gpd_data(x_values,eta,t,mu,results,particle,gpd_type,gpd_label,evolution_order)
-            hp.save_gpd_data(x_values,eta,t,mu,results_plus,particle,gpd_type,gpd_label,evolution_order,"plus")
-            hp.save_gpd_data(x_values,eta,t,mu,results_minus,particle,gpd_type,gpd_label,evolution_order,"minus")
+            if error_bars:
+                hp.save_gpd_data(x_values,eta,t,mu,results_plus,particle,gpd_type,gpd_label,evolution_order,"plus")
+                hp.save_gpd_data(x_values,eta,t,mu,results_minus,particle,gpd_type,gpd_label,evolution_order,"minus")
 
     ax.set_xlim(x_0, x_1)
     ax.set_ylim(y_0,y_1)

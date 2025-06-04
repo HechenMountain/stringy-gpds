@@ -44,24 +44,20 @@ memory = Memory(CACHE_PATH,verbose=0)
 INTERPOLATE_MOMENTS = True
 
 # If no lattice data:
-# ETA_ARRAY = [0,0.33,0.1]
-# T_ARRAY = [-0.69,-0.69,-0.23]
-# MU_ARRAY = [2,2,2]
-
-ETA_ARRAY = [0]
-T_ARRAY = [0]
-MU_ARRAY = [1]
+ETA_ARRAY = [0,0.33,0.1]
+T_ARRAY = [-0.69,-0.69,-0.23]
+MU_ARRAY = [2,2,2]
 
 # ETA_ARRAY = [0,0,0.33,0.1]
 # T_ARRAY = [-0.69,-0.39,-0.69,-0.23]
 # MU_ARRAY = [2,3,2,2]
 
 # MOMENTS = ["non_singlet_isovector","non_singlet_isoscalar","singlet"]
-PARTICLES = ["gluon"]
+PARTICLES = ["quark","gluon"]
 MOMENTS = ["singlet"]
 LABELS = ["Atilde"]
 ORDERS = ["nlo"]
-ERRORS = ["central","plus","minus"]
+ERRORS = ["central"]
 
 ########################################
 #### Dictionaries and data handling ####
