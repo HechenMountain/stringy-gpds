@@ -97,7 +97,7 @@ PUBLICATION_MAPPING = {
     "2410.03539": ("green",2)
 # Add more publication IDs and corresponding colors here
 }
-
+# Select which data to plot. Comment out as desired
 GPD_PUBLICATION_MAPPING = {
     # publication ID, GPD type, GPD label, eta, t ,mu
     # ("2008.10573","non_singlet_isovector","H",0.00, -0.69, 2.00): ("mediumturquoise","000_069_200"),
@@ -127,12 +127,23 @@ GPD_LABEL_MAP ={"H": "A",
 
 INVERTED_GPD_LABEL_MAP = {v: k for k, v in GPD_LABEL_MAP.items()}
 
-#######################
-####  Parameters  #####
-#######################
+#####################
+### QCD Paramters ###
+#####################
 
-# Set number of flavors
+N_C = 3
+C_A = N_C
+C_F = (N_C**2-1)/(2*N_C)
+T_F = .5
 N_F = 3
+
+# Beta function
+BETA_0 = 4/3 * T_F * N_F - 11/3 * N_C
+BETA_1 = 20/3 * T_F * C_A * N_F + 4 * C_F * T_F * N_F -34/3 * C_A**2
+
+########################
+### Model Parameters ###
+########################
 
 REGGE_SLOPES = {
     "vector": {

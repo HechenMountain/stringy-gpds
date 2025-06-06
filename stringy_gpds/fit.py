@@ -1,7 +1,5 @@
 import numpy as np
 import mpmath as mp
-
-import csv
 import os
 
 from . import helpers as hp
@@ -722,7 +720,9 @@ def fit_singlet_slopes_Atilde(evolution_order="nlo",plot=True):
 
     return
 
-
+##############################
+### Fit to evolved moments ###
+##############################
 
 # Work in progress...
 def fit_singlet_slopes_2(evolution_order="nlo",plot=True):
