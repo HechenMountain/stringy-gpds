@@ -28,9 +28,12 @@ INTERPOLATION_TABLE_PATH = BASE_PATH / "InterpolationTables"
 MSTW_PATH = PDF_PATH / "MSTW.csv"
 AAC_PATH = PDF_PATH / "AAC.csv"
 
-####################
-####   Cache    ####
-####################
+##################################
+###########    Cache   ###########
+##################################
+#### Make sure to clear after ####
+## parameters have been changed ##
+##################################
 CACHE_PATH = Path("/mnt/c/Users/flori/Documents/PostDoc/Jupyter/Python/cache")
 memory = Memory(CACHE_PATH,verbose=0)
 # Clear after changing parameters
@@ -41,23 +44,38 @@ memory = Memory(CACHE_PATH,verbose=0)
 ## Kinematics used for interpolation ##
 ##     Need to have equal length     ##
 #######################################
-INTERPOLATE_MOMENTS = False
+INTERPOLATE_MOMENTS = True
 
 # If no lattice data:
-ETA_ARRAY = [0,0.33,0.1]
-T_ARRAY = [-0.69,-0.69,-0.23]
-MU_ARRAY = [2,2,2]
+# ETA_ARRAY = [0,0.33,0.1]
+# T_ARRAY = [-0.69,-0.69,-0.23]
+# MU_ARRAY = [2,2,2]
+
+# Additional non_singlet_isovector 
+# ETA_ARRAY = [0]
+# T_ARRAY = [-0.39]
+# MU_ARRAY = [3]
 
 # ETA_ARRAY = [0,0,0.33,0.1]
 # T_ARRAY = [-0.69,-0.39,-0.69,-0.23]
 # MU_ARRAY = [2,3,2,2]
 
-# MOMENTS = ["non_singlet_isovector","non_singlet_isoscalar","singlet"]
+# Check whether we recover input PDFs
+ETA_ARRAY = [0]
+T_ARRAY = [0]
+MU_ARRAY = [1]
+
+# Martha
+# ETA_ARRAY = [0,0]
+# T_ARRAY = [-0.17,-0.65]
+# MU_ARRAY = [2,2]
+
+# MOMENTS = ["non_singlet_isovector"]
 PARTICLES = ["quark","gluon"]
-MOMENTS = ["singlet"]
-LABELS = ["Atilde"]
+MOMENTS = ["singlet","non_singlet_isoscalar","non_singlet_isovector"]
+LABELS = ["A","Atilde"]
 ORDERS = ["nlo"]
-ERRORS = ["central"]
+ERRORS = ["central","plus","minus"]
 
 ########################################
 #### Dictionaries and data handling ####
@@ -65,7 +83,10 @@ ERRORS = ["central"]
 ########################################
 
 # Add some colors
-saturated_pink = (1.0, 0.1, 0.6)  
+saturated_pink  = "#ff1a99"
+blue            = "#1f77b4"
+orange          = "#ff7f0e"
+green           = "#2ca02c"
 
 # ArXiv ID and renormalization scale mu
 PUBLICATION_MAPPING = {
@@ -79,27 +100,23 @@ PUBLICATION_MAPPING = {
 
 GPD_PUBLICATION_MAPPING = {
     # publication ID, GPD type, GPD label, eta, t ,mu
-    ("2008.10573","non_singlet_isovector","H",0.00, -0.69, 2.00): ("mediumturquoise","000_069_200"),
-    ("2008.10573","non_singlet_isovector","H",0.33, -0.69, 2.00): ("green","033_069_200"),
-    ("2008.12474","non_singlet_isovector","H",0.00, -0.39, 3.00): ("purple","000_039_300"),
-    ("2312.10829","non_singlet_isovector","H",0.10, -0.23, 2.00): ("orange","010_023_200"),
-    ("2008.10573","non_singlet_isovector","Htilde",0.00, -0.69, 2.00): ("mediumturquoise","000_069_200"),
-    ("2008.10573","non_singlet_isovector","Htilde",0.33, -0.69, 2.00): ("green","033_069_200"),
-    ("2112.07519","non_singlet_isovector","Htilde",0.00, -0.39, 3.00): ("purple","000_039_300"),
-    ("2008.10573","non_singlet_isovector","E",0.00, -0.69, 2.00): ("mediumturquoise","000_069_200"),
-    ("2008.10573","non_singlet_isovector","E",0.33, -0.69, 2.00): ("green","033_069_200"),
-    ("2312.10829","non_singlet_isovector","E",0.10, -0.23, 2.00): ("orange","010_023_200"),
-    # ("martha","non_singlet_isovector","E",0.00,-0.17,2.00): ("black","000_017_200"),
-    # ("martha","non_singlet_isovector","Htilde",0.00,-0.17,2.00): ("black","000_017_200"),
-    # ("martha","non_singlet_isovector","H",0.00,-0.17,2.00): ("black","000_017_200")
-    # ("martha","non_singlet_isovector","E",0.00,-0.65,2.00): ("black","000_065_200"),
-    # ("martha","non_singlet_isovector","Htilde",0.00,-0.65,2.00): ("black","000_065_200"),
-    # ("martha","non_singlet_isovector","H",0.00,-0.65,2.00): ("black","000_065_200")
-    # No data:
-    # ("","non_singlet_isoscalar","E",0.00, -0.00, 2.00): ("purple","000_000_200"),
-    # ("","non_singlet_isoscalar","E",0.33, -0.69, 2.00): ("green","033_069_200"),
-    # ("","non_singlet_isoscalar","E",0.10, -0.23, 2.00): ("orange","010_023_200"),
-    # ("","non_singlet_isoscalar","E",0.33, -0.69, 2.00): (saturated_pink,"000_039_200"),
+    # ("2008.10573","non_singlet_isovector","H",0.00, -0.69, 2.00): ("mediumturquoise","000_069_200"),
+    # ("2008.10573","non_singlet_isovector","H",0.33, -0.69, 2.00): ("green","033_069_200"),
+    # ("2008.12474","non_singlet_isovector","H",0.00, -0.39, 3.00): ("purple","000_039_300"),
+    # ("2312.10829","non_singlet_isovector","H",0.10, -0.23, 2.00): ("orange","010_023_200"),
+    # ("2008.10573","non_singlet_isovector","Htilde",0.00, -0.69, 2.00): ("mediumturquoise","000_069_200"),
+    # ("2008.10573","non_singlet_isovector","Htilde",0.33, -0.69, 2.00): ("green","033_069_200"),
+    # ("2112.07519","non_singlet_isovector","Htilde",0.00, -0.39, 3.00): ("purple","000_039_300"),
+    # ("2008.10573","non_singlet_isovector","E",0.00, -0.69, 2.00): ("mediumturquoise","000_069_200"),
+    # ("2008.10573","non_singlet_isovector","E",0.33, -0.69, 2.00): ("green","033_069_200"),
+    # ("2312.10829","non_singlet_isovector","E",0.10, -0.23, 2.00): ("orange","010_023_200"),
+    # Martha
+    ("2305.11117","non_singlet_isovector","E",0.00,-0.17,2.00): (blue,"000_017_200"),
+    ("2310.13114","non_singlet_isovector","Htilde",0.00,-0.17,2.00): (blue,"000_017_200"),
+    ("2305.11117","non_singlet_isovector","H",0.00,-0.17,2.00): (blue,"000_017_200"),
+    ("2305.11117","non_singlet_isovector","E",0.00,-0.65,2.00): (green,"000_065_200"),
+    ("2310.13114","non_singlet_isovector","Htilde",0.00,-0.65,2.00): (green,"000_065_200"),
+    ("2305.11117","non_singlet_isovector","H",0.00,-0.65,2.00): (green,"000_065_200")
 # Add more publication IDs and corresponding colors here
 }
 

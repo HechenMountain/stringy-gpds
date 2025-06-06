@@ -2807,8 +2807,8 @@ def R_gg(j,evolve_type="vector",interpolation=True):
 
 evolve_moment_interpolation = {}
 if cfg.INTERPOLATE_MOMENTS:
-    for particle,moment_type, moment_label, evolution_order, error_type in product(
-        cfg.PARTICLES, cfg.MOMENTS, cfg.LABELS, cfg.ORDERS, cfg.ERRORS):
+    for particle,moment_type, moment_label, evolution_order in product(
+        cfg.PARTICLES, cfg.MOMENTS, cfg.LABELS, cfg.ORDERS):
         if particle == "gluon" and moment_type != "singlet":
             continue
         params = {
@@ -2819,13 +2819,13 @@ if cfg.INTERPOLATE_MOMENTS:
             "moment_type": moment_type,
             "moment_label": moment_label,
             "evolution_order": evolution_order,
-            "error_type": error_type,
+            "error_type": "central"
         }
         selected_triples = [
             (eta, t, mu)
             for eta, t, mu in zip(cfg.ETA_ARRAY, cfg.T_ARRAY, cfg.MU_ARRAY)
         ]
-        evolve_moment_interpolation[(particle,moment_type,moment_label, evolution_order, error_type)] = [
+        evolve_moment_interpolation[(particle,moment_type,moment_label,evolution_order,"central")] = [
             hp.build_moment_interpolator(eta, t, mu, **params)
             for eta, t, mu in selected_triples
         ]
@@ -2869,6 +2869,9 @@ def evolve_conformal_moment(j,eta,t,mu,A0=1,particle="quark",moment_type="non_si
         interp = evolve_moment_interpolation[key][index]
         return interp(j)
 
+    if error_type != "central" and j.imag != 0:
+        raise ValueError("Error propagation for complex spin-j not supported")
+
     # Extract fixed quantities
     alpha_s_in = get_alpha_s(evolution_order)
     alpha_s_evolved = evolve_alpha_s(mu,evolution_order)
@@ -2881,13 +2884,8 @@ def evolve_conformal_moment(j,eta,t,mu,A0=1,particle="quark",moment_type="non_si
     if moment_type == "non_singlet_isovector":
         moment_in = non_singlet_isovector_moment(j,eta,t,moment_label,evolve_type,evolution_order,error_type)
     elif moment_type == "non_singlet_isoscalar":
-        moment_in = non_singlet_isoscalar_moment(j,eta,t,moment_label,evolve_type,evolution_order,error_type)
-
-    # moment_in, evolve_type = MOMENT_TO_FUNCTION.get((moment_type, moment_label))
-
-    ga_qq = gamma_qq(j-1,moment_type,evolve_type,evolution_order="lo",interpolation=interpolation)
-
-    if moment_type == "singlet":
+        moment_in = non_singlet_isoscalar_moment(j,eta,t,moment_label,evolve_type,evolution_order,error_type) 
+    elif moment_type == "singlet":
         # Roots  of lo anomalous dimensions
         ga_p = gamma_pm(j-1,evolve_type,"+",interpolation=interpolation)
         ga_m = gamma_pm(j-1,evolve_type,"-",interpolation=interpolation)
@@ -2903,6 +2901,8 @@ def evolve_conformal_moment(j,eta,t,mu,A0=1,particle="quark",moment_type="non_si
             r_gg = R_gg(j-1,evolve_type,interpolation=interpolation) 
     # Precompute alpha_s fraction:
     alpha_frac  = (alpha_s_in/alpha_s_evolved)    
+
+    ga_qq = gamma_qq(j-1,moment_type,evolve_type,evolution_order="lo",interpolation=interpolation)
 
     # Functions appearing in evolution
     def get_gammas(solution):
@@ -3265,7 +3265,11 @@ def fourier_transform_moment(n,eta,mu,b_vec,A0=1,particle="quark",moment_type="n
     Delta_x_grid, Delta_y_grid = np.meshgrid(Delta_x_vals, Delta_y_vals)
  
     def integrand(Delta_x,Delta_y,b_x,b_y):
-        t = -(Delta_x**2+Delta_y**2)
+        if eta == 0:
+            t = -(Delta_x**2+Delta_y**2)
+        else:
+            m_N = 0.93827
+            t = - (4 * eta**2 * m_N**2 + (Delta_x**2+Delta_y**2)) / (1-eta**2)
         exponent = -1j * (b_x * Delta_x + b_y * Delta_y)
         if dipole_form:
             moment = dipole_moment(n,eta,t,mu,particle,moment_type,moment_label,evolution_order,error_type)
@@ -3631,7 +3635,6 @@ def conformal_partial_wave(j, x, eta, particle = "quark", parity="none"):
     if particle == "quark":
         def cal_P(x,eta):
             gamma_term = 2.0**j * mp.gamma(1.5 + j) / (mp.gamma(0.5) * mp.gamma(j))
-            eta = 1e-6 if eta < 1e-6 else eta
             arg = (1 + x / eta)
             hyp = mp.hyp2f1(-j, j + 1, 2, 0.5 * arg)
             result = 1 / eta**j  * arg * hyp * gamma_term
@@ -3644,7 +3647,6 @@ def conformal_partial_wave(j, x, eta, particle = "quark", parity="none"):
     else:   
         def cal_P(x,eta):
             gamma_term = 2.0**(j-1) * mp.gamma(1.5 + j) / (mp.gamma(0.5) * mp.gamma(j-1))
-            eta = 1e-6 if eta < 1e-6 else eta
             arg = (1. + x / eta)
             hyp = mp.hyp2f1(-j, j + 1, 3, 0.5 * arg)
             result = 1 / eta**(j-1) * arg**2 * hyp * gamma_term
@@ -3704,6 +3706,66 @@ def get_j_base(particle="quark",moment_type="non_singlet_isovector", moment_labe
     
     return j_base, parity
 
+@cfg.memory.cache
+def estimate_gpd_error(eta,t,mu,particle,moment_type,moment_label,evolution_order,error_type):
+    if error_type == "central":
+        return 1
+    @hp.mpmath_vectorize
+    def compute_rel_error(i):
+        central_term = evolve_conformal_moment(
+            j=i, eta=eta, t=t, mu=mu,
+            particle=particle, moment_type=moment_type,
+            moment_label=moment_label,
+            evolution_order=evolution_order,
+            error_type="central"
+            )
+        error_term = evolve_conformal_moment(
+            j=i, eta=eta, t=t, mu=mu,
+            particle=particle, moment_type=moment_type,
+            moment_label=moment_label,
+            evolution_order=evolution_order,
+            error_type=error_type
+        )
+        frac = (1 - min(abs(error_term),abs(central_term)) / max(abs(error_term),abs(central_term)))
+        return frac
+    
+    j_b, _ = get_j_base(particle,moment_type,moment_label)
+    j_b = int(np.ceil(j_b))
+
+    # Use first 10 moments to get estimate
+    max_iter = 10
+    i_values = np.array([2*k + j_b for k in range(max_iter)])
+    gpd_err = 0
+    results = compute_rel_error(i_values)
+
+    # Take average error
+    gpd_err = sum(results)/len(results)
+    # Return average error in percent
+    gpd_err = 1 + hp.error_sign(gpd_err,error_type)
+
+    return gpd_err
+
+gpd_errors = {}
+for particle,moment_type, moment_label, evolution_order, error_type in product(
+    cfg.PARTICLES, cfg.MOMENTS, cfg.LABELS, cfg.ORDERS, cfg.ERRORS):
+    if particle == "gluon" and moment_type != "singlet":
+        continue
+    params = {
+        "particle": particle,
+        "moment_type": moment_type,
+        "moment_label": moment_label,
+        "evolution_order": evolution_order,
+        "error_type": error_type,
+    }
+    selected_triples = [
+        (eta, t, mu)
+        for eta, t, mu in zip(cfg.ETA_ARRAY, cfg.T_ARRAY, cfg.MU_ARRAY)
+    ]
+    gpd_errors[(particle,moment_type,moment_label, evolution_order, error_type)] = [
+        estimate_gpd_error(eta, t, mu, **params)
+        for eta, t, mu in selected_triples
+    ]
+
 def mellin_barnes_gpd(x, eta, t, mu,  A0=1 ,particle = "quark", moment_type="non_singlet_isovector",moment_label="A",evolution_order="nlo", error_type="central",real_imag ="real",j_max = 15, n_jobs=1):
     """
     Numerically evaluate the Mellin-Barnes integral parallel to the imaginary axis to obtain the corresponding GPD
@@ -3717,7 +3779,7 @@ def mellin_barnes_gpd(x, eta, t, mu,  A0=1 ,particle = "quark", moment_type="non
     - particle (str,optional): particle species (quark or gluon)
     - moment_type (str,optional): singlet, non_singlet_isovector, non_singlet_isoscalar
     - moment_label (str,optional): A, Atilde, B
-    - error_type (str,optional): value of input PDFs (central, plus, minus)
+    - error_type (str,optional): Whether to use an error estimate on the final GPD results
     - real_imag (str,optional): Choose to compute real part, imaginary part or both
     - j_max (float,optional): Integration range parallel to the imaginary axis
     - n_jobs (int,optional): Number of subregions, and thus processes, the integral is split into
@@ -3732,9 +3794,20 @@ def mellin_barnes_gpd(x, eta, t, mu,  A0=1 ,particle = "quark", moment_type="non
     hp.check_evolution_order(evolution_order)
     hp.check_moment_type_label(moment_type,moment_label)
 
+    # When error_type == "central" gpd_rel_error is 1, 
+    # so we don't need to distinguish
+    key = (particle, moment_type, moment_label, evolution_order, error_type)
+    if key not in gpd_errors:
+        raise ValueError("No error estimates for GPDs have been computed. Modify PARTICLES, MOMENTS,... in config file")
+    selected_triples = [
+        (eta_, t_, mu_)
+        for eta_, t_, mu_ in zip(cfg.ETA_ARRAY, cfg.T_ARRAY, cfg.MU_ARRAY)
+    ]
+    index = selected_triples.index((eta, t, mu))
+    gpd_rel_error = gpd_errors[key][index]
+
     j_base, parity = get_j_base(particle,moment_type,moment_label)
 
-    # Integrand function which returns both real and imaginary parts
     @hp.mpmath_vectorize
     def integrand(k, real_imag):
         """
@@ -3760,12 +3833,12 @@ def mellin_barnes_gpd(x, eta, t, mu,  A0=1 ,particle = "quark", moment_type="non
 
         if particle == "quark":
             if moment_type == "singlet":
-                mom_val = evolve_quark_singlet(z,eta,t,mu,A0,moment_label,evolution_order,error_type)
+                mom_val = evolve_quark_singlet(z,eta,t,mu,A0,moment_label,evolution_order,error_type="central")
             else:
-                mom_val = evolve_quark_non_singlet(z,eta,t,mu,A0,moment_type,moment_label,evolution_order,error_type)
+                mom_val = evolve_quark_non_singlet(z,eta,t,mu,A0,moment_type,moment_label,evolution_order,error_type="central")
         else:
             # (-1) from shift in Sommerfeld-Watson transform
-            mom_val = (-1) * evolve_gluon_singlet(z,eta,t,mu,A0,moment_label,evolution_order,error_type)
+            mom_val = (-1) * evolve_gluon_singlet(z,eta,t,mu,A0,moment_label,evolution_order,error_type="central")
         result = -.5j * dz * pw_val * mom_val / sin_term
         # print(z,dz,sin_term,pw_val,mom_val)
         if real_imag == 'real':
@@ -3776,8 +3849,7 @@ def mellin_barnes_gpd(x, eta, t, mu,  A0=1 ,particle = "quark", moment_type="non
             return result
         else:
             raise ValueError("real_imag must be either 'real', 'imag', or 'both'")
-    # print(integrand(.2,'real'))
-    # return
+        
     def find_integration_bound(integrand, j_max, tolerance=1e-2, step=10, max_iterations=50):
         """
         Finds an appropriate upper integration bound for an oscillating integrand.
@@ -3813,7 +3885,6 @@ def mellin_barnes_gpd(x, eta, t, mu,  A0=1 ,particle = "quark", moment_type="non
                 raise ValueError(f"Maximum number of iterations reached at (x,eta,t) = {x,eta,t} without finding a suitable bound. Increase initial value of j_max")
         if j_max > 250:
             print(f"Warning j_max={j_max} is large, adjust corresponding base value in get_j_base")
-        #print(iterations,integrand(j_max,real_imag))
         return j_max
 
     # Function to integrate over a subinterval of k 
@@ -3868,7 +3939,6 @@ def mellin_barnes_gpd(x, eta, t, mu,  A0=1 ,particle = "quark", moment_type="non
 
     # Dynamically determine integration bound
     j_max = find_integration_bound(integrand, j_max) 
-    # print('jmax',j_max)
     # Define the number of subintervals (equal to n_jobs)
     n_subintervals = n_jobs if n_jobs > 0 else os.cpu_count()  # Default to all cores if n_jobs isn't specified
     # Generate an array that when split into n_subintervals contains k_min and k_max
@@ -3881,16 +3951,6 @@ def mellin_barnes_gpd(x, eta, t, mu,  A0=1 ,particle = "quark", moment_type="non
     # Split the range into equal subintervals
     for i in range(n_subintervals):
         k_values_split.append(k_range[i:i+2])
-    # Debug
-    # print(j_max)
-    # print(j_base)
-    # # Print the subintervals to verify
-    # print(k_range)
-    # for i in range(len(k_values_split)):
-    #     print(k_values_split[i])
-    # plot_integrand(x,eta,t,mu,particle,moment_type,moment_label,error_type,j_max)    
-    #print(particle,parity,moment_type,norm)
-
 
     # Parallelize the integration over the subintervals of k
     results = Parallel(n_jobs=n_subintervals)(
@@ -3905,14 +3965,14 @@ def mellin_barnes_gpd(x, eta, t, mu,  A0=1 ,particle = "quark", moment_type="non
         integral = real_integral +1j * imag_integral
         error = real_error + 1j * imag_error
     else :
-    # Sum the results from all subintervals for real and imaginary parts, and accumulate the errors
-
+        # Sum the results from all subintervals for real and imaginary parts, and accumulate the errors
         integral = sum(result[0] for result in results)
         error = np.sqrt(sum(result[1]**2 for result in results))
-    # print(integral,error)
     # Check for the estimated error
     if np.abs(error) > 1e-2:
         print(f"Warning: Large error estimate for (x,eta,t)={x,eta,t}: {error}")
+    # Mutliply with the relative error
+    integral *= gpd_rel_error
     return float(integral) if real_imag in ["real","imag"] else float(integral.real) + 1j * float(integral.imag)
 
 # Check normalizations:
@@ -6372,7 +6432,7 @@ def plot_gpd_data(particle="quark",gpd_type="non_singlet_isovector",gpd_label="H
 
     fig.savefig(FILE_PATH,format="pdf",bbox_inches="tight",dpi=600)
 
-def plot_gpds(eta_array, t_array, mu_array, colors,A0=1,  particle="quark",gpd_type="non_singlet_isovector",gpd_label="H",evolution_order="nlo",sampling=True, n_init=os.cpu_count(), n_points=50, x_0=-1, x_1=1, y_0 = -1e-2, y_1 = 3, 
+def plot_gpds(eta_array, t_array, mu_array, colors,A0=1,  particle="quark",gpd_type="non_singlet_isovector",gpd_label="H",evolution_order="nlo",sampling=True, n_init=os.cpu_count(), n_points=100, x_0=-1, x_1=1, y_0 = -1e-2, y_1 = 3, 
               error_bars=True,plot_legend = False,write_to_file=True,read_from_file=False):
     """
     Generates data for a given GPD using the kinematical parameters contained in eta_array, t_array, mu_array
@@ -6559,6 +6619,6 @@ def plot_gpds(eta_array, t_array, mu_array, colors,A0=1,  particle="quark",gpd_t
     ax.grid(True)
     # Export
     FILE_PATH = cfg.PLOT_PATH / f"{gpd_type}_{particle}_GPD_{gpd_label}.pdf"
-    fig.savefig(FILE_PATH,format="pdf",bbox_inches="tight",dpi=600)
-    print(f"File saved to {FILE_PATH}")
+    # fig.savefig(FILE_PATH,format="pdf",bbox_inches="tight",dpi=600)
+    # print(f"File saved to {FILE_PATH}")
 
