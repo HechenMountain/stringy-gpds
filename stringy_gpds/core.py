@@ -47,29 +47,32 @@ from . import adim
 
 def evolve_alpha_s(mu, evolution_order="nlo"):
     """
-    Evolve alpha_S=g**/(4pi) from some input scale mu_in to some other scale mu.
-    Note that the MSTW best fit obtains alpha_S(mu=1 GeV**2)=0.68183, different from the world average
-    
-    Arguments:
-    mu (float):  The momentum scale of the process
-    evolution_order (str. optional): lo, nlo...
-    Returns:
-    The evolved value of alpha_s at mu**2
+    Evolve the strong coupling constant αₛ = g² / (4π) from an input scale μ_in to another scale μ.
+
+    Note that the MSTW best fit determines αₛ(μ² = 1 GeV²) ≈ 0.68183, which differs from the current world average.
+
+    Parameters
+    ----------
+    mu : float
+        The momentum scale μ (in GeV) at which to evaluate αₛ(μ²).
+    evolution_order : str, optional
+        The perturbative order used for the evolution (e.g., 'lo', 'nlo', etc.).
+
+    Returns
+    -------
+    float
+        The value of the strong coupling constant αₛ(μ²) at the given scale.
     """
     # Set parameters
-    
-    
-    mu_R = 1 # 1 GeV
+    mu_R = 1 # 1 GeV from MSTW and AAC PDFs
     # Extract value of alpha_S at the renormalization point of mu_R**2 = 1 GeV**2
     alpha_s_in = get_alpha_s(evolution_order)
-    # print("alpha_in:",alpha_s_in)
+
     if mu_R == mu:
         return alpha_s_in
-
     if evolution_order == "lo":
         beta_1 = 0
     else:
-        
         beta_1 = cfg.BETA_1
 
     # Define the differential equation
@@ -103,9 +106,31 @@ def evolve_alpha_s(mu, evolution_order="nlo"):
 
 def non_singlet_isovector_moment(j,eta,t, moment_label="A",evolve_type="vector", evolution_order="nlo",error_type="central"):
     """
-    Currently no skewness dependence!
+    Compute the non-singlet isovector moment for given conformal spin and kinematics. Currently skewness independent
+
+    Parameters
+    ----------
+    j : complex
+        Conformal spin.
+    eta : float
+        Skewness parameter.
+    t : float
+        Mandelstam variable t 
+    moment_label : str, optional
+        Label identifying the moment (e.g., "A", "Atilde"). Default is "A".
+    evolve_type : str, optional
+        Type of evolution to apply (e.g., "vector", "axial"). Default is "vector".
+    evolution_order : str, optional
+        Perturbative order of the evolution (e.g., "lo", "nlo"). Default is "nlo".
+    error_type : str, optional
+        Type of error treatment (e.g., "central", "plus", "minus"). Default is "central".
+
+    Returns
+    -------
+    complex or float
+        The value of the moment
     """
-   # Check type
+    # Check type
     hp.check_error_type(error_type)
     hp.check_evolution_order(evolution_order)
     hp.check_moment_type_label("non_singlet_isovector",moment_label)
@@ -130,8 +155,31 @@ def non_singlet_isovector_moment(j,eta,t, moment_label="A",evolve_type="vector",
 
 def non_singlet_isoscalar_moment(j,eta,t, moment_label="A",evolve_type="vector", evolution_order = "nlo", error_type="central"):
     """
-    Currently no skewness dependence!
+    Compute the non-singlet isoscalar moment for given conformal spin and kinematics. Currently skewness independent
+
+    Parameters
+    ----------
+    j : complex
+        Conformal spin.
+    eta : float
+        Skewness parameter.
+    t : float
+        Mandelstam variable t 
+    moment_label : str, optional
+        Label identifying the moment (e.g., "A", "Atilde"). Default is "A".
+    evolve_type : str, optional
+        Type of evolution to apply (e.g., "vector", "axial"). Default is "vector".
+    evolution_order : str, optional
+        Perturbative order of the evolution (e.g., "lo", "nlo"). Default is "nlo".
+    error_type : str, optional
+        Type of error treatment (e.g., "central", "plus", "minus"). Default is "central".
+
+    Returns
+    -------
+    complex or float
+        The value of the moment
     """
+
     # Check type
     hp.check_error_type(error_type)
     hp.check_moment_type_label("non_singlet_isoscalar",moment_label)
@@ -157,14 +205,22 @@ def non_singlet_isoscalar_moment(j,eta,t, moment_label="A",evolve_type="vector",
 def d_hat(j,eta,t):
     """
     Skewness dependent kinematical factor for Reggeized spin-j exchanges.
-    Parameters:
-    - j (complex): conformal spin 
-    - eta (float): skewness 
-    - t (float < 0): Mandelstam t 
 
-    Returns:
-    The value of d_hat (= 1 for eta == 0)
+    Parameters
+    ----------
+    j : complex
+        conformal spin
+    eta : float
+        skewness
+    t : float
+        Mandelstam t (< 0)
+
+    Returns
+    -------
+    float
+        The value of d_hat (= 1 for eta == 0)
     """
+
     m_N = 0.93827 # Nucleon mass in GeV
     if eta == 0:
         result = 1
@@ -181,7 +237,32 @@ def d_hat(j,eta,t):
             result = mp.hyp2f1(-j/2, -(j-1)/2, 1/2 - j, - 4 * m_N**2/t * eta**2)
     return result
     
-def quark_singlet_regge_A(j,eta,t,  alpha_prime_ud=0.891, moment_label="A", evolution_order ="nlo", error_type="central"):
+def quark_singlet_regge_A(j,eta,t, alpha_prime_ud=0.891, moment_label="A", evolution_order ="nlo", error_type="central"):
+    """
+    Compute the reggeized A term of the quark PDFs for given conformal spin and kinematics.
+
+    Parameters
+    ----------
+    j : complex
+        Conformal spin.
+    eta : float
+        Skewness parameter.
+    t : float
+        Mandelstam variable t 
+    alpha_prime_ud : float
+        Regge slope
+    moment_label : str, optional
+        Label identifying the moment (e.g., "A", "Atilde"). Default is "A".
+    evolution_order : str, optional
+        Perturbative order of the evolution (e.g., "lo", "nlo"). Default is "nlo".
+    error_type : str, optional
+        Type of error treatment (e.g., "central", "plus", "minus"). Default is "central".
+
+    Returns
+    -------
+    complex or float
+        The value of the moment
+    """
     if moment_label in ["A","B"]:
         uv, uv_error = reg.uv_pdf_regge(j,eta,alpha_prime_ud,t,evolution_order,error_type) 
         dv, dv_error = reg.dv_pdf_regge(j,eta,alpha_prime_ud,t,evolution_order,error_type)
@@ -214,6 +295,33 @@ def quark_singlet_regge_A(j,eta,t,  alpha_prime_ud=0.891, moment_label="A", evol
     return result, error
     
 def quark_singlet_regge_D(j,eta,t,  alpha_prime_ud=0.891,alpha_prime_s=1.828, moment_label="A",evolution_order="nlo", error_type="central"):
+    """
+    Compute the reggeized A term of the quark PDFs for given conformal spin and kinematics.
+
+    Parameters
+    ----------
+    j : complex
+        Conformal spin.
+    eta : float
+        Skewness parameter.
+    t : float
+        Mandelstam variable t 
+    alpha_prime_ud : float
+        Regge slope
+    alpha_prime_s : float
+        D-term Regge slope
+    moment_label : str, optional
+        Label identifying the moment (e.g., "A", "Atilde"). Default is "A".
+    evolution_order : str, optional
+        Perturbative order of the evolution (e.g., "lo", "nlo"). Default is "nlo".
+    error_type : str, optional
+        Type of error treatment (e.g., "central", "plus", "minus"). Default is "central".
+
+    Returns
+    -------
+    complex or float
+        The value of the moment
+    """
     if eta == 0:
         return 0, 0
     if moment_label in ["A","B"]:
@@ -270,6 +378,30 @@ def quark_singlet_regge_D(j,eta,t,  alpha_prime_ud=0.891,alpha_prime_s=1.828, mo
     return result, error
 
 def quark_singlet_regge(j,eta,t,moment_label="A",evolve_type="vector",evolution_order="nlo",error_type="central"):
+    """
+    Compute the reggeized A and D term of the quark PDFs for given conformal spin and kinematics. The Regge slopes
+    are defined in the config file.
+
+    Parameters
+    ----------
+    j : complex
+        Conformal spin.
+    eta : float
+        Skewness parameter.
+    t : float
+        Mandelstam variable t 
+    moment_label : str, optional
+        Label identifying the moment (e.g., "A", "Atilde"). Default is "A".
+    evolution_order : str, optional
+        Perturbative order of the evolution (e.g., "lo", "nlo"). Default is "nlo".
+    error_type : str, optional
+        Type of error treatment (e.g., "central", "plus", "minus"). Default is "central".
+
+    Returns
+    -------
+    complex or float
+        The value of the moment
+    """
     # Check type
     hp.check_error_type(error_type)
     hp.check_evolve_type(evolve_type)
@@ -295,6 +427,31 @@ def quark_singlet_regge(j,eta,t,moment_label="A",evolve_type="vector",evolution_
     return result, error
 
 def gluon_singlet_regge_A(j,eta,t, alpha_prime_T = 0.627,moment_label="A", evolution_order="nlo",error_type="central"):
+    """
+    Compute the reggeized A term of the gluon PDFs for given conformal spin and kinematics.
+
+    Parameters
+    ----------
+    j : complex
+        Conformal spin.
+    eta : float
+        Skewness parameter.
+    t : float
+        Mandelstam variable t 
+    alpha_prime_T : float
+        Regge slope
+    moment_label : str, optional
+        Label identifying the moment (e.g., "A", "Atilde"). Default is "A".
+    evolution_order : str, optional
+        Perturbative order of the evolution (e.g., "lo", "nlo"). Default is "nlo".
+    error_type : str, optional
+        Type of error treatment (e.g., "central", "plus", "minus"). Default is "central".
+
+    Returns
+    -------
+    complex or float
+        The value of the moment
+    """
     if moment_label == "A":
         result, error = reg.gluon_pdf_regge(j,eta,alpha_prime_T,t,evolution_order,error_type)
     elif moment_label =="Atilde":
@@ -304,6 +461,33 @@ def gluon_singlet_regge_A(j,eta,t, alpha_prime_T = 0.627,moment_label="A", evolu
     return result, error
 
 def gluon_singlet_regge_D(j,eta,t, alpha_prime_T = 0.627, alpha_prime_S = 4.277,moment_label="A",evolution_order="nlo", error_type="central"):
+    """
+    Compute the reggeized D term of the quark PDFs for given conformal spin and kinematics.
+
+    Parameters
+    ----------
+    j : complex
+        Conformal spin.
+    eta : float
+        Skewness parameter.
+    t : float
+        Mandelstam variable t 
+    alpha_prime_ud : float
+        Regge slope
+    alpha_prime_S : float
+        D-term Regge slope
+    moment_label : str, optional
+        Label identifying the moment (e.g., "A", "Atilde"). Default is "A".
+    evolution_order : str, optional
+        Perturbative order of the evolution (e.g., "lo", "nlo"). Default is "nlo".
+    error_type : str, optional
+        Type of error treatment (e.g., "central", "plus", "minus"). Default is "central".
+
+    Returns
+    -------
+    complex or float
+        The value of the moment
+    """
     # Check type
     hp.check_error_type(error_type)
     hp.check_moment_type_label("singlet",moment_label)
@@ -325,6 +509,33 @@ def gluon_singlet_regge_D(j,eta,t, alpha_prime_T = 0.627, alpha_prime_S = 4.277,
         return result, error
     
 def gluon_singlet_regge(j,eta,t,moment_label="A",evolve_type="vector", evolution_order="nlo",error_type="central"):
+    """
+    Compute the reggeized A and D term of the quark PDFs for given conformal spin and kinematics.
+
+    Parameters
+    ----------
+    j : complex
+        Conformal spin.
+    eta : float
+        Skewness parameter.
+    t : float
+        Mandelstam variable t 
+    alpha_prime_ud : float
+        Regge slope
+    alpha_prime_s : float
+        D-term Regge slope
+    moment_label : str, optional
+        Label identifying the moment (e.g., "A", "Atilde"). Default is "A".
+    evolution_order : str, optional
+        Perturbative order of the evolution (e.g., "lo", "nlo"). Default is "nlo".
+    error_type : str, optional
+        Type of error treatment (e.g., "central", "plus", "minus"). Default is "central".
+
+    Returns
+    -------
+    complex or float
+        The value of the moment
+    """
     # Check type
     hp.check_error_type(error_type)
     hp.check_evolve_type(evolve_type)
@@ -351,9 +562,33 @@ def gluon_singlet_regge(j,eta,t,moment_label="A",evolve_type="vector", evolution
 
 def singlet_moment(j,eta,t,moment_label="A",evolve_type="vector",solution="+",evolution_order="nlo",error_type="central",interpolation=True):
     """
+    Compute the diagonal combination of quark and gluon singlet moments for given conformal spin and kinematics.
+
     Returns 0 if the moment_label = "B", in accordance with holography and quark model considerations. 
     Otherwise it returns the diagonal combination of quark + gluon moment. Error for singlet_moment at j = 1
     for solution "-" unreliable because of pole in gamma. Better reconstruct evolved moment from GPD.
+
+    Parameters
+    ----------
+    j : complex
+        Conformal spin.
+    eta : float
+        Skewness parameter.
+    t : float
+        Mandelstam variable t.
+    solution : string
+        + or - depending on which solution to pick
+    moment_label : str, optional
+        Label identifying the moment (e.g., "A", "Atilde"). Default is "A".
+    evolution_order : str, optional
+        Perturbative order of the evolution (e.g., "lo", "nlo"). Default is "nlo".
+    error_type : str, optional
+        Type of error treatment (e.g., "central", "plus", "minus"). Default is "central".
+
+    Returns
+    -------
+    complex or float
+        The value of the moment.
     """
     if moment_label == "B":
         return 0, 0
@@ -412,25 +647,39 @@ if cfg.INTERPOLATE_MOMENTS:
 @hp.mpmath_vectorize
 def evolve_conformal_moment(j,eta,t,mu,A0=1,particle="quark",moment_type="non_singlet_isovector",moment_label ="A", evolution_order = "nlo", error_type = "central",interpolation=True):
     """
-    Evolve the conformal moment F_{j}^{+-} from some input scale mu_in to some other scale mu. 
+    Evolve the conformal moment F_{j}^{+-} from some input scale mu_in to some other scale mu.
 
-    Arguments:
-    - j (float): conformal spin
-    - eta (float): skewness parameter
-    - t (float): Mandelstam t
-    - mu (float): Resolution scale
-    - A0 (float optional): Normalization factor (default A0 = 1)
-    - particle (str. optional): quark or gluon
-    - moment_type (str. optional): non_singlet_isovector, non_singlet_isoscalar, or singlet
-    - moment_label (str. optional): A(Tilde) B(Tilde) depending on H(Tilde) or E(Tilde) GPD etc.
-    - evolution_order (str. optional): lo, nlo
-    - error_type (str. optional): Choose central, upper or lower value for input PDF parameters
-    - interpolation (bool, optional): Use interpolated values for anomalous dimensions
+    Parameters
+    ----------
+    j : float
+        Conformal spin.
+    eta : float
+        Skewness parameter.
+    t : float
+        Mandelstam t.
+    mu : float
+        Resolution scale.
+    A0 : float, optional
+        Normalization factor (default A0 = 1).
+    particle : str, optional
+        Quark or gluon. Default is quark
+    moment_type : str, optional
+        non_singlet_isovector, non_singlet_isoscalar, or singlet.
+    moment_label : str, optional
+        A(Tilde), B(Tilde) depending on H(Tilde) or E(Tilde) GPD etc.
+    evolution_order : str, optional
+        lo, nlo.
+    error_type : str, optional
+        Choose central, upper or lower value for input PDF parameters.
+    interpolation : bool, optional
+        Use interpolated values for anomalous dimensions.
 
-    Returns:
-    The value of the evolved conformal moment at scale mu
+    Returns
+    -------
+    float or complex
+        The value of the evolved conformal moment at scale mu.
     """
-    
+
     hp.check_particle_type(particle)
     hp.check_moment_type_label(moment_type,moment_label)
     hp.check_error_type(error_type)
