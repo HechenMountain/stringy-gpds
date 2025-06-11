@@ -1,6 +1,5 @@
 # Dependencies
 import numpy as np
-import matplotlib.pyplot as plt
 import os
 import csv
 
@@ -662,7 +661,7 @@ def evolve_conformal_moment(j,eta,t,mu,A0=1,particle="quark",moment_type="non_si
     A0 : float, optional
         Normalization factor (default A0 = 1).
     particle : str, optional
-        Quark or gluon. Default is quark
+        "quark" or "gluon". Default is "quark".
     moment_type : str, optional
         non_singlet_isovector, non_singlet_isoscalar, or singlet.
     moment_label : str, optional
@@ -987,6 +986,37 @@ def evolve_conformal_moment(j,eta,t,mu,A0=1,particle="quark",moment_type="non_si
     return result
 
 def dipole_moment(n,eta,t,mu,particle="quark",moment_type="non_singlet_isovector",moment_label="Atilde",evolution_order="nlo",error_type="central",lattice=False):
+    """
+    Get the dipole form for the evolved conformal moment F_{n}^{+-} obtained by fit.dipole_fit_moment
+
+    Parameters
+    ----------
+    n : int
+        Conformal spin.
+    eta : float
+        Skewness parameter.
+    t : float
+        Mandelstam t.
+    mu : float
+        Resolution scale.
+    particle : str, optional
+        "quark" or "gluon". Default is "quark".
+    moment_type : str, optional
+        non_singlet_isovector, non_singlet_isoscalar, or singlet.
+    moment_label : str, optional
+        A(Tilde), B(Tilde) depending on H(Tilde) or E(Tilde) GPD etc.
+    evolution_order : str, optional
+        lo, nlo.
+    error_type : str, optional
+        Choose central, upper or lower value for input PDF parameters.
+    lattice : bool, optional
+        Can also be used to get the dipole form of lattice moments
+
+    Returns
+    -------
+    float
+        The value of the evolved conformal moment at scale mu in dipole form.
+    """
     def dipole_form(t, A_D, m_D2): 
         return A_D / (1 - t / m_D2)**2
     
@@ -1029,6 +1059,9 @@ def dipole_moment(n,eta,t,mu,particle="quark",moment_type="non_singlet_isovector
     return result
 
 def evolve_singlet_D(j,eta,t,mu,D0=1,particle="quark",moment_label="A",evolution_order="nlo",error_type="central"):
+    """
+    Helper function to extract the evolved D-term moment. For documentation see evolve_conformal_moment.
+    """
     hp.check_particle_type(particle)
     hp.check_moment_type_label("singlet",moment_label)
     if j == 2:
@@ -1039,45 +1072,79 @@ def evolve_singlet_D(j,eta,t,mu,D0=1,particle="quark",moment_label="A",evolution
     return result
 
 def evolve_quark_non_singlet(j,eta,t,mu,A0=1,moment_type="non_singlet_isovector",moment_label = "A",evolution_order="nlo",error_type="central"):
+    """
+    Helper function to extract the quark non-singlet moments. For documentation see evolve_conformal_moment.
+    """
     result = evolve_conformal_moment(j,eta,t,mu,A0,"quark",moment_type,moment_label,evolution_order,error_type)
     return result
 
 def evolve_quark_singlet(j,eta,t,mu,A0=1,moment_label = "A",evolution_order="nlo",error_type="central"):
+    """
+    Helper function to extract the quark singlet moment. For documentation see evolve_conformal_moment.
+    """
     result = evolve_conformal_moment(j,eta,t,mu,A0,"quark","singlet",moment_label,evolution_order,error_type)
     return result
 
 def evolve_gluon_singlet(j,eta,t,mu,A0=1,moment_label = "A",evolution_order="nlo",error_type="central"):
+    """
+    Helper function to extract the gluon singlet moment. For documentation see evolve_conformal_moment.
+    """
     result = evolve_conformal_moment(j,eta,t,mu,A0,"gluon","singlet",moment_label,evolution_order,error_type)
     return result
 
 def evolve_quark_singlet_D(eta,t,mu,D0=1,moment_label = "A",evolution_order="nlo",error_type="central"):
+    """
+    Helper function to extract the evolved quark D-term moment. For documentation see evolve_conformal_moment.
+    """
     result = evolve_singlet_D(eta,t,mu,D0,"quark",moment_label,evolution_order,error_type)
     return result
 
 def evolve_gluon_singlet_D(j,eta,t,mu,D0=1,moment_label = "A",evolution_order="nlo",error_type="central"):
+    """
+    Helper function to extract the evolved gluon D-term moment. For documentation see evolve_conformal_moment.
+    """
     result = evolve_singlet_D(j,eta,t,mu,D0,"gluon",moment_label,evolution_order,error_type)
     return result
 
 def fourier_transform_moment(n,eta,mu,b_vec,A0=1,particle="quark",moment_type="non_singlet_isovector", moment_label="A",evolution_order="nlo", Delta_max = 5,num_points=100, error_type="central",dipole_form=True):
     """
-    Optimized calculation of Fourier transformed moments using trapezoidal rule.
+    Compute Fourier transformed moments using trapezoidal rule.
 
-    Parameters:
-    - n (float): Conformal spin
-    - eta (float): Skewness parameter
-    - mu (float): RGE scale
-    - b_vec: (b_x, b_y), the vector for which to compute the result
-    - A0 (float, optional): Overall scale
-    - particle (str. optional): "quark" or "gluon". Default is quark.
-    - moment_type (str. optional): singlet, non_singlet_isovector or non_singlet_isoscalar. Default is non_singlet_isovector.
-    - moment_label (str. optiona): Label of conformal moment, e.g. A
-    - Delta_max (float, optional): maximum radius for the integration domain (limits the integration bounds)
-    - num_points: number of points for discretizing the domain (adapt as needed)
-    - error_type (str. optional): Whether to use central, plus or minus value of input PDF. Default is central.
-    - dipole_form (bool, optional): Use dipole fit for faster integration
-    Returns:
-    - The value of the Fourier transformed moment at (b_vec)
+    Parameters
+    ----------
+    n : int
+        Conformal spin.
+    eta : float
+        Skewness parameter.
+    t : float
+        Mandelstam t.
+    mu : float
+        Resolution scale.
+    A0 : float, optional
+        Normalization factor (default A0 = 1).
+    particle : str, optional
+        "quark" or "gluon". Default is "quark".
+    moment_type : str, optional
+        non_singlet_isovector, non_singlet_isoscalar, or singlet.
+    moment_label : str, optional
+        A(Tilde), B(Tilde) depending on H(Tilde) or E(Tilde) GPD etc.
+    evolution_order : str, optional
+        lo, nlo.
+    Delta_max : float, optional
+        Maximal momentum transfer to cut off integration
+    num_points : int, optional
+        Number of grid points used for trapezoidal rule is num_points**2
+    error_type : str, optional
+        Choose central, upper or lower value for input PDF parameters.
+    dipole_form : bool, optional
+        Use dipole fit for faster integration.
+
+    Returns
+    -------
+    float
+        The value of the Fourier transformed moment at `b_vec`.
     """
+
     hp.check_error_type(error_type)
     hp.check_particle_type(particle)
     hp.check_moment_type_label(moment_type,moment_label)
@@ -1118,17 +1185,37 @@ def inverse_fourier_transform_moment(n,eta,mu,Delta_vec,particle="quark",moment_
     """
     Sanity check for Fourier transform. The result should be the input moment.
 
-    Parameters:
-    - eta (float): Skewness parameter
-    - mu (float): RGE scale
-    - b_vec: (b_x, b_y), the vector for which to compute the result
-    - moment_type (str. optional): non_singlet_isovector, non_singlet_isoscalar or flavor separated u, d. Default is non_singlet_isovector.
-    - Delta_max (float, optional): maximum radius for the integration domain (limits the integration bounds)
-    - num_points: number of points for discretizing the domain (adapt as needed)
-    - error_type (str. optional): Whether to use central, plus or minus value of input PDF. Default is central.
+    Parameters
+    ----------
+    n : int
+        Conformal spin.
+    eta : float
+        Skewness parameter.
+    Delta_vec : vector float
+        Momentum transfer
+    mu : float
+        Resolution scale.
+    particle : str, optional
+        "quark" or "gluon". Default is "quark".
+    moment_type : str, optional
+        non_singlet_isovector, non_singlet_isoscalar, or singlet.
+    moment_label : str, optional
+        A(Tilde), B(Tilde) depending on H(Tilde) or E(Tilde) GPD etc.
+    evolution_order : str, optional
+        lo, nlo.
+    b_max : float, optional
+        Maximal impact parameter to cut off integration
+    num_points : int, optional
+        Number of grid points used for trapezoidal rule is num_points**2
+    error_type : str, optional
+        Choose central, upper or lower value for input PDF parameters.
+    dipole_form : bool, optional
+        Use dipole fit for faster integration.
 
-    Returns:
-    - The value of the Fourier transformed moment at (b_vec)
+    Returns
+    -------
+    float
+        The value of the inverse Fourier transformed moment at `Delta_vec`.
     """
     hp.check_particle_type(particle)
     if moment_type not in ["singlet","non_singlet_isovector","non_singlet_isoscalar","u","d"]:
@@ -1161,24 +1248,43 @@ def inverse_fourier_transform_moment(n,eta,mu,Delta_vec,particle="quark",moment_
 
 def fourier_transform_transverse_moment(n,eta,mu,b_vec,A0=1,particle="quark",moment_type="non_singlet_isovector",evolution_order="nlo", Delta_max = 5,num_points=100, error_type="central",dipole_form=True):
     """
-    Optimized calculation of Fourier transformed moments for transversely polarized target using trapezoidal rule. 
-    Automatically uses A_n and B_n moments with assumed nucleon mass of M_n = 0.93827 GeV
+    Compute Fourier transformed transverse moments using trapezoidal rule.
 
-    Parameters:
-    - j (float): Conformal spin
-    - eta (float): Skewness parameter
-    - mu (float): RGE scale
-    - b_vec: (b_x, b_y), the vector for which to compute the result
-    - A0 (float, optional): Overall scale
-    - particle (str. optional): "quark" or "gluon". Default is quark.
-    - moment_type (str. optional): singlet, non_singlet_isovector or non_singlet_isoscalar. Default is non_singlet_isovector.
-    - Delta_max (float, optional): maximum radius for the integration domain (limits the integration bounds)
-    - num_points: number of points for discretizing the domain (adapt as needed)
-    - error_type (str. optional): Whether to use central, plus or minus value of input PDF. Default is central.
-    - dipole_form (bool, optional): Use dipole fit for faster integration
+    Parameters
+    ----------
+    n : int
+        Conformal spin.
+    eta : float
+        Skewness parameter.
+    eta : float
+        Skewness parameter.
+    t : float
+        Mandelstam t.
+    mu : float
+        Resolution scale.
+    A0 : float, optional
+        Normalization factor (default A0 = 1).
+    particle : str, optional
+        "quark" or "gluon". Default is "quark".
+    moment_type : str, optional
+        non_singlet_isovector, non_singlet_isoscalar, or singlet.
+    moment_label : str, optional
+        A(Tilde), B(Tilde) depending on H(Tilde) or E(Tilde) GPD etc.
+    evolution_order : str, optional
+        lo, nlo.
+    Delta_max : float, optional
+        Maximal momentum transfer to cut off integration
+    num_points : int, optional
+        Number of grid points used for trapezoidal rule is num_points**2
+    error_type : str, optional
+        Choose central, upper or lower value for input PDF parameters.
+    dipole_form : bool, optional
+        Use dipole fit for faster integration.
 
-    Returns:
-    - The value of the Fourier transformed moment at (b_vec)
+    Returns
+    -------
+    float
+        The value of the Fourier transformed transverse moment at `b_vec`.
     """
     hp.check_error_type(error_type)
     hp.check_particle_type(particle)
@@ -1220,20 +1326,7 @@ def fourier_transform_transverse_moment(n,eta,mu,b_vec,A0=1,particle="quark",mom
 
 def fourier_transform_quark_gluon_helicity(eta,mu,b_vec,particle="quark",moment_type="non_singlet_isovector",evolution_order="nlo", Delta_max = 10,num_points=100, error_type="central"):
     """
-    Quark gluon helicity in impact parameter space in GeV^2
-
-    Parameters:
-    - eta (float): Skewness parameter
-    - mu (float): RGE scale
-    - b_vec: (b_x, b_y), the vector for which to compute the result
-    - particle (str. optional): "quark" or "gluon"
-    - moment_type (str. optional): non_singlet_isovector, non_singlet_isoscalar or flavor separated u, d. Default is non_singlet_isovector.
-    - Delta_max (float, optional): maximum radius for the integration domain (limits the integration bounds)
-    - num_points: number of points for discretizing the domain (adapt as needed)
-    - error_type (str. optional): Whether to use central, plus or minus value of input PDF. Default is central.
-
-    Returns:
-    - The value of the quark gluon helicity at (b_vec)
+    Quark gluon helicity in impact parameter space in GeV^2. For documentation see fourier_transform_moment.
     """
     def ft_moment(b_vec,moment_type,error_type):
         return fourier_transform_moment(n=1,eta=eta,mu=mu,b_vec=b_vec,
@@ -1264,37 +1357,22 @@ def fourier_transform_quark_gluon_helicity(eta,mu,b_vec,particle="quark",moment_
     return result
 
 def fourier_transform_quark_helicity(eta,mu,b_vec,moment_type="non_singlet_isovector",evolution_order="nlo", Delta_max = 10,num_points=100, error_type="central"):
+    """
+    Helper function to get Fourier transformed quark helicity. For documentation see fourier_transform_moment.
+    """
     result = fourier_transform_quark_gluon_helicity(eta,mu,b_vec,particle="quark",moment_type=moment_type,evolution_order=evolution_order,Delta_max=Delta_max,num_points=num_points,error_type=error_type)
     return result
 
 def fourier_transform_gluon_helicity(eta,mu,b_vec,evolution_order="nlo",Delta_max = 10,num_points=100, error_type="central"):
-    result = fourier_transform_quark_gluon_helicity(eta,mu,b_vec,particle="gluon",moment_type="singlet",evolution_order=evolution_order,Delta_max=Delta_max,num_points=num_points,error_type=error_type)
-    return result
-
-def fourier_transform_quark_helicity(eta,mu,b_vec,moment_type="non_singlet_isovector",evolution_order="nlo", Delta_max = 10,num_points=100, error_type="central"):
-    result = fourier_transform_quark_gluon_helicity(eta,mu,b_vec,particle="quark",moment_type=moment_type,evolution_order=evolution_order,Delta_max=Delta_max,num_points=num_points,error_type=error_type)
-    return result
-
-def fourier_transform_gluon_helicity(eta,mu,b_vec,evolution_order="nlo",Delta_max = 10,num_points=100, error_type="central"):
+    """
+    Helper function to get Fourier transformed gluon helicity. For documentation see fourier_transform_moment.
+    """
     result = fourier_transform_quark_gluon_helicity(eta,mu,b_vec,particle="gluon",moment_type="singlet",evolution_order=evolution_order,Delta_max=Delta_max,num_points=num_points,error_type=error_type)
     return result
 
 def fourier_transform_spin_orbit_correlation(eta,mu,b_vec,evolution_order="nlo",particle="quark",moment_type="non_singlet_isovector", Delta_max = 8,num_points=100, error_type="central"):
     """
-    Spin-orbit correlation in impact parameter space in GeV^2
-
-    Parameters:
-    - eta (float): Skewness parameter
-    - mu (float): RGE scale
-    - b_vec: (b_x, b_y), the vector for which to compute the result
-    - particle (str. optional): "quark" or "gluon"
-    - moment_type (str. optional): non_singlet_isovector, non_singlet_isoscalar or flavor separated u, d. Default is non_singlet_isovector.
-    - Delta_max (float, optional): maximum radius for the integration domain (limits the integration bounds)
-    - num_points: number of points for discretizing the domain (adapt as needed)
-    - error_type (str. optional): Whether to use central, plus or minus value of input PDF. Default is central.
-
-    Returns:
-    - The value of the spin-orbit correlation at (b_vec)
+    Spin-orbit correlation in impact parameter space in GeV^2. For documentation see fourier_transform_moment.
     """
     def ft_moment(n,b_vec,moment_type,moment_label,error_type):
         return fourier_transform_moment(n=n,eta=eta,mu=mu,b_vec=b_vec,
@@ -1353,20 +1431,7 @@ def fourier_transform_spin_orbit_correlation(eta,mu,b_vec,evolution_order="nlo",
         
 def fourier_transform_orbital_angular_momentum(eta,mu,b_vec,particle="quark",moment_type="non_singlet_isovector",evolution_order="nlo", Delta_max = 7,num_points=100, error_type="central"):
     """
-    Orbital angular momentum in impact parameter space in GeV^2
-
-    Parameters:
-    - eta (float): Skewness parameter
-    - mu (float): RGE scale
-    - b_vec: (b_x, b_y), the vector for which to compute the result
-    - particle (str. optional): "quark" or "gluon"
-    - moment_type (str. optional): non_singlet_isovector, non_singlet_isoscalar or flavor separated u, d. Default is non_singlet_isovector.
-    - Delta_max (float, optional): maximum radius for the integration domain (limits the integration bounds)
-    - num_points: number of points for discretizing the domain (adapt as needed)
-    - error_type (str. optional): Whether to use central, plus or minus value of input PDF. Default is central.
-
-    Returns:
-    - The value of the orbital angular momentum at (b_vec)
+    Orbital angular momentum in impact parameter space in GeV^2. For documentation see fourier_transform_moment.
     """
     def ft_moment(n,b_vec,moment_type,moment_label,error_type):
         return fourier_transform_moment(n=n,eta=eta,mu=mu,b_vec=b_vec,
@@ -1423,6 +1488,9 @@ def fourier_transform_orbital_angular_momentum(eta,mu,b_vec,particle="quark",mom
             return result
 
 def fourier_transform_quark_orbital_angular_momentum(eta,mu,b_vec,moment_type="non_singlet_isovector",evolution_order="nlo", Delta_max = 7,num_points=100, error_type="central"):
+    """
+    Helper function to get quark orbital angular momentum. For documentation see fourier_transform_moment.
+    """
     result = fourier_transform_orbital_angular_momentum(eta,mu,b_vec,particle="quark",moment_type=moment_type,evolution_order=evolution_order, Delta_max=Delta_max,num_points=num_points, error_type=error_type)
     return result
 
@@ -1437,21 +1505,32 @@ def conformal_partial_wave(j, x, eta, particle = "quark", parity="none"):
     Calculate the conformal partial waves for quark and gluon GPDs and generate their
     respective "even" or "odd" combinations.
 
-    Parameters:
-    j (complex): Conformal spin
-    x (float): Value of parton x
-    eta (float): Value of skewness
-    particle (str, optional): The particle species 'quark' or 'gluon' default is 'quark'.
-    parity (str, optional): The parity of the function. Either 'even', 'odd' or 'none'. Default is 'none'.
+    Parameters
+    ----------
+    j : complex
+        Conformal spin.
+    x : float
+        Value of parton x.
+    eta : float
+        Value of skewness.
+    particle : str, optional
+        "quark" or "gluon". Default is "quark".
+    parity : str, optional
+        The parity of the function. Either "even", "odd", or "none". Default is "none".
 
-    Returns:
-    mpc: Value of even or odd combination of conformal quark partial waves
+    Returns
+    -------
+    mpc
+        Value of even or odd combination of conformal quark partial waves.
 
-    Raises:
-    ValueError: If the `parity` argument is not "even", "odd" or "none".
+    Raises
+    ------
+    ValueError
+        If the `parity` argument is not "even", "odd", or "none".
 
-    Notes:
-    - The result is vectorized later on using np.vectorize for handling array inputs.
+    Notes
+    -----
+    Decorated using @hp.mpmath_vectorize for vectorized calls
     """
     hp.check_particle_type(particle)
     hp.check_parity(parity)
@@ -1506,6 +1585,35 @@ def conformal_partial_wave(j, x, eta, particle = "quark", parity="none"):
 
 # Define get_j_base which contains real part of integration variable and associated parity
 def get_j_base(particle="quark",moment_type="non_singlet_isovector", moment_label="A"):
+    """
+    Get the real value of j and corresponding parity used for the 
+    conformal partial waves in the Mellin-Barnes integration of the GPD
+
+    Parameters
+    ----------
+    particle : str, optional
+        "quark" or "gluon". Default is "quark".
+    moment_type : str, optional
+        non_singlet_isovector, non_singlet_isoscalar, or singlet.
+    moment_label : str, optional
+        A(Tilde), B(Tilde) depending on H(Tilde) or E(Tilde) GPD etc.
+
+    Returns
+    -------
+    j_base : float
+        Real part of j used for Mellin-Barnes integration
+    parity : str
+        The partinent parity label.
+
+    Raises
+    ------
+    ValueError
+        If the `parity` argument is not "even", "odd", or "none".
+
+    Notes
+    -----
+    Decorated using @hp.mpmath_vectorize for vectorized calls
+    """
     hp.check_particle_type(particle)
     hp.check_moment_type_label(moment_type,moment_label)
 
@@ -1534,6 +1642,38 @@ def get_j_base(particle="quark",moment_type="non_singlet_isovector", moment_labe
 
 @cfg.memory.cache
 def estimate_gpd_error(eta,t,mu,particle,moment_type,moment_label,evolution_order,error_type):
+    """
+    Estimate the relative error of the GPD moment based on input moment uncertainties.
+
+    Parameters
+    ----------
+    eta : float
+        Skewness parameter.
+    t : float
+        Mandelstam t.
+    mu : float
+        Resolution scale.
+    particle : str, optional
+        "quark" or "gluon". Default is "quark".
+    moment_type : str, optional
+        non_singlet_isovector, non_singlet_isoscalar, or singlet.
+    moment_label : str, optional
+        A(Tilde), B(Tilde) depending on H(Tilde) or E(Tilde) GPD etc.
+    evolution_order : str, optional
+        lo, nlo.
+    error_type : str, optional
+        Choose central, upper or lower value for input PDF parameters.
+        
+    Returns
+    -------
+    float
+        The relative error estimate for the specified GPD moment.
+
+    Notes
+    -----
+    This function is cached using `joblib.Memory` for performance.
+    """
+
     if error_type == "central":
         return 1
     @hp.mpmath_vectorize
@@ -1594,27 +1734,50 @@ for particle,moment_type, moment_label, evolution_order, error_type in product(
 
 def mellin_barnes_gpd(x, eta, t, mu,  A0=1 ,particle = "quark", moment_type="non_singlet_isovector",moment_label="A",evolution_order="nlo", error_type="central",real_imag ="real",j_max = 15, n_jobs=1):
     """
-    Numerically evaluate the Mellin-Barnes integral parallel to the imaginary axis to obtain the corresponding GPD
-    
-    Parameters:
-    - x (float): Parton x
-    - eta (float): Skewness.
-    - t (float): Mandelstam t
-    - mu (float): Resolution scale
-    - A0 (float. optional): Overall scale
-    - particle (str,optional): particle species (quark or gluon)
-    - moment_type (str,optional): singlet, non_singlet_isovector, non_singlet_isoscalar
-    - moment_label (str,optional): A, Atilde, B
-    - error_type (str,optional): Whether to use an error estimate on the final GPD results
-    - real_imag (str,optional): Choose to compute real part, imaginary part or both
-    - j_max (float,optional): Integration range parallel to the imaginary axis
-    - n_jobs (int,optional): Number of subregions, and thus processes, the integral is split into
-    - n_k (int,optional): Number of sampling points within the interval [-j_max,j_max]
-    Returns: 
-    - The value of the Mellin-Barnes integral with real and imaginary part.
-    Note:
-    - For low x and/or eta it is recommended to divide the integration region
+    Numerically evaluate the Mellin-Barnes integral parallel to the imaginary axis 
+    to obtain the corresponding GPD.
+
+    Parameters
+    ----------
+    x : float
+        Parton momentum fraction.
+    eta : float
+        Skewness parameter.
+    t : float
+        Mandelstam t.
+    mu : float
+        Resolution scale.
+    A0 : float, optional
+        Overall scale.
+    particle : str, optional
+        "quark" or "gluon". Default is "quark".
+    moment_type : str, optional
+        non_singlet_isovector, non_singlet_isoscalar, or singlet.
+    moment_label : str, optional
+        A(Tilde), B(Tilde) depending on H(Tilde) or E(Tilde) GPD etc.
+    evolution_order : str, optional
+        lo, nlo.
+    error_type : str, optional
+        Choose central, upper or lower value for input PDF parameters.
+    real_imag : str, optional
+        Choose to compute "real", "imag", or "both" parts of the result.
+    j_max : float, optional
+        Integration range parallel to the imaginary axis.
+    n_jobs : int, optional
+        Number of subregions (and processes) the integral is split into.
+    n_k : int, optional
+        Number of sampling points within the interval [-j_max, j_max].
+
+    Returns
+    -------
+    complex or float
+        The value of the Mellin-Barnes integral with real and imaginary parts.
+
+    Notes
+    -----
+    For low `x` and/or `eta`, it is recommended to divide the integration region using n_jobs.
     """
+
     hp.check_particle_type(particle)
     hp.check_error_type(error_type)
     hp.check_evolution_order(evolution_order)
@@ -1678,20 +1841,30 @@ def mellin_barnes_gpd(x, eta, t, mu,  A0=1 ,particle = "quark", moment_type="non
         
     def find_integration_bound(integrand, j_max, tolerance=1e-2, step=10, max_iterations=50):
         """
-        Finds an appropriate upper integration bound for an oscillating integrand.
+        Find an appropriate upper integration bound
 
-        Parameters:
-        - integrand (function): The function to be integrated.
-        - tolerance (str. optional): The desired tolerance for the integrand's absolute value. Standard is 1e-2
-        - step (float. optional): The increment to increase the integration bound in each step. Standard is 10
-        - max_iterations (int. optional): The maximum number of iterations to perform. Standard is 50
+        Parameters
+        ----------
+        integrand : function
+            The function to be integrated.
+        tolerance : str, optional
+            The desired tolerance for the integrand's absolute value. Default is "1e-2".
+        step : float, optional
+            The increment to increase the integration bound in each step. Default is 10.
+        max_iterations : int, optional
+            The maximum number of iterations to perform. Default is 50.
 
-        Returns:
+        Returns
+        -------
+        float
             The determined upper integration bound.
 
-        Raises:
-            ValueError: If the maximum number of iterations is reached without finding a suitable bound.
+        Raises
+        ------
+        ValueError
+            If the maximum number of iterations is reached without finding a suitable bound.
         """
+
         iterations = 0
 
         while abs(integrand(j_max, "real")) > tolerance and iterations < max_iterations:
@@ -1716,22 +1889,27 @@ def mellin_barnes_gpd(x, eta, t, mu,  A0=1 ,particle = "quark", moment_type="non
     # Function to integrate over a subinterval of k 
     def integrate_subinterval(k_values, real_imag):
         """
-        Integrates the integrand over the specified subinterval and 
-        returns either the real, imaginary part, or both.
+        Integrate the integrand over the specified subinterval and return either 
+        the real, imaginary part, or both.
 
-        Parameters:
-        - k_values (arr.): A list or array containing the minimum and maximum k values.
-        - real_imag (str.): A string specifying whether to return 'real', 'imag', or 'both'.
+        Parameters
+        ----------
+        k_values : array-like
+            A list or array containing the minimum and maximum k values.
+        real_imag : str
+            Specifies whether to return "real", "imag", or "both".
 
-        Returns:
-            If real_imag is 'real':
-                A tuple containing the real part of the integral and its error.
-            If real_imag is 'imag':
-                A tuple containing the imaginary part of the integral and its error.
-            If real_imag is 'both':
-                A tuple containing the real part, its error, the imaginary part, 
-                and its error.
+        Returns
+        -------
+        tuple
+            If `real_imag` is "real":
+                (real_part, error)
+            If `real_imag` is "imag":
+                (imag_part, error)
+            If `real_imag` is "both":
+                (real_part, real_error, imag_part, imag_error)
         """
+
         k_min = k_values[0]
         k_max = k_values[-1]
 
@@ -1820,14 +1998,31 @@ def mellin_barnes_gpd(x, eta, t, mu,  A0=1 ,particle = "quark", moment_type="non
 ################################
 
 def spin_orbit_corelation(eta,t,mu, A0 = 1, particle="quark",moment_type="non_singlet_isovector",evolution_order="nlo"):
-    """ Returns the spin orbit correlation of moment_type including errors
+    """ 
+    Returns the spin orbit correlation C_z of moment_type including errors
 
-    Parameters:
-    - eta (float): Skewness parameter   
-    - t (float): Mandelstam t
-    - mu (float): The momentum scale of the process
-    - A0 (float, optional): Overall scale
-    - moment_type (str. optional): The flavor dependence. Either non_singlet_isovector or non_singlet_isoscalar    
+    Parameters
+    ----------
+    eta : float
+        Skewness parameter.
+    t : float
+        Mandelstam t.
+    mu : float
+        Resolution scale.
+    A0 : float, optional
+        Overall scale.
+    particle : str, optional
+        "quark" or "gluon". Default is "quark".
+    moment_type : str, optional
+        non_singlet_isovector, non_singlet_isoscalar, or singlet.
+    evolution_order : str, optional
+        lo, nlo.   
+
+    Returns
+    -------
+    tuple
+        A tuple containing the result, upper error estimate, and lower error estimate.
+
     """
 
     if moment_type not in ["singlet",
@@ -1850,15 +2045,31 @@ def spin_orbit_corelation(eta,t,mu, A0 = 1, particle="quark",moment_type="non_si
     return result, error_plus, error_minus
 
 def total_spin(eta,t,mu,A0=1,particle="quark",moment_type="non_singlet_isovector",evolution_order="nlo"):
-    """ Returns the total spin of moment_type including errors
+    """ 
+    Returns the total spin J of moment_type including errors
 
-    Parameters:
-    - eta (float): Skewness parameter
-    - t (float): Mandelstam t
-    - cfg.N_F (int, optional): Number of active quarks
-    - A0 (float, optional): Overall scale
-    - mu (float): The momentum scale of the process
-    - moment_type (str. optional): The flavor dependence. Either non_singlet_isovector or non_singlet_isoscalar    
+    Parameters
+    ----------
+    eta : float
+        Skewness parameter.
+    t : float
+        Mandelstam t.
+    mu : float
+        Resolution scale.
+    A0 : float, optional
+        Overall scale.
+    particle : str, optional
+        "quark" or "gluon". Default is "quark".
+    moment_type : str, optional
+        non_singlet_isovector, non_singlet_isoscalar, or singlet.
+    evolution_order : str, optional
+        lo, nlo.   
+        
+    Returns
+    -------
+    tuple
+        A tuple containing the result, upper error estimate, and lower error estimate.
+
     """
     if moment_type not in ["singlet",
                            "non_singlet_isoscalar",
@@ -1880,15 +2091,31 @@ def total_spin(eta,t,mu,A0=1,particle="quark",moment_type="non_singlet_isovector
     return result, error_plus, error_minus
 
 def orbital_angular_momentum(eta,t,mu,A0=1, particle="quark",moment_type="non_singlet_isovector",evolution_order="nlo"):
-    """ Returns the orbital angular momentum of moment_type including errors
+    """ 
+    Returns the orbital angular momentum L_z of moment_type including errors
 
-    Parameters:
-    - eta (float): Skewness parameter
-    - t (float): Mandelstam t
-    - cfg.N_F (int, optional): Number of active quarks
-    - A0 (float, optional): Overall scale
-    - mu (float): The momentum scale of the process
-    - moment_type (str. optional): The flavor dependence. Either non_singlet_isovector or non_singlet_isoscalar    
+    Parameters
+    ----------
+    eta : float
+        Skewness parameter.
+    t : float
+        Mandelstam t.
+    mu : float
+        Resolution scale.
+    A0 : float, optional
+        Overall scale.
+    particle : str, optional
+        "quark" or "gluon". Default is "quark".
+    moment_type : str, optional
+        non_singlet_isovector, non_singlet_isoscalar, or singlet.
+    evolution_order : str, optional
+        lo, nlo.   
+        
+    Returns
+    -------
+    tuple
+        A tuple containing the result, upper error estimate, and lower error estimate.
+
     """
     hp.check_particle_type(particle)
     if moment_type not in ["singlet",
@@ -1916,15 +2143,31 @@ def orbital_angular_momentum(eta,t,mu,A0=1, particle="quark",moment_type="non_si
     return result, error_plus, error_minus
 
 def quark_gluon_helicity(eta,t,mu,A0=1, particle="quark",moment_type="non_singlet_isovector",evolution_order="nlo"):
-    """ Prints the quark helicity of moment_type including errors
+    """ 
+    Returns the helicity of moment_type including errors
 
-    Parameters:
-    - eta (float): Skewness parameter
-    - t (float): Mandelstam t
-    - mu (float): The momentum scale of the process
-    - cfg.N_F (int, optional): Number of active quarks
-    - A0 (float, optional): Overall scale
-    - moment_type (str. optional): The flavor dependence. Either non_singlet_isovector or non_singlet_isoscalar    
+    Parameters
+    ----------
+    eta : float
+        Skewness parameter.
+    t : float
+        Mandelstam t.
+    mu : float
+        Resolution scale.
+    A0 : float, optional
+        Overall scale.
+    particle : str, optional
+        "quark" or "gluon". Default is "quark".
+    moment_type : str, optional
+        non_singlet_isovector, non_singlet_isoscalar, or singlet.
+    evolution_order : str, optional
+        lo, nlo.   
+        
+    Returns
+    -------
+    tuple
+        A tuple containing the result, upper error estimate, and lower error estimate.
+
     """
     hp.check_particle_type(particle)
     if moment_type not in ["singlet","non_singlet_isoscalar","non_singlet_isovector"]:
@@ -1942,9 +2185,15 @@ def quark_gluon_helicity(eta,t,mu,A0=1, particle="quark",moment_type="non_single
     return result, error_plus, error_minus
 
 def quark_helicity(eta,t,mu,A0=1, moment_type="non_singlet_isovector",evolution_order="nlo"):
+    """
+    Helper function to get quark helicity. For documentation see quark_gluon_helicity
+    """
     result, error_plus, error_minus = quark_gluon_helicity(eta,t,mu,A0,particle="quark",moment_type=moment_type,evolution_order=evolution_order)
     return result, error_plus, error_minus
 
 def gluon_helicity(eta,t,mu,A0=1,evolution_order="nlo"):
+    """
+    Helper function to get gluon helicity. For documentation see quark_gluon_helicity
+    """
     result, error_plus, error_minus = quark_gluon_helicity(eta,t,mu,A0,particle="gluon",moment_type="singlet",evolution_order=evolution_order)
     return result, error_plus, error_minus

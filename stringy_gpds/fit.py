@@ -84,15 +84,35 @@ def dipole_fit_moment(n,eta,mu,particle="quark",moment_type="non_singlet_isovect
     """
     Generates a dipole fit to the first moment of the corresponding singlet GPD.
 
-    Parameters:
-    - n (float): conformal spin
-    - eta (float): Skewness parameter
-    - mu (float): Resolution scale
-    - particle (str. optional): quark, gluon
-    - gpd_label (str. optional): Atilde,...
-    - plot_fit (bool optional): Whether to show a plot
-    - write_to_file (bool optional): Write the fit results to a csv table
-    - error_type (str. optional): central, plus, minus
+    Parameters
+    ----------
+    n : int
+        Conformal spin.
+    eta : float
+        Skewness parameter.
+    t : float
+        Mandelstam t.
+    mu : float
+        Resolution scale.
+    particle : str, optional
+        "quark" or "gluon". Default is "quark".
+    moment_type : str, optional
+        non_singlet_isovector, non_singlet_isoscalar, or singlet.
+    moment_label : str, optional
+        A(Tilde), B(Tilde) depending on H(Tilde) or E(Tilde) GPD etc.
+    evolution_order : str, optional
+        lo, nlo.
+    error_type : str, optional
+        Choose central, upper or lower value for input PDF parameters.
+    plot_fit : bool, optional
+        Whether to plot the fit vs the data. Default is False
+    write_to_file : bool, optional
+        If True, writes the fit results to 'dipole_moments_eta_t_mu.csv'.
+
+    Returns
+    -------
+    tuple
+        A tuple containing the dipole scale and mass squared (float).
     """
 
     gpd_label = cfg.INVERTED_GPD_LABEL_MAP.get(moment_label)
