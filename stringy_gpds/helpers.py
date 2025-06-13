@@ -3,7 +3,7 @@ import csv
 import re
 import os
 
-from scipy.interpolate import RegularGridInterpolator
+from scipy.interpolate import RegularGridInterpolator, PchipInterpolator
 from joblib.parallel import BatchCompletionCallBack
 
 from . import config as cfg
@@ -584,41 +584,40 @@ def build_moment_interpolator(eta,t,mu,solution,particle,moment_type,moment_labe
         prefix = cfg.INTERPOLATION_TABLE_PATH/ f"{moment_type}_{solution}_moments_{moment_label}_{evolution_order}"
     filename = generate_filename(eta, t, mu, prefix, error_type)
 
-    re_j_set = set()
-    im_j_set = set()
-    values = {}
+    im_j_vals = []
+    val0_list = []
+    val1_list = []
 
     with open(filename, newline='') as csvfile:
         reader = csv.reader(csvfile)
         next(reader)  # skip header
         for row in reader:
-            re_j = float(row[0])
-            im_j = float(row[1])
-            val = complex(row[2].replace(" ", ""))
+            im_j = float(row[0])
+            val0 = complex(row[1].replace(" ", ""))
+            val1 = complex(row[2].replace(" ", ""))
 
-            re_j_set.add(re_j)
-            im_j_set.add(im_j)
-            values[(re_j, im_j)] = val
-    
+            im_j_vals.append(im_j)
+            val0_list.append(val0)
+            val1_list.append(val1)
+
     # Sort axes
-    re_j_vals = sorted(re_j_set)
-    im_j_vals = sorted(im_j_set)
+    sorted_data = sorted(zip(im_j_vals, val0_list, val1_list), key=lambda x: x[0])
+    im_j_vals, val0_list, val1_list = zip(*sorted_data)
+    im_j_vals = np.array(im_j_vals)
 
-    # Create grid of complex values
-    real_grid = np.empty((len(re_j_vals), len(im_j_vals)))
-    imag_grid = np.empty((len(re_j_vals), len(im_j_vals)))
-        
-    for i, re in enumerate(re_j_vals):
-        for j, im in enumerate(im_j_vals):
-            val = values[(re, im)]
-            real_grid[i, j] = val.real
-            imag_grid[i, j] = val.imag
+    # Separate real and imaginary parts
+    val0_real = np.array([v.real for v in val0_list])
+    val0_imag = np.array([v.imag for v in val0_list])
+    val1_real = np.array([v.real for v in val1_list])
+    val1_imag = np.array([v.imag for v in val1_list])
 
     # Create interpolators for real and imaginary parts
-    re_interp = RegularGridInterpolator((re_j_vals, im_j_vals), real_grid, bounds_error=False, fill_value=None,method='pchip')
-    im_interp = RegularGridInterpolator((re_j_vals, im_j_vals), imag_grid, bounds_error=False, fill_value=None,method='pchip')
+    re0_interp = PchipInterpolator(im_j_vals, val0_real, extrapolate=True)
+    im0_interp = PchipInterpolator(im_j_vals, val0_imag, extrapolate=True)
+    re1_interp = PchipInterpolator(im_j_vals, val1_real, extrapolate=True)
+    im1_interp = PchipInterpolator(im_j_vals, val1_imag, extrapolate=True)
 
-    return ComplexInterpolator(re_interp, im_interp)
+    return ComplexInterpolator(re0_interp, im0_interp), ComplexInterpolator(re1_interp, im1_interp)
 
 ##########################
 ####   Progress Bar   ####

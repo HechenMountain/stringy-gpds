@@ -2443,15 +2443,17 @@ def plot_mellin_barnes_gpd_integrand(x, eta, t, mu, Nf=3, particle="quark", mome
         #z = k
         dz = 1j
         sin_term = mp.sin(np.pi * z)
+        # We double the sine here since its (-1)**(2 * j) from the non-diagonal evolution
+        sin2_term = mp.sin(2 * mp.pi * z)/2
         pw_val = core.conformal_partial_wave(z, x, eta, particle, parity)
         if particle == "quark":
             if moment_type == "singlet":
-                mom_val = core.evolve_quark_singlet(z, eta, t, mu, Nf,1, moment_label, evolution_order, error_type)
+                mom_val = core.evolve_quark_singlet(z, eta, t, mu,1, moment_label, evolution_order, error_type)
             else:
-                mom_val = core.evolve_quark_non_singlet(z, eta, t, mu, Nf,1, moment_type, moment_label, evolution_order, error_type)
+                mom_val = core.evolve_quark_non_singlet(z, eta, t, mu,1, moment_type, moment_label, evolution_order, error_type)
         else:
-            mom_val = core.evolve_gluon_singlet(z, eta, t, mu, Nf,1, moment_label, evolution_order, error_type)
-        result = -0.5j * dz * pw_val * mom_val / sin_term
+            mom_val = core.evolve_gluon_singlet(z, eta, t, mu, 1, moment_label, evolution_order, error_type)
+        result = -.5j * dz * pw_val * (mom_val[0] / sin_term + mom_val[1] / sin2_term)
         return result.real
 
     def integrand_imag(k):
@@ -2461,22 +2463,25 @@ def plot_mellin_barnes_gpd_integrand(x, eta, t, mu, Nf=3, particle="quark", mome
         #z = k
         dz = 1j
         sin_term = mp.sin(mp.pi * z)
+        # We double the sine here since its (-1)**(2 * j) from the non-diagonal evolution
+        sin2_term = mp.sin(2 * mp.pi * z)/2
         pw_val = core.conformal_partial_wave(z, x, eta, particle, parity)
         if particle == "quark":
             if moment_type == "singlet":
-                mom_val = core.evolve_quark_singlet(z, eta, t, mu, Nf,1, moment_label, evolution_order, error_type)
+                mom_val = core.evolve_quark_singlet(z, eta, t, mu,1, moment_label, evolution_order, error_type)
             else:
-                mom_val = core.evolve_quark_non_singlet(z, eta, t, mu, Nf,1, moment_type, moment_label, evolution_order, error_type)
+                mom_val = core.evolve_quark_non_singlet(z, eta, t, mu,1, moment_type, moment_label, evolution_order, error_type)
         else:
-            mom_val = (-1) * core.evolve_gluon_singlet(z, eta, t, mu, Nf,1,moment_label, evolution_order, error_type)
-        result = -0.5j * dz * pw_val * mom_val / sin_term
+            mom_val = core.evolve_gluon_singlet(z, eta, t, mu,1,moment_label, evolution_order, error_type)
+            mom_val = tuple(-x for x in mom_val)
+        result = -.5j * dz * pw_val * (mom_val[0] / sin_term + mom_val[1] / sin2_term)
         return result.imag
 
     print(f"Integrand at j_max={j_max}")
     print(integrand_real(j_max))
     print(integrand_imag(j_max))
     # Define k range for plotting
-    k_values = np.linspace(-j_max, j_max, n_j)
+    k_values = np.linspace(0, j_max, n_j)
     #k_values = np.linspace(1.1, 10, 300)
     #k_values = np.linspace(j_base,j_max,300)
     # Parallel computation of real and imaginary parts

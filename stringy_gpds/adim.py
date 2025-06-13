@@ -559,7 +559,13 @@ def d_element(j,k):
     """ Belistky (4.204)"""
     if j == k:
         raise ValueError("j and k must be unequal")
-    result = - .5 * (1 + sp.power_minus_1(j-k)) * (2 * k + 3)/((j - k)*(j + k + 3))
+    
+    # For complex numbers, the factors of (-1)**(j-k)
+    # need to be treated separately in the Mellin-Barnes
+    # integration of the non-diagonal piece
+    result = - .5 * (2 * k + 3)/((j - k)*(j + k + 3))
+    if j.imag == 0 and k.imag == 0:
+        result *= (1 + (-1)**(j-k))
     return result
 
 def digamma_A(j,k):
@@ -574,34 +580,23 @@ def heaviside_theta(j,k):
     """
     if j.imag == 0 and k.imag == 0:
         return int(j.real > k.real)
-    # smooth out
-    eps = 0.1
-    jmk = j - k
-    # Use Fermi-Dirac distribution to approximate
-    re = 1/(1+mp.exp(-jmk.real/eps))
-    im = 1/(1+mp.exp(-jmk.imag/eps))
-    return re * im
-    
-def nd_projector(j,k):
-    """
-    Product of (1 + (-1)**(j-k)) * heaviside_theta(j-2,k).
-    is 2 when j - k is non-zero and even and 0 otherwise.
-    """
-    # result = (1 + (-1)**(j.real - k.real)) * heaviside_theta(j.real-2,k.real)
-    # return result
-    jmk = j - k
-    return 2 if int(jmk.real) % 2 == 0 else 0
+    else:
+        raise ValueError("Heaviside theta for complex numbers undefined")
 
 def conformal_anomaly_qq(j,k):
     """Belitsky (4.206). Equal for vector and axial """
     if j == k:
         raise ValueError("j and k must be unqual")
     
-    
-    result =  -cfg.C_F * nd_projector(j,k) * ((3 + 2 * k) / ((j - k) * (j + k + 3))) * (
-        2 * digamma_A(j, k) + 
-        (digamma_A(j, k) - mp.digamma(j + 2) + mp.digamma(1)) * ((j - k) * (j + k + 3)) / ((k + 1) * (k + 2))
-        )
+    # For complex numbers, the factors of (-1)**(j-k)
+    # need to be treated separately in the Mellin-Barnes
+    # integration of the non-diagonal piece
+    result = -cfg.C_F * ((3 + 2 * k) / ((j - k) * (j + k + 3))) * (
+            2 * digamma_A(j, k) + 
+            (digamma_A(j, k) - mp.digamma(j + 2) + mp.digamma(1)) * ((j - k) * (j + k + 3)) / ((k + 1) * (k + 2))
+            )
+    if j.imag == 0 and k.imag == 0:
+        result *= (1 + (-1)**(j-k)) * heaviside_theta(j-2,k) 
     return result
 
 def conformal_anomaly_gq(j,k):
@@ -609,8 +604,12 @@ def conformal_anomaly_gq(j,k):
     if j == k:
         raise ValueError("j and k must be unqual")
     
-    
-    result = -cfg.C_F * nd_projector(j,k) * (1 / 6) * ((3 + 2 * k) / ((k + 1) * (k + 2)))
+    # For complex numbers, the factors of (-1)**(j-k)
+    # need to be treated separately in the Mellin-Barnes
+    # integration of the non-diagonal piece
+    result = -cfg.C_F * (1 / 6) * ((3 + 2 * k) / ((k + 1) * (k + 2)))
+    if j.imag == 0 and k.imag == 0:
+        result *= (1 + (-1)**(j-k)) * heaviside_theta(j-2,k) 
     return result
 
 def conformal_anomaly_gg(j,k):
@@ -618,9 +617,11 @@ def conformal_anomaly_gg(j,k):
     if j == k:
         raise ValueError("j and k must be unqual")
     
-    
+    # For complex numbers, the factors of (-1)**(j-k)
+    # need to be treated separately in the Mellin-Barnes
+    # integration of the non-diagonal piece
     result = (
-            -cfg.C_A * nd_projector(j,k) *
+            -cfg.C_A *
             ((3 + 2 * k) / ((j - k) * (j + k + 3))) *
             (
                 2 * digamma_A(j,k) +
@@ -629,6 +630,9 @@ def conformal_anomaly_gg(j,k):
                 2 * (j - k) * (j + k + 3) * (mp.gamma(k) / mp.gamma(k + 4))
             )
         )
+    
+    if j.imag == 0 and k.imag == 0:
+        result *= (1 + (-1)**(j-k)) * heaviside_theta(j-2,k) 
     return result
 
 def gamma_qq_nd(j,k,  evolve_type = "vector",evolution_order="nlo",interpolation=True):

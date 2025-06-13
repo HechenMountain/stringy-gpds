@@ -44,12 +44,12 @@ memory = Memory(CACHE_PATH,verbose=0)
 ## Kinematics used for interpolation ##
 ##     Need to have equal length     ##
 #######################################
-INTERPOLATE_MOMENTS = True
+INTERPOLATE_MOMENTS = False
 
 # If no lattice data:
-# ETA_ARRAY = [0,0.33,0.1]
-# T_ARRAY = [-0.69,-0.69,-0.23]
-# MU_ARRAY = [2,2,2]
+ETA_ARRAY = [0,0.33,0.1]
+T_ARRAY = [-0.69,-0.69,-0.23]
+MU_ARRAY = [2,2,2]
 
 # Additional non_singlet_isovector 
 # ETA_ARRAY = [0]
@@ -61,9 +61,9 @@ INTERPOLATE_MOMENTS = True
 # MU_ARRAY = [2,3,2,2]
 
 # Check whether we recover input PDFs
-ETA_ARRAY = [0]
-T_ARRAY = [0]
-MU_ARRAY = [1]
+# ETA_ARRAY = [0]
+# T_ARRAY = [0]
+# MU_ARRAY = [1]
 
 # Martha
 # ETA_ARRAY = [0,0]

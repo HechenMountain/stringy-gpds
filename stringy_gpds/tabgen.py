@@ -56,46 +56,34 @@ def generate_moment_table(eta,t,mu,solution,particle,moment_type,moment_label, e
     filename = hp.generate_filename(eta, t, mu, prefix, error_type)
 
     # Grids
-    re_j_b, _ = core.get_j_base(particle=particle,moment_type=moment_type,moment_label=moment_label)
-    # First value is lower value of nd evolution when resummed
-    # Second value is real part of Mellin-Barnes integration variable
-    # Third part is intermediate value since pchip needs >= 4 data points.
-    # Fourth part is from shift in fractional finite sum:
-    # k + j - k0 + 1 where k0 = 1 for non-singlet and 2 for singlet
-    if moment_type != "singlet":
-        re_j = [0.8, re_j_b,re_j_b + 0.4, re_j_b + 0.8]
-    else:
-        re_j = [1.8, re_j_b,re_j_b + 0.4, re_j_b + 0.8]
+    rj, _ = core.get_j_base(particle=particle,moment_type=moment_type,moment_label=moment_label)
     im_j = np.arange(0.0, im_j_max + step, step)  # Im ≥ 0 only
     # Generate grid points
-    grid_points = [
-        (rj, ij)
-        for rj in re_j
-        for ij in im_j
-    ]
-    def compute_wrapper(rj, ij):
-        return (rj, ij, compute_moment(complex(rj, ij)))
+    grid_points = im_j
+    def compute_wrapper(ij):
+        return (ij, compute_moment(complex(rj,ij)))
 
     with hp.tqdm_joblib(tqdm(total=len(grid_points))) as progress_bar:
         results = Parallel(n_jobs=-1)(
-            delayed(compute_wrapper)(rj, ij) for rj, ij in grid_points
+            delayed(compute_wrapper)(ij) for ij in grid_points
         )
 
     # Add mirrored points: f(j*) = f(j)* for Im(j) < 0
     mirrored = []
-    for rj, ij, val in results[1:]:  # skip ij = 0 to avoid duplication
+    for ij, val in results[1:]:  # skip ij = 0 to avoid duplication
         if ij > 0:
-            mirrored.append((rj, -ij, np.conj(val)))
+            conjugate = tuple(np.conj(x) for x in val)
+            mirrored.append((-ij, conjugate))
 
     all_data = results + mirrored
-    all_data.sort(key=lambda x: (x[0], x[1]))  # sort by Re(j), Im(j)
+    all_data.sort(key=lambda x: x[0])  # sort by Im(j)
 
     # Write CSV
     with open(filename, mode='w', newline='') as csvfile:
         writer = csv.writer(csvfile)
-        writer.writerow(["Re(j)", "Im(j)", "value"])
-        for rj, ij, val in all_data:
-            writer.writerow([rj, ij, val])
+        writer.writerow(["Im(j)", "value", "nd_value"])
+        for ij, val in all_data:
+            writer.writerow([ij, val[0], val[1]])
 
     print(f"Successfully wrote table to {filename}")
 

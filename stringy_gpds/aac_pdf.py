@@ -1,10 +1,10 @@
-# ############################################### #
-# Polarized PDFs currently under assumption of    #
-# isospin and qbar=ubar=dbar=s=sbar for polarized #
-# PDFs. Modify AAC_Table_2.csv to not use this    #
-# assumption.                                     #
-# ############################################### #
-#
+# ################################################
+# Polarized PDFs currently under assumption of   #
+# isospin symmetry and qbar=ubar=dbar=s=sbar     #
+# for polarized PDFs. s                          #
+# Modify AAC.csv to not use thi assumption.      #
+# ################################################
+
 # Dependencies
 import csv
 import numpy as np
@@ -18,11 +18,10 @@ from .mstw_pdf import (
 )
 
 from . import config as cfg
+from .helpers import check_evolution_order, check_error_type
 
-from .helpers import check_error_type
-
-# Columns for the DataFrame
-columns = ["Parameter", "lo", "nlo", "nnlo"]
+############################################
+############################################
 
 # Read the CSV file and parse it
 data = []
@@ -42,14 +41,37 @@ with open(cfg.AAC_PATH, 'r',newline='') as file:
         data.append([parameter, lo_values, nlo_values, nnlo_values])
 
 
-# Create the pandas DataFrame
+# Create dictionary
 AAC_PDF =  {row[0]: {"lo": row[1], "nlo": row[2], "nnlo": row[3]} for row in data}
     
-# PDFs
+####################   
+#### Define PDFs ###
+####################   
 def polarized_pdf(x,delta_A_pdf,alpha_pdf,delta_lambda_pdf,delta_gamma_pdf,evolution_order):
     """
-    Returns the bare value (without the unpolarized input PDF) of the polarized PDF
+    Compute the bare polarized PDF (without multiplying by the unpolarized input PDF).
+
+    Parameters
+    ----------
+    x : float
+        parton x
+    delta_A_pdf : float
+        Normalization constant of the polarized PDF
+    alpha_pdf : float
+        Large-x parameter.
+    delta_lambda_pdf : float
+        Small-x parameter
+    delta_gamma_pdf : float
+        Prefactor for small-x
+    evolution_order : str
+        "lo", "nlo",...
+
+    Returns
+    -------
+    float
+        The value of the polarized PDF without the unpolarized factor.
     """
+    check_evolution_order(evolution_order)
     if evolution_order != "lo":
         result = delta_A_pdf * x**(alpha_pdf)*(1+delta_gamma_pdf * (x**(delta_lambda_pdf)-1))
     else:
@@ -57,7 +79,41 @@ def polarized_pdf(x,delta_A_pdf,alpha_pdf,delta_lambda_pdf,delta_gamma_pdf,evolu
     return result
 
 def polarized_pdf_error(x,delta_A_pdf,delta_delta_A_pdf,alpha_pdf,delta_alpha_pdf,delta_lambda_pdf,delta_delta_lambda_pdf,delta_gamma_pdf,delta_delta_gamma_pdf,evolution_order,error_type):
+    """
+    Compute the error of the bare polarized PDF (without multiplying by the unpolarized input PDF).
+
+    Parameters
+    ----------
+    x : float
+        parton x
+    delta_A_pdf : float
+        Normalization constant of the polarized PDF
+    delta_delta_A_pdf : float
+        Error of delta_A_pdf
+    alpha_pdf : float
+        Large-x parameter.
+    delta_alpha_pdf : float
+        Error of delta_alpha_pdf
+    delta_lambda_pdf : float
+        Small-x parameter
+    delta_delta_lambda_pdf : float
+        Error of delta_lambda_pdf
+    delta_gamma_pdf : float
+        Prefactor for small-x
+    delta_delta_gamma_pdf : float
+        Error of delta_gamma_pdf
+    evolution_order : str
+        "lo", "nlo",...
+    error_type : str
+        "central", "plus", "minus"
+
+    Returns
+    -------
+    float
+        The value of the error of the polarized PDF without the unpolarized factor.
+    """
     check_error_type(error_type)
+    check_evolution_order(evolution_order)
     if error_type == "central":
             return 0
     
@@ -81,15 +137,24 @@ def polarized_pdf_error(x,delta_A_pdf,delta_delta_A_pdf,alpha_pdf,delta_alpha_pd
 
 def polarized_uv_pdf(x, evolution_order="nlo",error_type="central"):
     """
-    Compute the polarized uv(x) PDF and returns either it's central value or the corresponding error
-    
-    Arguments:
-    x -- The value of parton x.
-    error_type -- A string indicating whether to use 'central', 'plus', or 'minus' errors. Default is 'central'.
-    
-    Returns:
-    The value of the polarized uv(x) based on the selected parameters and error type.
+    Compute the polarized uv PDF and return either its central value or the corresponding value with error.
+
+    Parameters
+    ----------
+    x : float
+        The value of parton x.
+    evolution_order : str, optional
+        "lo", "nlo",...
+    error_type : str, optional
+        Whether to use 'central', 'plus', or 'minus' errors. Default is 'central'.
+
+    Returns
+    -------
+    float
+        The value of the polarized uv PDF based on the selected parameters and error type.
     """
+    check_error_type(error_type)
+    check_evolution_order(evolution_order)
      # Define a dictionary that maps the error_type to column indices
     error_mapping = {
         "central": 0,  # The column with the central value
@@ -120,15 +185,23 @@ def polarized_uv_pdf(x, evolution_order="nlo",error_type="central"):
 
 def polarized_dv_pdf(x, evolution_order="nlo",error_type="central"):
     """
-    Compute the polarized dv(x) PDF and returns either it's central value or the corresponding error
-    
-    Arguments:
-    x -- The value of parton x.
-    error_type -- A string indicating whether to use 'central', 'plus', or 'minus' errors. Default is 'central'.
-    
-    Returns:
-    The value of the polarized dv(x) based on the selected parameters and error type.
+    Compute the polarized dv PDF and return either its central value or the corresponding value with error.
+
+    Parameters
+    ----------
+    x : float
+        The value of parton x.
+    evolution_order : str, optional
+        "lo", "nlo",...
+    error_type : str, optional
+        Whether to use 'central', 'plus', or 'minus' errors. Default is 'central'.
+
+    Returns
+    -------
+    float
+        The value of the polarized dv PDF based on the selected parameters and error type.
     """
+
      # Define a dictionary that maps the error_type to column indices
     error_mapping = {
         "central": 0,  # The column with the central value
@@ -136,6 +209,7 @@ def polarized_dv_pdf(x, evolution_order="nlo",error_type="central"):
         "minus": 2     # The column with the - error value
     }
     check_error_type(error_type)
+    check_evolution_order(evolution_order)
     # Get the column index corresponding to the error_type
     error_col_index = error_mapping.get(error_type, 0)  # Default to 'central' if error_type is invalid
 
@@ -159,14 +233,21 @@ def polarized_dv_pdf(x, evolution_order="nlo",error_type="central"):
 
 def polarized_gluon_pdf(x, evolution_order="nlo",error_type="central"):
     """
-    Compute the polarized gluon(x) PDF and returns either it's central value or the corresponding error
-    
-    Arguments:
-    x -- The value of parton x.
-    error_type -- A string indicating whether to use 'central', 'plus', or 'minus' errors. Default is 'central'.
-    
-    Returns:
-    The value of the polarized gluon(x) based on the selected parameters and error type.
+    Compute the polarized gluon PDF and return either its central value or the corresponding value with error.
+
+    Parameters
+    ----------
+    x : float
+        The value of parton x.
+    evolution_order : str, optional
+        "lo", "nlo",...
+    error_type : str, optional
+        Whether to use 'central', 'plus', or 'minus' errors. Default is 'central'.
+
+    Returns
+    -------
+    float
+        The value of the polarized gluon PDF based on the selected parameters and error type.
     """
      # Define a dictionary that maps the error_type to column indices
     error_mapping = {
@@ -175,6 +256,7 @@ def polarized_gluon_pdf(x, evolution_order="nlo",error_type="central"):
         "minus": 2     # The column with the - error value
     }
     check_error_type(error_type)
+    check_evolution_order(evolution_order)
     # Get the column index corresponding to the error_type
     error_col_index = error_mapping.get(error_type, 0)  # Default to 'central' if error_type is invalid
 
@@ -198,14 +280,21 @@ def polarized_gluon_pdf(x, evolution_order="nlo",error_type="central"):
 
 def polarized_s_pdf(x, evolution_order="nlo",error_type="central"):
     """
-    Compute the polarized sv(x) PDF and returns either it's central value or the corresponding error
-    
-    Arguments:
-    x -- The value of parton x.
-    error_type -- A string indicating whether to use 'central', 'plus', or 'minus' errors. Default is 'central'.
-    
-    Returns:
-    The value of the polarized sv(x) based on the selected parameters and error type.
+    Compute the polarized s PDF and return either its central value or the corresponding value with error.
+
+    Parameters
+    ----------
+    x : float
+        The value of parton x.
+    evolution_order : str, optional
+        "lo", "nlo",...
+    error_type : str, optional
+        Whether to use 'central', 'plus', or 'minus' errors. Default is 'central'.
+
+    Returns
+    -------
+    float
+        The value of the polarized s PDF based on the selected parameters and error type.
     """
     print("Warning: Wrong output when Delta s = Delta sbar is assumed")
     print("Verify that AAC.csv is correctly modified")
@@ -219,7 +308,7 @@ def polarized_s_pdf(x, evolution_order="nlo",error_type="central"):
     # Get the column index corresponding to the error_type
     error_col_index = error_mapping.get(error_type, 0)  # Default to 'central' if error_type is invalid
     check_error_type(error_type)
-    # Get row index of entry
+    check_evolution_order(evolution_order)
 
     delta_A_s = AAC_PDF["Delta_A_s"][evolution_order][0]
     alpha_s = AAC_PDF["alpha_s"][evolution_order][0]
@@ -241,14 +330,21 @@ def polarized_s_pdf(x, evolution_order="nlo",error_type="central"):
 
 def polarized_sbar_pdf(x, evolution_order="nlo",error_type="central"):
     """
-    Compute the polarized sv(x) PDF and returns either it's central value or the corresponding error
-    
-    Arguments:
-    x -- The value of parton x.
-    error_type -- A string indicating whether to use 'central', 'plus', or 'minus' errors. Default is 'central'.
-    
-    Returns:
-    The value of the polarized sv(x) based on the selected parameters and error type.
+    Compute the polarized sbar PDF and return either its central value or the corresponding value with error.
+
+    Parameters
+    ----------
+    x : float
+        The value of parton x.
+    evolution_order : str, optional
+        "lo", "nlo",...
+    error_type : str, optional
+        Whether to use 'central', 'plus', or 'minus' errors. Default is 'central'.
+
+    Returns
+    -------
+    float
+        The value of the polarized sbar PDF based on the selected parameters and error type.
     """
     print("Warning: Wrong output when Delta s = Delta sbar is assumed")
     print("Verify that AAC_Table_2.csv is correctly modified")
@@ -259,6 +355,7 @@ def polarized_sbar_pdf(x, evolution_order="nlo",error_type="central"):
         "minus": 2     # The column with the - error value
     }
     check_error_type(error_type)
+    check_evolution_order(evolution_order)
     # Get the column index corresponding to the error_type
     error_col_index = error_mapping.get(error_type, 0)  # Default to 'central' if error_type is invalid
 
@@ -281,14 +378,21 @@ def polarized_sbar_pdf(x, evolution_order="nlo",error_type="central"):
 
 def polarized_s_plus_pdf(x, evolution_order="nlo",error_type="central"):
     """
-    Compute the polarized sv(x) PDF and returns either it's central value or the corresponding error
-    
-    Arguments:
-    x -- The value of parton x.
-    error_type -- A string indicating whether to use 'central', 'plus', or 'minus' errors. Default is 'central'.
-    
-    Returns:
-    The value of the polarized sv(x) based on the selected parameters and error type.
+    Compute the polarized s_plus PDF and return either its central value or the corresponding value with error.
+
+    Parameters
+    ----------
+    x : float
+        The value of parton x.
+    evolution_order : str, optional
+        "lo", "nlo",...
+    error_type : str, optional
+        Whether to use 'central', 'plus', or 'minus' errors. Default is 'central'.
+
+    Returns
+    -------
+    float
+        The value of the polarized s_plus PDF based on the selected parameters and error type.
     """
      # Define a dictionary that maps the error_type to column indices
     error_mapping = {
@@ -297,6 +401,7 @@ def polarized_s_plus_pdf(x, evolution_order="nlo",error_type="central"):
         "minus": 2     # The column with the - error value
     }
     check_error_type(error_type)
+    check_evolution_order(evolution_order)
     # Get the column index corresponding to the error_type
     error_col_index = error_mapping.get(error_type, 0)  # Default to 'central' if error_type is invalid
 
@@ -320,14 +425,21 @@ def polarized_s_plus_pdf(x, evolution_order="nlo",error_type="central"):
 
 def polarized_ubar_pdf(x, evolution_order="nlo",error_type="central"):
     """
-    Compute the polarized ubar(x) PDF and returns either it's central value or the corresponding error
-    
-    Arguments:
-    x -- The value of parton x.
-    error_type -- A string indicating whether to use 'central', 'plus', or 'minus' errors. Default is 'central'.
-    
-    Returns:
-    The value of the polarized ubar(x) based on the selected parameters and error type.
+    Compute the polarized ubar PDF and return either its central value or the corresponding value with error.
+
+    Parameters
+    ----------
+    x : float
+        The value of parton x.
+    evolution_order : str, optional
+        "lo", "nlo",...
+    error_type : str, optional
+        Whether to use 'central', 'plus', or 'minus' errors. Default is 'central'.
+
+    Returns
+    -------
+    float
+        The value of the polarized ubar PDF based on the selected parameters and error type.
     """
      # Define a dictionary that maps the error_type to column indices
     error_mapping = {
@@ -336,6 +448,7 @@ def polarized_ubar_pdf(x, evolution_order="nlo",error_type="central"):
         "minus": 2     # The column with the - error value
     }
     check_error_type(error_type)
+    check_evolution_order(evolution_order)
     # Get the column index corresponding to the error_type
     error_col_index = error_mapping.get(error_type, 0)  # Default to 'central' if error_type is invalid
 
@@ -363,14 +476,21 @@ def polarized_ubar_pdf(x, evolution_order="nlo",error_type="central"):
 
 def polarized_dbar_pdf(x, evolution_order="nlo",error_type="central"):
     """
-    Compute the polarized dbar(x) PDF and returns either it's central value or the corresponding error
-    
-    Arguments:
-    x -- The value of parton x.
-    error_type -- A string indicating whether to use 'central', 'plus', or 'minus' errors. Default is 'central'.
-    
-    Returns:
-    The value of the polarized dbar(x) based on the selected parameters and error type.
+    Compute the polarized dbar PDF and return either its central value or the corresponding value with error.
+
+    Parameters
+    ----------
+    x : float
+        The value of parton x.
+    evolution_order : str, optional
+        "lo", "nlo",...
+    error_type : str, optional
+        Whether to use 'central', 'plus', or 'minus' errors. Default is 'central'.
+
+    Returns
+    -------
+    float
+        The value of the polarized dbar PDF based on the selected parameters and error type.
     """
      # Define a dictionary that maps the error_type to column indices
     error_mapping = {
@@ -379,6 +499,7 @@ def polarized_dbar_pdf(x, evolution_order="nlo",error_type="central"):
         "minus": 2     # The column with the - error value
     }
     check_error_type(error_type)
+    check_evolution_order(evolution_order)
     # Get the column index corresponding to the error_type
     error_col_index = error_mapping.get(error_type, 0)  # Default to 'central' if error_type is invalid
 
@@ -403,14 +524,21 @@ def polarized_dbar_pdf(x, evolution_order="nlo",error_type="central"):
 
 def polarized_S_pdf(x, evolution_order="nlo",error_type="central"):
     """
-    Compute the polarized S(x) PDF and returns either it's central value or the corresponding error
-    
-    Arguments:
-    x -- The value of parton x.
-    error_type -- A string indicating whether to use 'central', 'plus', or 'minus' errors. Default is 'central'.
-    
-    Returns:
-    The value of the polarized S(x) based on the selected parameters and error type.
+    Compute the polarized S PDF and return either its central value or the corresponding value with error.
+
+    Parameters
+    ----------
+    x : float
+        The value of parton x.
+    evolution_order : str, optional
+        "lo", "nlo",...
+    error_type : str, optional
+        Whether to use 'central', 'plus', or 'minus' errors. Default is 'central'.
+
+    Returns
+    -------
+    float
+        The value of the polarized S PDF based on the selected parameters and error type.
     """
      # Define a dictionary that maps the error_type to column indices
     error_mapping = {
@@ -419,6 +547,7 @@ def polarized_S_pdf(x, evolution_order="nlo",error_type="central"):
         "minus": 2     # The column with the - error value
     }
     check_error_type(error_type)
+    check_evolution_order(evolution_order)
     # Get the column index corresponding to the error_type
     error_col_index = error_mapping.get(error_type, 0)  # Default to 'central' if error_type is invalid
 
@@ -444,16 +573,24 @@ def polarized_S_pdf(x, evolution_order="nlo",error_type="central"):
 
 def polarized_uv_minus_dv_pdf(x, evolution_order="nlo",error_type="central"):
     """
-    Compute the polarized uv-dv(x) PDF and returns either it's central value or the corresponding error
-    
-    Arguments:
-    x -- The value of parton x.
-    error_type -- A string indicating whether to use 'central', 'plus', or 'minus' errors. Default is 'central'.
-    
-    Returns:
-    The value of the polarized uv-dv(x) based on the selected parameters and error type.
+    Compute the polarized uv-dv (non_singlet_isovector) PDF and return either its central value or the corresponding value with error.
+
+    Parameters
+    ----------
+    x : float
+        The value of parton x.
+    evolution_order : str, optional
+        "lo", "nlo",...
+    error_type : str, optional
+        Whether to use 'central', 'plus', or 'minus' errors. Default is 'central'.
+
+    Returns
+    -------
+    float
+        The value of the polarized uv-dv PDF based on the selected parameters and error type.
     """
-    
+    check_error_type(error_type)
+    check_evolution_order(evolution_order)  
     polarized_uv = polarized_uv_pdf(x,evolution_order,error_type) 
     polarized_dv = polarized_dv_pdf(x,evolution_order,error_type)
     if error_type == "central":
@@ -464,15 +601,24 @@ def polarized_uv_minus_dv_pdf(x, evolution_order="nlo",error_type="central"):
 
 def polarized_uv_plus_dv_plus_S_pdf(x, evolution_order="nlo",error_type="central"):
     """
-    Compute the polarized uv+dv+S(x) PDF and returns either it's central value or the corresponding error
-    
-    Arguments:
-    x -- The value of parton x.
-    error_type -- A string indicating whether to use 'central', 'plus', or 'minus' errors. Default is 'central'.
-    
-    Returns:
-    The value of the polarized uv+dv+S(x) based on the selected parameters and error type.
+    Compute the polarized uv + dv + S (singlet quark) PDF and return either its central value or the corresponding value with error.
+
+    Parameters
+    ----------
+    x : float
+        The value of parton x.
+    evolution_order : str, optional
+        "lo", "nlo",...
+    error_type : str, optional
+        Whether to use 'central', 'plus', or 'minus' errors. Default is 'central'.
+
+    Returns
+    -------
+    float
+        The value of the polarized quark singlet PDF based on the selected parameters and error type.
     """
+    check_error_type(error_type)
+    check_evolution_order(evolution_order)
     polarized_uv = polarized_uv_pdf(x,evolution_order,error_type) 
     polarized_dv = polarized_dv_pdf(x,evolution_order,error_type)
     polarized_S = polarized_S_pdf(x,evolution_order,error_type)
@@ -487,6 +633,21 @@ def polarized_uv_plus_dv_plus_S_pdf(x, evolution_order="nlo",error_type="central
 ######################
 
 def plot_polarized_uv_pdf(x_0=1e-2,evolution_order="nlo",logplot = False,error_bars=True):
+    """
+    Plot the polarized uv PDF at a fixed value of x.
+
+    Parameters
+    ----------
+    x_0 : float, optional
+        The value of minimum value of parton x. Default is 1e-2
+    evolution_order : str, optional
+        "lo", "nlo". Default is "nlo".
+    logplot : bool, optional
+        Whether to use a logarithmic scale on the x-axis. Default is False.
+    error_bars : bool, optional
+        Whether to display error bars corresponding to PDF uncertainties. Default is True.
+    """
+    check_evolution_order(evolution_order)
     vectorized_polarized_uv_pdf = np.vectorize(polarized_uv_pdf)
     if logplot:
         x_vals = np.logspace(np.log10(x_0), np.log10(1 - 1e-4), 100)
@@ -510,6 +671,21 @@ def plot_polarized_uv_pdf(x_0=1e-2,evolution_order="nlo",logplot = False,error_b
     plt.show()
 
 def plot_polarized_dv_pdf(x_0=1e-2,evolution_order="nlo",logplot = False,error_bars=True):
+    """
+    Plot the polarized dv PDF at a fixed value of x.
+
+    Parameters
+    ----------
+    x_0 : float, optional
+        The value of minimum value of parton x. Default is 1e-2
+    evolution_order : str, optional
+        "lo", "nlo". Default is "nlo".
+    logplot : bool, optional
+        Whether to use a logarithmic scale on the x-axis. Default is False.
+    error_bars : bool, optional
+        Whether to display error bars corresponding to PDF uncertainties. Default is True.
+    """
+    check_evolution_order(evolution_order)
     vectorized_polarized_dv_pdf = np.vectorize(polarized_dv_pdf)
     if logplot:
         x_vals = np.logspace(np.log10(x_0), np.log10(1 - 1e-4), 100)
@@ -534,6 +710,21 @@ def plot_polarized_dv_pdf(x_0=1e-2,evolution_order="nlo",logplot = False,error_b
 
 
 def plot_polarized_ubar_pdf(x_0=1e-2,evolution_order="nlo",logplot = False,error_bars=True):
+    """
+    Plot the polarized ubar PDF at a fixed value of x.
+
+    Parameters
+    ----------
+    x_0 : float, optional
+        The value of minimum value of parton x. Default is 1e-2
+    evolution_order : str, optional
+        "lo", "nlo". Default is "nlo".
+    logplot : bool, optional
+        Whether to use a logarithmic scale on the x-axis. Default is False.
+    error_bars : bool, optional
+        Whether to display error bars corresponding to PDF uncertainties. Default is True.
+    """
+    check_evolution_order(evolution_order)
     vectorized_polarized_ubar_pdf = np.vectorize(polarized_ubar_pdf)
     if logplot:
         x_vals = np.logspace(np.log10(x_0), np.log10(1 - 1e-4), 100)
@@ -557,6 +748,21 @@ def plot_polarized_ubar_pdf(x_0=1e-2,evolution_order="nlo",logplot = False,error
     plt.show()
 
 def plot_polarized_uv_minus_dv_pdf(x_0=1e-2,evolution_order="nlo",logplot = False,error_bars=True):
+    """
+    Plot the polarized uv - dv (non_singlet_isovector) PDF at a fixed value of x.
+
+    Parameters
+    ----------
+    x_0 : float, optional
+        The value of minimum value of parton x. Default is 1e-2
+    evolution_order : str, optional
+        "lo", "nlo". Default is "nlo".
+    logplot : bool, optional
+        Whether to use a logarithmic scale on the x-axis. Default is False.
+    error_bars : bool, optional
+        Whether to display error bars corresponding to PDF uncertainties. Default is True.
+    """
+    check_evolution_order(evolution_order)
     vectorized_polarized_uv_minus_dv_pdf = np.vectorize(polarized_uv_minus_dv_pdf)
     if logplot:
         x_vals = np.logspace(np.log10(x_0), np.log10(1 - 1e-4), 100)
@@ -580,6 +786,21 @@ def plot_polarized_uv_minus_dv_pdf(x_0=1e-2,evolution_order="nlo",logplot = Fals
     plt.show()
 
 def plot_polarized_uv_plus_dv_plus_S_pdf(x_0=1e-2,evolution_order="nlo",logplot = False,error_bars=True):
+    """
+    Plot the polarized uv + dv + S (singlet quark) PDF at a fixed value of x.
+
+    Parameters
+    ----------
+    x_0 : float, optional
+        The value of minimum value of parton x. Default is 1e-2
+    evolution_order : str, optional
+        "lo", "nlo". Default is "nlo".
+    logplot : bool, optional
+        Whether to use a logarithmic scale on the x-axis. Default is False.
+    error_bars : bool, optional
+        Whether to display error bars corresponding to PDF uncertainties. Default is True.
+    """
+    check_evolution_order(evolution_order)
     vectorized_polarized_uv_plus_dv_plus_S_pdf = np.vectorize(polarized_uv_plus_dv_plus_S_pdf)
     if logplot:
         x_vals = np.logspace(np.log10(x_0), np.log10(1 - 1e-4), 100)
@@ -603,6 +824,21 @@ def plot_polarized_uv_plus_dv_plus_S_pdf(x_0=1e-2,evolution_order="nlo",logplot 
     plt.show()
 
 def plot_polarized_gluon_pdf(x_0=1e-2,y_0=-1,y_1=1,evolution_order="nlo",logplot = False,error_bars=True):
+    """
+    Plot the polarized gluon PDF at a fixed value of x.
+
+    Parameters
+    ----------
+    x_0 : float, optional
+        The value of minimum value of parton x. Default is 1e-2
+    evolution_order : str, optional
+        "lo", "nlo". Default is "nlo".
+    logplot : bool, optional
+        Whether to use a logarithmic scale on the x-axis. Default is False.
+    error_bars : bool, optional
+        Whether to display error bars corresponding to PDF uncertainties. Default is True.
+    """
+    check_evolution_order(evolution_order)
     vectorized_polarized_gluon_pdf = np.vectorize(polarized_gluon_pdf)
     if logplot:
         x_vals = np.logspace(np.log10(x_0), np.log10(1 - 1e-4), 100)

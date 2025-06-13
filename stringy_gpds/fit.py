@@ -12,6 +12,28 @@ import matplotlib.pyplot as plt
 from joblib import Parallel, delayed
 
 def dipole_fit_lattice_moments(n,particle,moment_type,moment_label,pub_id,error_type="central",plot_fit=False, write_to_file=True):
+    """
+    Generates a dipole fit to the corresponding lattice moment
+
+    Parameters
+    ----------
+    n : int
+        Conformal spin.
+    particle : str, optional
+        "quark" or "gluon". Default is "quark".
+    moment_type : str, optional
+        non_singlet_isovector, non_singlet_isoscalar, or singlet.
+    moment_label : str, optional
+        A(tilde), B(tilde) depending on H(tilde) or E(tilde) GPD etc.
+    pub_id: str
+        ArXiv identifier
+    error_type : str, optional
+        Choose central, upper or lower value for input PDF parameters.
+    plot_fit : bool, optional
+        Whether to plot the fit vs the data. Default is False
+    write_to_file : bool, optional
+        If True, writes the fit results to 'dipole_moments_pub_id_eta_t_mu.csv'.
+    """
     # Accessor functions for -t, values, and errors
     def t_values(moment_type, moment_label, pub_id):
         """Return the -t values for a given moment type, label, and publication ID."""
@@ -99,7 +121,7 @@ def dipole_fit_moment(n,eta,mu,particle="quark",moment_type="non_singlet_isovect
     moment_type : str, optional
         non_singlet_isovector, non_singlet_isoscalar, or singlet.
     moment_label : str, optional
-        A(Tilde), B(Tilde) depending on H(Tilde) or E(Tilde) GPD etc.
+        A(tilde), B(tilde) depending on H(tilde) or E(tilde) GPD etc.
     evolution_order : str, optional
         lo, nlo.
     error_type : str, optional
@@ -187,7 +209,35 @@ def dipole_fit_moment(n,eta,mu,particle="quark",moment_type="non_singlet_isovect
     return AD_fit, m_D2_fit
 
 
-def quark_singlet_regge_fit(j,eta,t,alpha_prime_ud, alpha_prime_s,norm_A, norm_D,moment_label="A",evolve_type="vector",evolution_order="nlo",error_type="central"):
+def quark_singlet_regge_fit(n,eta,t,alpha_prime_ud, alpha_prime_s,norm_A, norm_D,moment_label="A",evolve_type="vector",evolution_order="nlo",error_type="central"):
+    """
+    Reggeized quark singlet moment with unfixed Regge slopes for fit procedure.
+
+    Parameters
+    ----------
+    n : int
+        Conformal spin.
+    eta : float
+        Skewness parameter.
+    t : float
+        Mandelstam t.
+    alpha_prime_ud : float
+        A-term Regge slope
+    alpha_prime_s : float
+        D-term Regge slope
+    moment_label : str, optional
+        A(tilde), B(tilde) depending on H(tilde) or E(tilde) GPD etc.
+    evolve_type : str, optional:
+        "vector" or "axial"
+    evolution_order : str, optional
+        lo, nlo.
+    error_type : str, optional
+        Choose central, upper or lower value for input PDF parameters.
+    Returns
+    -------
+    float
+        The Reggeized moment for the given parameters
+    """
     # Check type
     hp.check_error_type(error_type)
     hp.check_evolve_type(evolve_type)
@@ -198,8 +248,8 @@ def quark_singlet_regge_fit(j,eta,t,alpha_prime_ud, alpha_prime_s,norm_A, norm_D
     else:
         prf = +1
 
-    term_1, error_1 = core.quark_singlet_regge_A(j,eta,t,alpha_prime_ud,moment_label,evolution_order,error_type)
-    term_2, error_2 = core.quark_singlet_regge_D(j,eta,t,alpha_prime_ud,alpha_prime_s,moment_label,evolution_order,error_type)
+    term_1, error_1 = core.quark_singlet_regge_A(n,eta,t,alpha_prime_ud,moment_label,evolution_order,error_type)
+    term_2, error_2 = core.quark_singlet_regge_D(n,eta,t,alpha_prime_ud,alpha_prime_s,moment_label,evolution_order,error_type)
     sum_squared = norm_A**2 * error_1**2 + norm_D**2 * error_2**2
     # error = np.frompyfunc(abs, 1, 1)(mp.sqrt(sum_squared))
     error = abs(mp.sqrt(sum_squared))
@@ -207,7 +257,35 @@ def quark_singlet_regge_fit(j,eta,t,alpha_prime_ud, alpha_prime_s,norm_A, norm_D
 
     return result, error
 
-def gluon_singlet_regge_fit(j,eta,t,alpha_prime_T, alpha_prime_S,norm_A, norm_D ,moment_label="A",evolve_type="vector", evolution_order="nlo",error_type="central"):
+def gluon_singlet_regge_fit(n,eta,t,alpha_prime_T, alpha_prime_S,norm_A, norm_D ,moment_label="A",evolve_type="vector", evolution_order="nlo",error_type="central"):
+    """
+    Reggeized quark singlet moment with unfixed Regge slopes for fit procedure.
+
+    Parameters
+    ----------
+    n : int
+        Conformal spin.
+    eta : float
+        Skewness parameter.
+    t : float
+        Mandelstam t.
+    alpha_prime_T : float
+        A-term Regge slope
+    alpha_prime_S : float
+        D-term Regge slope
+    moment_label : str, optional
+        A(tilde), B(tilde) depending on H(tilde) or E(tilde) GPD etc.
+    evolve_type : str, optional:
+        "vector" or "axial"
+    evolution_order : str, optional
+        lo, nlo.
+    error_type : str, optional
+        Choose central, upper or lower value for input PDF parameters.
+    Returns
+    -------
+    float
+        The Reggeized moment for the given parameters
+    """
     # Check type
     hp.check_error_type(error_type)
     hp.check_evolve_type(evolve_type)
@@ -218,12 +296,12 @@ def gluon_singlet_regge_fit(j,eta,t,alpha_prime_T, alpha_prime_S,norm_A, norm_D 
     else:
         prf = +1
 
-    term_1, error_1 = core.gluon_singlet_regge_A(j,eta,t,alpha_prime_T,moment_label,evolution_order,error_type)
+    term_1, error_1 = core.gluon_singlet_regge_A(n,eta,t,alpha_prime_T,moment_label,evolution_order,error_type)
     if eta == 0:
         result = norm_A * term_1
         error = norm_A * error_1
     else :
-        term_2, error_2 = core.gluon_singlet_regge_D(j,eta,t,alpha_prime_T,alpha_prime_S,moment_label,evolution_order,error_type)
+        term_2, error_2 = core.gluon_singlet_regge_D(n,eta,t,alpha_prime_T,alpha_prime_S,moment_label,evolution_order,error_type)
         sum_squared = norm_A**2 * error_1**2 + norm_D**2 * error_2**2
         # error = np.frompyfunc(abs, 1, 1)(mp.sqrt(sum_squared))
         error = abs(mp.sqrt(sum_squared))
@@ -233,9 +311,55 @@ def gluon_singlet_regge_fit(j,eta,t,alpha_prime_T, alpha_prime_S,norm_A, norm_D 
 def singlet_moment_fit(j,eta,t,alpha_prime_ud, alpha_prime_s,norm_Aq, norm_Dq,alpha_prime_T, alpha_prime_S,norm_Ag, norm_Dg,
                        moment_label="A",evolve_type="vector",solution="+",evolution_order="nlo",error_type="central",interpolation=True):
     """
+    Reggeized singlet moment with unfixed Regge slopes for fit procedure.
+
+    Parameters
+    ----------
+    n : int
+        Conformal spin.
+    eta : float
+        Skewness parameter.
+    t : float
+        Mandelstam t.
+    alpha_prime_ud : float
+        Quark A-term Regge slope
+    alpha_prime_s : float
+        Quark D-term Regge slope
+    norm_Aq : float
+        Quark singlet A-term norm
+    norm_Dq : float
+        Quark singlet D-term norm
+    alpha_prime_T : float
+        Gluon A-term Regge slope
+    alpha_prime_S : float
+        Gluon D-term Regge slope
+    norm_Ag : float
+        Gluon singlet A-term norm
+    norm_Dg : float
+        Gluon singlet D-term norm
+    moment_label : str, optional
+        A(tilde), B(tilde) depending on H(tilde) or E(tilde) GPD etc.
+    evolve_type : str, optional:
+        "vector" or "axial"
+    solution : str, optional
+        "+" or "-" solution
+    evolution_order : str, optional
+        lo, nlo.
+    error_type : str, optional
+        Choose central, upper or lower value for input PDF parameters.
+    interpolation : bool, optional
+        Whether to interpolate anomalous dimension
+
+    Returns
+    -------
+    float
+        The Reggeized moment for the given parameters
+
+    Note
+    ----
     Returns 0 if the moment_label = "B", in accordance with holography and quark model considerations. 
     Otherwise it returns the diagonal combination of quark + gluon moment. Error for singlet_moment at j = 1
-    for solution "-" unreliable because of pole in gamma. Better reconstruct evolved moment from GPD.
+    for solution "-" unreliable because of pole in gamma. Better to reconstruct evolved moment from GPD.
     """
     if moment_label == "B":
         return 0, 0
@@ -268,6 +392,49 @@ def singlet_moment_fit(j,eta,t,alpha_prime_ud, alpha_prime_s,norm_Aq, norm_Dq,al
 
 def evolve_singlet_fit(eta,t,mu,alpha_prime_ud, alpha_prime_s,norm_Aq, norm_Dq,alpha_prime_T, alpha_prime_S,norm_Ag, norm_Dg,
                        particle="quark",moment_label ="A", evolution_order = "nlo", error_type = "central",interpolation=True):  
+    """
+    Reggeized evolved singlet moment with unfixed Regge slopes for fit procedure.
+
+    Parameters
+    ----------
+    eta : float
+        Skewness parameter.
+    t : float
+        Mandelstam t.
+    mu : float
+        Resolution scale mu
+    alpha_prime_ud : float
+        Quark A-term Regge slope
+    alpha_prime_s : float
+        Quark D-term Regge slope
+    norm_Aq : float
+        Quark singlet A-term norm
+    norm_Dq : float
+        Quark singlet D-term norm
+    alpha_prime_T : float
+        Gluon A-term Regge slope
+    alpha_prime_S : float
+        Gluon D-term Regge slope
+    norm_Ag : float
+        Gluon singlet A-term norm
+    norm_Dg : float
+        Gluon singlet D-term norm
+    particle : str, optional
+        "quark" or "gluon"
+    moment_label : str, optional
+        A(tilde), B(tilde) depending on H(tilde) or E(tilde) GPD etc.
+    evolution_order : str, optional
+        lo, nlo.
+    error_type : str, optional
+        Choose central, upper or lower value for input PDF parameters.
+    interpolation : bool, optional
+        Whether to interpolate anomalous dimension
+
+    Returns
+    -------
+    float
+        The evolved Reggeized moment for the given parameters
+    """
     hp.check_particle_type(particle)
     hp.check_moment_type_label("singlet",moment_label)
     hp.check_error_type(error_type)
@@ -402,6 +569,49 @@ def evolve_singlet_fit(eta,t,mu,alpha_prime_ud, alpha_prime_s,norm_Aq, norm_Dq,a
 
 def evolve_singlet_D_fit(eta,t,mu,alpha_prime_ud, alpha_prime_s,norm_Aq, norm_Dq,alpha_prime_T, alpha_prime_S,norm_Ag, norm_Dg,
                        particle="quark",moment_label ="A", evolution_order = "nlo", error_type = "central",interpolation=True):
+    """
+    Reggeized evolved singlet D moment with unfixed Regge slopes for fit procedure.
+
+    Parameters
+    ----------
+    eta : float
+        Skewness parameter.
+    t : float
+        Mandelstam t.
+    mu : float
+        Resolution scale mu
+    alpha_prime_ud : float
+        Quark A-term Regge slope
+    alpha_prime_s : float
+        Quark D-term Regge slope
+    norm_Aq : float
+        Quark singlet A-term norm
+    norm_Dq : float
+        Quark singlet D-term norm
+    alpha_prime_T : float
+        Gluon A-term Regge slope
+    alpha_prime_S : float
+        Gluon D-term Regge slope
+    norm_Ag : float
+        Gluon singlet A-term norm
+    norm_Dg : float
+        Gluon singlet D-term norm
+    particle : str, optional
+        "quark" or "gluon"
+    moment_label : str, optional
+        A(tilde), B(tilde) depending on H(tilde) or E(tilde) GPD etc.
+    evolution_order : str, optional
+        lo, nlo.
+    error_type : str, optional
+        Choose central, upper or lower value for input PDF parameters.
+    interpolation : bool, optional
+        Whether to interpolate anomalous dimension
+
+    Returns
+    -------
+    float
+        The evolved Reggeized D moment for the given parameters
+    """
     hp.check_particle_type(particle)
     hp.check_moment_type_label("singlet",moment_label)
     term_1 = evolve_singlet_fit(eta,t,mu,alpha_prime_ud, alpha_prime_s,norm_Aq, norm_Dq,alpha_prime_T, alpha_prime_S,norm_Ag, norm_Dg,
@@ -413,6 +623,23 @@ def evolve_singlet_D_fit(eta,t,mu,alpha_prime_ud, alpha_prime_s,norm_Aq, norm_Dq
 
 
 def fit_non_singlet_slopes(evolution_order="nlo",error_type="central",plot = True):
+    """
+    Fit non-singlet slopes to dipole form of lattice form factors
+    Dipole parameters are hard-coded. Modify as needed.
+
+    Parameters
+    ----------
+    evolution_order : str, optional
+        lo, nlo.
+    error_type : str, optional
+        Choose central, upper or lower value for input PDF parameters.
+    plot : bool, optional
+        Show a plot of fit and data
+
+    Note
+    -------
+    Prints the best-fit parameters and optionally shows plots.
+    """
     m_F12 = 0.71
     mu_p = 2.7928
     mu_n = -1.913
@@ -578,6 +805,23 @@ def fit_non_singlet_slopes(evolution_order="nlo",error_type="central",plot = Tru
     return
 
 def fit_singlet_slopes_A(evolution_order="nlo",plot=True):
+    """
+    Fit singlet A slopes to dipole form of lattice form factors.
+    Dipole parameters are hard-coded. Modify as needed.
+
+    Parameters
+    ----------
+    evolution_order : str, optional
+        lo, nlo.
+    error_type : str, optional
+        Choose central, upper or lower value for input PDF parameters.
+    plot : bool, optional
+        Show a plot of fit and data
+
+    Note
+    -------
+    Prints the best-fit parameters and optionally shows plots.
+    """
     # Dipole form from table III in 2310.08484
     g_A = 0.501
     m_A_g2 = 1.262**2
@@ -639,10 +883,6 @@ def fit_singlet_slopes_A(evolution_order="nlo",plot=True):
             quark_singlet_D(t,norm,alpha_p_S)
             for t in t_arr
         ], dtype=float)
-    
-    # t_2 = np.linspace(-1e-6,-1,10)
-    # print(gluon_singlet_D_vec(t_2,1,6))
-    # return 
 
     popt_D_g, pcov_D_g = curve_fit(gluon_singlet_D_vec, t_vals, pseudo_data_gluon_D, p0=[1,4.2], bounds=([.1,3],[2,6]))
     print(f"gluon D: norm = {popt_D_g[0]:.4f}, alpha_p = {popt_D_g[1]:.4f}")
@@ -695,6 +935,23 @@ def fit_singlet_slopes_A(evolution_order="nlo",plot=True):
     return
 
 def fit_singlet_slopes_Atilde(evolution_order="nlo",plot=True):
+    """
+    Fit singlet Atilde slopes to dipole form of lattice form factors.
+    Dipole parameters are hard-coded. Modify as needed.
+
+    Parameters
+    ----------
+    evolution_order : str, optional
+        lo, nlo.
+    error_type : str, optional
+        Choose central, upper or lower value for input PDF parameters.
+    plot : bool, optional
+        Show a plot of fit and data
+
+    Note
+    -------
+    Prints the best-fit parameters and optionally shows plots.
+    """
     # Dipole form from table III in 1703.06703
     # GP u + d + s
     # q_A = 19.1505
@@ -742,9 +999,9 @@ def fit_singlet_slopes_Atilde(evolution_order="nlo",plot=True):
 
 ##############################
 ### Fit to evolved moments ###
+### Work in progress...    ###
 ##############################
 
-# Work in progress...
 def fit_singlet_slopes_2(evolution_order="nlo",plot=True):
     # Dipole form from table III in 2310.08484
     g_A = 0.501

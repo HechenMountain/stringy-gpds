@@ -8,8 +8,6 @@ from .helpers import check_evolution_order, check_error_type
 
 ############################################
 ############################################
-# Columns for the DataFrame
-columns = ["Parameter", "lo", "nlo", "nnlo"]
 
 # Read the CSV file and parse it
 data = []
@@ -28,11 +26,12 @@ with open(cfg.MSTW_PATH, 'r',newline='') as file:
         # Append the row as a list of data
         data.append([parameter, lo_values, nlo_values, nnlo_values])
 
-# Create the pandas DataFrame
+# Create dictionary
 MSTW_PDF =  {row[0]: {"lo": row[1], "nlo": row[2], "nnlo": row[3]} for row in data}
 
-############################################
-############################################
+####################   
+#### Define PDFs ###
+#################### 
 def get_alpha_s(evolution_order="nlo"):
     """
     Returns alpha_s at the input scale of 1 GeV from the MSTW PDF best fit.
@@ -46,8 +45,37 @@ def get_alpha_s(evolution_order="nlo"):
 
 def pdf(x,A_pdf,eta_1,eta_2,epsilon,gamma_pdf):
     """
-    PDF parametrization for uv, dv, S, g. Note that at nlo the gluon parametrization gets aditional
-    terms. This is handled separately in the gluon PDF:
+    PDF parametrization for uv, dv, S, g
+    """
+    """
+    Compute the uv, dv, S and g PDF
+
+    Parameters
+    ----------
+    x : float
+        parton x
+    A_pdf : float
+        Normalization constant of the polarized PDF
+    eta_1 : float
+        Small-x parameter.
+    eta_2 : float
+        Large-x parameter
+    epsilon : float
+        sqrt(x) prefactor
+    gamma_pdf : float
+        Additional linear piece
+    evolution_order : str
+        "lo", "nlo",...
+
+    Returns
+    -------
+    float
+        The value of the PDF.
+    
+    Note
+    ----
+    At nlo the gluon parametrization gets aditional terms. 
+    This is handled separately in the gluon PDF:
     """
     result = A_pdf * (1-x)**eta_2*x**(eta_1-1)*(1+epsilon*np.sqrt(x)+gamma_pdf*x)
     # print(A_pdf,eta_1,eta_2,epsilon,gamma_pdf)
@@ -55,13 +83,56 @@ def pdf(x,A_pdf,eta_1,eta_2,epsilon,gamma_pdf):
 
 def pdf_error(x,A_pdf,delta_A_pdf,eta_1,delta_eta_1,eta_2,delta_eta_2,
               epsilon,delta_epsilon,gamma_pdf,delta_gamma_pdf,error_type):
+    """
+    PDF error parametrization for uv, dv, S, g
+    """
+    """
+    Compute the uv, dv, S and g PDF
+
+    Parameters
+    ----------
+    x : float
+        parton x
+    A_pdf : float
+        Normalization constant of the polarized PDF
+    delta_A_pdf : float
+        Error of normalization
+    eta_1 : float
+        Small-x parameter.
+    delta_eta_1 : float
+        Error of eta_1
+    eta_2 : float
+        Large-x parameter
+    delta_eta_2 : float
+        error of eta_2
+    epsilon : float
+        sqrt(x) prefactor
+    delta_epsilon : float
+        Error of epsilon
+    gamma_pdf : float
+        Additional linear piece
+    delta_gamma_pdf : float
+        Error of gamma_pdf
+    evolution_order : str
+        "lo", "nlo",...
+    error_type : str
+        "central", "plus", "minus"
+
+    Returns
+    -------
+    float
+        The value of the PDF.
+    
+    Note
+    ----
+    At nlo the gluon parametrization gets aditional terms. 
+    This is handled separately in the gluon PDF:
+    """
     dpdf_dA_pdf = (1-x)**eta_2*x**(eta_1-1)*(1+epsilon*np.sqrt(x)+gamma_pdf * x)
     dpdf_deta_1 = A_pdf*(1-x)**eta_2*x**(eta_1-1)*(1+epsilon*np.sqrt(x)+gamma_pdf * x)*np.log(x)
     dpdf_deta_2 = A_pdf*(1-x)**eta_2*x**(eta_1-1)*(1+epsilon*np.sqrt(x)+gamma_pdf * x)*np.log(1-x)
     dpdf_depsilon = A_pdf*(1-x)**eta_2*x**(eta_1-.5)
     dpdf_dgamma = A_pdf*(1-x)**eta_2*x**(eta_1)
-    
-    # print(dpdf_dA_pdf,dpdf_deta_1,dpdf_deta_2,dpdf_depsilon,dpdf_dgamma)
 
     check_error_type(error_type)
     if error_type == "central":
@@ -79,14 +150,21 @@ def pdf_error(x,A_pdf,delta_A_pdf,eta_1,delta_eta_1,eta_2,delta_eta_2,
 # Define the PDFs using Eqs. (6-12) in  0901.0002 
 def uv_pdf(x, evolution_order="nlo",error_type="central"):
     """
-    Compute the uv(x) PDF based on the given lo parameters and selected errors.
-    
-    Arguments:
-    x -- The value of parton x.
-    error_type -- A string indicating whether to use 'central', 'plus', or 'minus' errors. Default is 'central'.
-    
-    Returns:
-    The value of uv(x) based on the selected parameters and error type.
+    Compute the uv PDF and return either its central value or the corresponding value with error.
+
+    Parameters
+    ----------
+    x : float
+        The value of parton x.
+    evolution_order : str, optional
+        "lo", "nlo",...
+    error_type : str, optional
+        Whether to use 'central', 'plus', or 'minus' errors. Default is 'central'.
+
+    Returns
+    -------
+    float
+        The value of the uv based on the selected parameters and error type.
     """
      # Define a dictionary that maps the error_type to column indices
     error_mapping = {
@@ -95,6 +173,7 @@ def uv_pdf(x, evolution_order="nlo",error_type="central"):
         "minus": 2     # The column with the - error value
     }
     check_error_type(error_type)
+    check_evolution_order(evolution_order)
     # Get the column index corresponding to the error_type
     error_col_index = error_mapping.get(error_type, 0)  # Default to 'central' if error_type is invalid
 
@@ -120,6 +199,23 @@ def uv_pdf(x, evolution_order="nlo",error_type="central"):
     return result
 
 def dv_pdf(x, evolution_order="nlo",error_type="central"):
+    """
+    Compute the dv PDF and return either its central value or the corresponding value with error.
+
+    Parameters
+    ----------
+    x : float
+        The value of parton x.
+    evolution_order : str, optional
+        "lo", "nlo",...
+    error_type : str, optional
+        Whether to use 'central', 'plus', or 'minus' errors. Default is 'central'.
+
+    Returns
+    -------
+    float
+        The value of the dv based on the selected parameters and error type.
+    """
     # Define a dictionary that maps the error_type to column indices
     error_mapping = {
         "central": 0,  # The column with the central value
@@ -151,6 +247,21 @@ def dv_pdf(x, evolution_order="nlo",error_type="central"):
     return result
 
 def sv_pdf(x, evolution_order="nlo",error_type="central"):
+    """
+    Compute the sv PDF and return either its central value or the corresponding value with error.
+
+    Parameters
+    ----------
+    x : float
+        The value of parton x.
+    error_type : str, optional
+        Whether to use 'central', 'plus', or 'minus' errors. Default is 'central'.
+
+    Returns
+    -------
+    float
+        The value of the sv based on the selected parameters and error type.
+    """
     error_mapping = {
         "central": 0,
         "plus": 1,
@@ -188,6 +299,23 @@ def sv_pdf(x, evolution_order="nlo",error_type="central"):
     return result
 
 def S_pdf(x, evolution_order="nlo",error_type="central"):
+    """
+    Compute the S PDF and return either its central value or the corresponding value with error.
+
+    Parameters
+    ----------
+    x : float
+        The value of parton x.
+    evolution_order : str, optional
+        "lo", "nlo",...
+    error_type : str, optional
+        Whether to use 'central', 'plus', or 'minus' errors. Default is 'central'.
+
+    Returns
+    -------
+    float
+        The value of the S based on the selected parameters and error type.
+    """
     error_mapping = {
         "central": 0,
         "plus": 1,
@@ -218,6 +346,23 @@ def S_pdf(x, evolution_order="nlo",error_type="central"):
     return result
 
 def s_plus_pdf(x, evolution_order="nlo",error_type="central"):
+    """
+    Compute the s_plus PDF and return either its central value or the corresponding value with error.
+
+    Parameters
+    ----------
+    x : float
+        The value of parton x.
+    evolution_order : str, optional
+        "lo", "nlo",...
+    error_type : str, optional
+        Whether to use 'central', 'plus', or 'minus' errors. Default is 'central'.
+
+    Returns
+    -------
+    float
+        The value of the s_plus based on the selected parameters and error type.
+    """
     error_mapping = {
         "central": 0,
         "plus": 1,
@@ -249,7 +394,21 @@ def s_plus_pdf(x, evolution_order="nlo",error_type="central"):
 
 def Delta_pdf(x, evolution_order="nlo",error_type="central"):
     """
-    Compute the Delta(x)=dbar-ubar PDF based on the given lo parameters and selected errors.
+    Compute the Delta = ubar - dbar PDF and return either its central value or the corresponding value with error.
+
+    Parameters
+    ----------
+    x : float
+        The value of parton x.
+    evolution_order : str, optional
+        "lo", "nlo",...
+    error_type : str, optional
+        Whether to use 'central', 'plus', or 'minus' errors. Default is 'central'.
+
+    Returns
+    -------
+    float
+        The value of the Delta PDF based on the selected parameters and error type.
     """
      # Define a dictionary that maps the error_type to column indices
     error_mapping = {
@@ -285,6 +444,23 @@ def Delta_pdf(x, evolution_order="nlo",error_type="central"):
     return result
 
 def gluon_pdf(x, evolution_order="nlo",error_type="central"):
+    """
+    Compute the gluon PDF and return either its central value or the corresponding value with error.
+
+    Parameters
+    ----------
+    x : float
+        The value of parton x.
+    evolution_order : str, optional
+        "lo", "nlo",...
+    error_type : str, optional
+        Whether to use 'central', 'plus', or 'minus' errors. Default is 'central'.
+
+    Returns
+    -------
+    float
+        The value of the gluon based on the selected parameters and error type.
+    """
      # Define a dictionary that maps the error_type to column indices
     error_mapping = {
         "central": 0,  # The column with the central value
@@ -336,6 +512,23 @@ def gluon_pdf(x, evolution_order="nlo",error_type="central"):
     return result
 
 def uv_minus_dv_pdf(x, evolution_order="nlo",error_type="central"):
+    """
+    Compute the uv - dv (non_singlet_isovector) PDF and return either its central value or the corresponding value with error.
+
+    Parameters
+    ----------
+    x : float
+        The value of parton x.
+    evolution_order : str, optional
+        "lo", "nlo",...
+    error_type : str, optional
+        Whether to use 'central', 'plus', or 'minus' errors. Default is 'central'.
+
+    Returns
+    -------
+    float
+        The value of the uv - dv PDF based on the selected parameters and error type.
+    """
     uv = uv_pdf(x,evolution_order,error_type)
     dv= dv_pdf(x,evolution_order,error_type)
     if error_type == "central":
@@ -345,6 +538,23 @@ def uv_minus_dv_pdf(x, evolution_order="nlo",error_type="central"):
     return result
 
 def uv_plus_dv_plus_S_pdf(x, evolution_order="nlo",error_type="central"):
+    """
+    Compute the uv + dv + S (quark singlet) PDF and return either its central value or the corresponding value with error.
+
+    Parameters
+    ----------
+    x : float
+        The value of parton x.
+    evolution_order : str, optional
+        "lo", "nlo",...
+    error_type : str, optional
+        Whether to use 'central', 'plus', or 'minus' errors. Default is 'central'.
+
+    Returns
+    -------
+    float
+        The value of the quark singlet PDF based on the selected parameters and error type.
+    """
     uv = uv_pdf(x,evolution_order,error_type)
     dv = dv_pdf(x,evolution_order,error_type)
     Spdf = S_pdf(x,evolution_order,error_type)
@@ -359,6 +569,20 @@ def uv_plus_dv_plus_S_pdf(x, evolution_order="nlo",error_type="central"):
 ######################
 
 def plot_uv_pdf(x_0=1e-2,evolution_order="nlo",logplot=False,error_bars=True):
+    """
+    Plot the uv PDF over x.
+
+    Parameters
+    ----------
+    x_0 : float, optional
+        The value of minimum value of parton x. Default is 1e-2
+    evolution_order : str, optional
+        "lo", "nlo". Default is "nlo".
+    logplot : bool, optional
+        Whether to use a logarithmic scale on the x-axis. Default is False.
+    error_bars : bool, optional
+        Whether to display error bars corresponding to PDF uncertainties. Default is True.
+    """
     vectorized_uv_pdf = np.vectorize(uv_pdf)
     if logplot:
         x_vals = np.logspace(np.log10(x_0), np.log10(1 - 1e-4), 100)
@@ -382,6 +606,20 @@ def plot_uv_pdf(x_0=1e-2,evolution_order="nlo",logplot=False,error_bars=True):
     plt.show()
 
 def plot_dv_pdf(x_0=1e-2,evolution_order="nlo",logplot=False,error_bars=True):
+    """
+    Plot the dv PDF over x.
+
+    Parameters
+    ----------
+    x_0 : float, optional
+        The value of minimum value of parton x. Default is 1e-2
+    evolution_order : str, optional
+        "lo", "nlo". Default is "nlo".
+    logplot : bool, optional
+        Whether to use a logarithmic scale on the x-axis. Default is False.
+    error_bars : bool, optional
+        Whether to display error bars corresponding to PDF uncertainties. Default is True.
+    """
     vectorized_dv_pdf = np.vectorize(dv_pdf)
     if logplot:
         x_vals = np.logspace(np.log10(x_0), np.log10(1 - 1e-4), 100)
@@ -405,6 +643,20 @@ def plot_dv_pdf(x_0=1e-2,evolution_order="nlo",logplot=False,error_bars=True):
     plt.show()
 
 def plot_uv_minus_dv_pdf(x_0=1e-2,evolution_order="nlo",logplot=False,error_bars=True):
+    """
+    Plot the uv - dv (non_singlet_isovector) PDF over x.
+
+    Parameters
+    ----------
+    x_0 : float, optional
+        The value of minimum value of parton x. Default is 1e-2
+    evolution_order : str, optional
+        "lo", "nlo". Default is "nlo".
+    logplot : bool, optional
+        Whether to use a logarithmic scale on the x-axis. Default is False.
+    error_bars : bool, optional
+        Whether to display error bars corresponding to PDF uncertainties. Default is True.
+    """
     vectorized_uv_minus_dv_pdf = np.vectorize(uv_minus_dv_pdf)
     if logplot:
         x_vals = np.logspace(np.log10(x_0), np.log10(1 - 1e-4), 100)
@@ -428,6 +680,20 @@ def plot_uv_minus_dv_pdf(x_0=1e-2,evolution_order="nlo",logplot=False,error_bars
     plt.show()
 
 def plot_uv_plus_dv_plus_S_pdf(x_0=1e-2,evolution_order="nlo",logplot=False,error_bars=True):
+    """
+    Plot the uv + dv + S (quark singlet) PDF over x.
+
+    Parameters
+    ----------
+    x_0 : float, optional
+        The value of minimum value of parton x. Default is 1e-2
+    evolution_order : str, optional
+        "lo", "nlo". Default is "nlo".
+    logplot : bool, optional
+        Whether to use a logarithmic scale on the x-axis. Default is False.
+    error_bars : bool, optional
+        Whether to display error bars corresponding to PDF uncertainties. Default is True.
+    """
     vectorized_uv_plus_dv_plus_S_pdf = np.vectorize(uv_plus_dv_plus_S_pdf)
     if logplot:
         x_vals = np.logspace(np.log10(x_0), np.log10(1 - 1e-4), 100)
@@ -451,6 +717,20 @@ def plot_uv_plus_dv_plus_S_pdf(x_0=1e-2,evolution_order="nlo",logplot=False,erro
     plt.show()
 
 def plot_gluon_pdf(x_0=1e-2,evolution_order="nlo",logplot=False,error_bars=True):
+    """
+    Plot the gluon PDF over x.
+
+    Parameters
+    ----------
+    x_0 : float, optional
+        The value of minimum value of parton x. Default is 1e-2
+    evolution_order : str, optional
+        "lo", "nlo". Default is "nlo".
+    logplot : bool, optional
+        Whether to use a logarithmic scale on the x-axis. Default is False.
+    error_bars : bool, optional
+        Whether to display error bars corresponding to PDF uncertainties. Default is True.
+    """
     vectorized_gluon_pdf = np.vectorize(gluon_pdf)
     if logplot:
         x_vals = np.logspace(np.log10(x_0), np.log10(1 - 1e-4), 100)

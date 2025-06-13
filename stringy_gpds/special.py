@@ -24,8 +24,15 @@ def power_minus_1(j):
 def fractional_finite_sum(func,k_0=1,k_1=1,epsilon=.2,k_range=10,n_k=300,alternating_sum=False, n_tuple = 1, plot_integrand = False,
                           full_range=True,trap=False,n_jobs=1,error_est=True):
     """
-    Computes the fractional finite sume of a one-parameter function by either using mpmath quad (trap = False) or a trapezoidal rule (trap = True).
+    Computes the fractional finite sume of a one-parameter function by either using fixed_quad (trap = False) or a trapezoidal rule (trap = True).
     Able to handle tuples of functions as input.
+
+    Note
+    ----
+    One needs to be careful with certain functions in alternating sums as they introduce factors of (-1)**k_1
+    which has diverges for im(k_1) < 0. Using fixed_quad automatically computes an error estimate. If it is large,
+    this might be the reason why. When computing the non-diagonal part of the moment evolution, we utilize that the
+    evolved moment f(j) satisfies conj(f(j)) = - f(j).
     """
     if not trap and not plot_integrand:
         integral = [0] * n_tuple
@@ -42,7 +49,7 @@ def fractional_finite_sum(func,k_0=1,k_1=1,epsilon=.2,k_range=10,n_k=300,alterna
                     dk = 1
                 if alternating_sum:
                     trig_term = mp.csc(mp.pi * k)
-                    alt_sign = power_minus_1(k_1 + 1 - mp.re(k_0))
+                    alt_sign = (-1)**(k_1 + 1 - mp.re(k_0))
                 else:
                     trig_term = mp.cot(mp.pi * k )
                     alt_sign = 1
@@ -61,12 +68,12 @@ def fractional_finite_sum(func,k_0=1,k_1=1,epsilon=.2,k_range=10,n_k=300,alterna
             else:
                 b1 = -k_range
                 b2 = k_range
-            int_tmp, _ = fixed_quad(lambda k: integrand_quad(k), b1, b2, n = 100)
+            int_tmp, _ = fixed_quad(lambda k: integrand_quad(k), b1, b2, n = 150)
             if error_est:
                 # Estimate error
-                int_tmp_50, _ = fixed_quad(lambda k: integrand_quad(k), b1, b2, n = 50)
+                int_tmp_50, _ = fixed_quad(lambda k: integrand_quad(k), b1, b2, n = 80)
                 err_tmp = abs(int_tmp - int_tmp_50)
-                if err_tmp > 1e-4:
+                if err_tmp > 1e-2:
                     print(f"Warning: large error={err_tmp} detected in fractional_finite_sum")
             # Discard small imaginary part
             int_tmp = int_tmp.real if abs(int_tmp.imag) < 1e-6 else int_tmp 
@@ -95,7 +102,7 @@ def fractional_finite_sum(func,k_0=1,k_1=1,epsilon=.2,k_range=10,n_k=300,alterna
 
         if alternating_sum:
             # Perform index shift on (-1)^k
-            alt_sign = power_minus_1(k_1 + 1 - mp.re(k_0))
+            alt_sign = (-1)**(k_1 + 1 - mp.re(k_0))
             f_vals_shift = np.array([x * alt_sign for x in f_vals_shift], dtype=object)
 
         # Compute the difference
