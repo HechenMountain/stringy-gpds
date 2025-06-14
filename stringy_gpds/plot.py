@@ -2135,6 +2135,10 @@ def plot_gpds(eta_array, t_array, mu_array, colors,A0=1,  particle="quark",gpd_t
     - plot_legend (bool): Show plot legend
     - write_to_file (Bool, optional): Write data to file system
     - read_from_file (Bool, optional): Read data from file system
+
+    Note
+    ----
+    For singlet we cut-off at x0 = 1e-2
     """
     ylabel_map = {
         "non_singlet_isovector": {
@@ -2169,7 +2173,6 @@ def plot_gpds(eta_array, t_array, mu_array, colors,A0=1,  particle="quark",gpd_t
     else:
         print(f"Key {gpd_label} not found in cfg.GPD_LABEL_MAP - abort")
         return
-    
     hp.check_particle_type(particle)
     hp.check_moment_type_label(moment_type,moment_label)
 
@@ -2183,8 +2186,8 @@ def plot_gpds(eta_array, t_array, mu_array, colors,A0=1,  particle="quark",gpd_t
     if moment_type == "singlet":
         x_0 = 1e-2
 
-    def compute_result(x, eta,t,mu,error_type="central"):
-        return core.mellin_barnes_gpd(x, eta, t, mu, A0,particle,moment_type,moment_label, evolution_order=evolution_order, real_imag="real", error_type=error_type,n_jobs=1)
+    def compute_result(x, eta,t,mu):
+        return core.mellin_barnes_gpd(x, eta, t, mu, A0,particle,moment_type,moment_label, evolution_order=evolution_order, real_imag="real", error_type="central",n_jobs=1)
 
     if read_from_file:
         sampling = False
@@ -2239,20 +2242,36 @@ def plot_gpds(eta_array, t_array, mu_array, colors,A0=1,  particle="quark",gpd_t
             with hp.tqdm_joblib(tqdm(total=len(x_values))) as progress_bar:
                 results = Parallel(n_jobs=-1)(delayed(compute_result)(x,eta,t,mu)
                                               for x in x_values)
+            if write_to_file:
+                hp.save_gpd_data(x_values,eta,t,mu,results,particle,gpd_type,gpd_label,evolution_order)
         # Error bar computations
         if error_bars:
             if read_from_file:
                 x_plus, results_plus = hp.load_gpd_data(eta,t,mu,particle,gpd_type,gpd_label,evolution_order,"plus")
                 x_minus,results_minus = hp.load_gpd_data(eta,t,mu,particle,gpd_type,gpd_label,evolution_order,"minus")
             else:
-                # results_plus = Parallel(n_jobs=-1)(delayed(compute_result)(x,eta,t,mu, error_type="plus") for x in x_values)
-                with hp.tqdm_joblib(tqdm(total=len(x_values))) as progress_bar:
-                    results_plus = Parallel(n_jobs=-1)(delayed(compute_result)(x,eta,t,mu, error_type="plus")
-                                                       for x in x_values)
-                # results_minus = Parallel(n_jobs=-1)(delayed(compute_result)(x,eta,t,mu, error_type="minus") for x in x_values)
-                with hp.tqdm_joblib(tqdm(total=len(x_values))) as progress_bar:
-                    results_minus = Parallel(n_jobs=-1)(delayed(compute_result)(x,eta,t,mu, error_type="minus")
-                                                        for x in x_values)
+                # Get keys for error types
+                key_p = (particle, moment_type, moment_label, evolution_order, "plus")
+                key_m = (particle, moment_type, moment_label, evolution_order, "minus")
+                # Check whether they exist
+                if key_p or key_m not in core.gpd_errors:
+                    raise ValueError("No error estimates for GPDs have been computed. Modify PARTICLES, MOMENTS,... in config file")
+                selected_triples = [
+                    (eta_, t_, mu_)
+                    for eta_, t_, mu_ in zip(cfg.ETA_ARRAY, cfg.T_ARRAY, cfg.MU_ARRAY)
+                ]
+                # Get corresponding index for kinematic triple eta, t, mu
+                index = selected_triples.index((eta, t, mu))
+                # Get error estimate
+                gpd_rel_error_p = core.gpd_errors[key_p][index]
+                gpd_rel_error_m = core.gpd_errors[key_m][index]
+                # Multiply relative error with central value
+                results_plus = results * gpd_rel_error_p
+                results_minus = results * gpd_rel_error_m
+                # Save to csv
+                if write_to_file:
+                    hp.save_gpd_data(x_values,eta,t,mu,results_plus,particle,gpd_type,gpd_label,evolution_order,"plus")
+                    hp.save_gpd_data(x_values,eta,t,mu,results_minus,particle,gpd_type,gpd_label,evolution_order,"minus")
         else:
             results_plus = results
             results_minus = results
@@ -2271,12 +2290,6 @@ def plot_gpds(eta_array, t_array, mu_array, colors,A0=1,  particle="quark",gpd_t
         # Add vertical lines to separate DGLAP from ERBL region
         ax.axvline(x=eta, linestyle='--', color = color)   
         ax.axvline(x=-eta, linestyle='--', color = color)
-
-        if write_to_file:
-            hp.save_gpd_data(x_values,eta,t,mu,results,particle,gpd_type,gpd_label,evolution_order)
-            if error_bars:
-                hp.save_gpd_data(x_values,eta,t,mu,results_plus,particle,gpd_type,gpd_label,evolution_order,"plus")
-                hp.save_gpd_data(x_values,eta,t,mu,results_minus,particle,gpd_type,gpd_label,evolution_order,"minus")
 
     ax.set_xlim(x_0, x_1)
     ax.set_ylim(y_0,y_1)

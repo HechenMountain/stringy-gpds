@@ -943,6 +943,7 @@ def evolve_conformal_moment(j,eta,t,mu,A0=1,particle="quark",moment_type="non_si
                     for k in range(2,j - 2 + 1):
                         non_diagonal_terms += T_quark_nlo(k)[0]
                         non_diagonal_errors += T_quark_nlo(k)[1]
+                    # Exactly resum for real j
                     non_diagonal_terms_alt = 0
                 elif eta != 0:
                     # ND evolution comes with a factor of 1 + (-1)**(j-k)
@@ -970,6 +971,7 @@ def evolve_conformal_moment(j,eta,t,mu,A0=1,particle="quark",moment_type="non_si
                     for k in range(2,j - 2 + 1):
                         non_diagonal_terms += T_gluon_nlo(k)[0]
                         non_diagonal_errors += T_gluon_nlo(k)[1]
+                    # Exactly resum for real j
                     non_diagonal_terms_alt = 0
                 elif eta != 0:
                     # ND evolution comes with a factor of 1 + (-1)**(j-k)
@@ -990,7 +992,8 @@ def evolve_conformal_moment(j,eta,t,mu,A0=1,particle="quark",moment_type="non_si
             if isinstance(j, (int, np.integer)) and eta != 0:
                 for k in range(1,j - 2 + 1):
                     non_diagonal_terms += EB_non_singlet_nlo(k)
-                    non_diagonal_terms_alt = 0
+                # Exactly resum for real j
+                non_diagonal_terms_alt = 0
             elif eta != 0:
                 # ND evolution comes with a factor of 1 + (-1)**(j-k)
                 # that needs to be treated separately
@@ -1004,7 +1007,8 @@ def evolve_conformal_moment(j,eta,t,mu,A0=1,particle="quark",moment_type="non_si
     non_diagonal_terms_alt *= A0
     # Return real value when called for real j
     if result.imag == 0 or isinstance(j, (int, np.integer)):
-        return np.float64(mp.re(result))
+        return float(result.real)
+    # Need to keep separated for mellin_barnes_gpd
     return result, non_diagonal_terms_alt
 
 def dipole_moment(n,eta,t,mu,particle="quark",moment_type="non_singlet_isovector",moment_label="Atilde",evolution_order="nlo",error_type="central",lattice=False):
@@ -1840,8 +1844,8 @@ def mellin_barnes_gpd(x, eta, t, mu,  A0=1 ,particle = "quark", moment_type="non
         z = j_base + 1j * k 
         dz = 1j
         sin_term = mp.sin(mp.pi * z)
-        # for (-1)**j piece in ND anomalous dimension
-        tan_term = mp.tan(mp.pi * z)
+        # We double the sine here since its (-1)**(2 * j) from the non-diagonal evolution
+        sin2_term = mp.sin(2 * mp.pi * z)/2
         pw_val = conformal_partial_wave(z, x, eta, particle, parity)
 
         if particle == "quark":
@@ -1850,13 +1854,13 @@ def mellin_barnes_gpd(x, eta, t, mu,  A0=1 ,particle = "quark", moment_type="non
             else:
                 mom_val = evolve_quark_non_singlet(z,eta,t,mu,A0,moment_type,moment_label,evolution_order,error_type="central")
         else:
+            mom_val = evolve_gluon_singlet(z,eta,t,mu,A0,moment_label,evolution_order,error_type="central")
             # (-1) from shift in Sommerfeld-Watson transform
-            mom_val = (-1) * evolve_gluon_singlet(z,eta,t,mu,A0,moment_label,evolution_order,error_type="central")
+            mom_val = tuple(-x for x in mom_val)
         # Now re-introduce (1 + (-1)**j)
         # First piece contains diagonal + non-alternating non-diagonal piece
         # second piece is alternating non-diagonal piece
-        result = -.5j * dz * pw_val * (mom_val[0] / sin_term + mom_val[1] / tan_term)
-
+        result = -.5j * dz * pw_val * (mom_val[0] / sin_term + mom_val[1] / sin2_term)
         if real_imag == 'real':
             return np.float64(mp.re(result))
         elif real_imag == 'imag':
