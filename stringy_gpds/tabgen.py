@@ -53,10 +53,8 @@ def generate_moment_table(eta,t,mu,solution,particle,moment_type,moment_label, e
     -----
     Writes the generated table to a CSV file specified by INTERPOLATION_TABLES_PATH
     """
-    if moment_label in ["A","B"]:
-        evolve_type = "vector"
-    elif moment_label in ["Atilde","Btilde"]:
-        evolve_type = "axial"
+
+    evolve_type = hp.get_evolve_type(moment_label)
 
     def compute_moment(j):
         # For mu != 1 we interpolate the evolved moments
@@ -67,15 +65,15 @@ def generate_moment_table(eta,t,mu,solution,particle,moment_type,moment_label, e
         # For mu = 1 we use the corresponding input moments
         elif moment_type == "non_singlet_isovector":
             return core.non_singlet_isovector_moment(j,eta,t,
-                                                moment_label=moment_label, evolve_type=evolve_type,
+                                                moment_label=moment_label,
                                                 evolution_order=evolution_order, error_type=error_type)
         elif moment_type == "non_singlet_isoscalar":
             return core.non_singlet_isoscalar_moment(j,eta,t,
-                                                moment_label=moment_label, evolve_type=evolve_type,
+                                                moment_label=moment_label,
                                                 evolution_order=evolution_order, error_type=error_type)
         elif moment_type == "singlet":
             val = core.singlet_moment(j, eta, t, 
-                                  moment_label=moment_label, evolve_type=evolve_type,
+                                  moment_label=moment_label,
                                   solution=solution, evolution_order=evolution_order, error_type=error_type)
             return val[0] if error_type == "central" else val[1]
         else:

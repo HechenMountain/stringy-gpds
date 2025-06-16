@@ -91,10 +91,10 @@ def dipole_fit_lattice_moments(n,particle,moment_type,moment_label,pub_id,error_
             file_path = cfg.MOMENTUM_SPACE_MOMENTS_PATH / f"dipole_moments_{pub_id}.csv"
         hp.update_dipole_csv(
             file_path=file_path,
+            n=n,
             particle=particle,
             moment_type=moment_type,
             moment_label=moment_label,
-            n=n,
             # use pub_id as key
             evolution_order=pub_id,
             A_D=AD_fit,
@@ -198,10 +198,10 @@ def dipole_fit_moment(n,eta,mu,particle="quark",moment_type="non_singlet_isovect
         file_path = hp.generate_filename(eta,0,mu,cfg.MOMENTUM_SPACE_MOMENTS_PATH / prefix,error_type)
         hp.update_dipole_csv(
             file_path=file_path,
+            n=n,
             particle=particle,
             moment_type=moment_type,
             moment_label=moment_label,
-            n=n,
             evolution_order=evolution_order,
             A_D=AD_fit,
             m_D2=m_D2_fit
@@ -209,7 +209,7 @@ def dipole_fit_moment(n,eta,mu,particle="quark",moment_type="non_singlet_isovect
     return AD_fit, m_D2_fit
 
 
-def quark_singlet_regge_fit(n,eta,t,alpha_prime_ud, alpha_prime_s,norm_A, norm_D,moment_label="A",evolve_type="vector",evolution_order="nlo",error_type="central"):
+def quark_singlet_regge_fit(n,eta,t,alpha_prime_ud, alpha_prime_s,norm_A, norm_D,moment_label="A",evolution_order="nlo",error_type="central"):
     """
     Reggeized quark singlet moment with unfixed Regge slopes for fit procedure.
 
@@ -227,8 +227,6 @@ def quark_singlet_regge_fit(n,eta,t,alpha_prime_ud, alpha_prime_s,norm_A, norm_D
         D-term Regge slope
     moment_label : str, optional
         A(tilde), B(tilde) depending on H(tilde) or E(tilde) GPD etc.
-    evolve_type : str, optional:
-        "vector" or "axial"
     evolution_order : str, optional
         lo, nlo.
     error_type : str, optional
@@ -240,9 +238,9 @@ def quark_singlet_regge_fit(n,eta,t,alpha_prime_ud, alpha_prime_s,norm_A, norm_D
     """
     # Check type
     hp.check_error_type(error_type)
-    hp.check_evolve_type(evolve_type)
     hp.check_moment_type_label("singlet",moment_label)
     hp.check_evolution_order(evolution_order)
+
     if moment_label == "B":
         prf = -1
     else:
@@ -257,7 +255,7 @@ def quark_singlet_regge_fit(n,eta,t,alpha_prime_ud, alpha_prime_s,norm_A, norm_D
 
     return result, error
 
-def gluon_singlet_regge_fit(n,eta,t,alpha_prime_T, alpha_prime_S,norm_A, norm_D ,moment_label="A",evolve_type="vector", evolution_order="nlo",error_type="central"):
+def gluon_singlet_regge_fit(n,eta,t,alpha_prime_T, alpha_prime_S,norm_A, norm_D ,moment_label="A", evolution_order="nlo",error_type="central"):
     """
     Reggeized quark singlet moment with unfixed Regge slopes for fit procedure.
 
@@ -275,8 +273,6 @@ def gluon_singlet_regge_fit(n,eta,t,alpha_prime_T, alpha_prime_S,norm_A, norm_D 
         D-term Regge slope
     moment_label : str, optional
         A(tilde), B(tilde) depending on H(tilde) or E(tilde) GPD etc.
-    evolve_type : str, optional:
-        "vector" or "axial"
     evolution_order : str, optional
         lo, nlo.
     error_type : str, optional
@@ -288,7 +284,6 @@ def gluon_singlet_regge_fit(n,eta,t,alpha_prime_T, alpha_prime_S,norm_A, norm_D 
     """
     # Check type
     hp.check_error_type(error_type)
-    hp.check_evolve_type(evolve_type)
     hp.check_moment_type_label("singlet",moment_label)
 
     if moment_label == "B":
@@ -309,7 +304,7 @@ def gluon_singlet_regge_fit(n,eta,t,alpha_prime_T, alpha_prime_S,norm_A, norm_D 
     return result, error
 
 def singlet_moment_fit(j,eta,t,alpha_prime_ud, alpha_prime_s,norm_Aq, norm_Dq,alpha_prime_T, alpha_prime_S,norm_Ag, norm_Dg,
-                       moment_label="A",evolve_type="vector",solution="+",evolution_order="nlo",error_type="central",interpolation=True):
+                       moment_label="A",solution="+",evolution_order="nlo",error_type="central",interpolation=True):
     """
     Reggeized singlet moment with unfixed Regge slopes for fit procedure.
 
@@ -339,8 +334,6 @@ def singlet_moment_fit(j,eta,t,alpha_prime_ud, alpha_prime_s,norm_Aq, norm_Dq,al
         Gluon singlet D-term norm
     moment_label : str, optional
         A(tilde), B(tilde) depending on H(tilde) or E(tilde) GPD etc.
-    evolve_type : str, optional:
-        "vector" or "axial"
     solution : str, optional
         "+" or "-" solution
     evolution_order : str, optional
@@ -365,7 +358,8 @@ def singlet_moment_fit(j,eta,t,alpha_prime_ud, alpha_prime_s,norm_Aq, norm_Dq,al
         return 0, 0
     # Check type
     hp.check_error_type(error_type)
-    hp.check_evolve_type(evolve_type)
+
+    evolve_type = hp.get_evolve_type(moment_label)
 
     # Switch sign
     if solution == "+":
@@ -376,7 +370,7 @@ def singlet_moment_fit(j,eta,t,alpha_prime_ud, alpha_prime_s,norm_Aq, norm_Dq,al
         raise ValueError("Invalid solution type. Use '+' or '-'.")
 
     quark_prf = .5 
-    quark_in, quark_in_error = quark_singlet_regge_fit(j,eta,t,alpha_prime_ud, alpha_prime_s,norm_Aq, norm_Dq,moment_label,evolve_type,evolution_order,error_type)
+    quark_in, quark_in_error = quark_singlet_regge_fit(j,eta,t,alpha_prime_ud, alpha_prime_s,norm_Aq, norm_Dq,moment_label,evolution_order,error_type)
     # Note: j/6 already included in gamma_qg and gamma_gg definitions
     gluon_prf = .5 * (core.gamma_qg(j-1,evolve_type,"lo",interpolation=interpolation)/
                     (core.gamma_qq(j-1,"singlet",evolve_type,"lo",interpolation=interpolation)-core.gamma_pm(j-1,evolve_type,solution,interpolation=interpolation)))
@@ -448,10 +442,7 @@ def evolve_singlet_fit(eta,t,mu,alpha_prime_ud, alpha_prime_s,norm_Aq, norm_Dq,a
     alpha_s_in = get_alpha_s(evolution_order)
     alpha_s_evolved = core.evolve_alpha_s(mu,evolution_order)
 
-    if moment_label in ["A","B"]:
-        evolve_type = "vector"
-    elif moment_label in ["Atilde","Btilde"]:
-        evolve_type = "axial"
+    evolve_type = hp.get_evolve_type(moment_label)
 
     ga_qq = core.gamma_qq(j-1,"singlet",evolve_type,evolution_order="nlo",interpolation=interpolation)
 
@@ -459,9 +450,9 @@ def evolve_singlet_fit(eta,t,mu,alpha_prime_ud, alpha_prime_s,norm_Aq, norm_Dq,a
     ga_p = core.gamma_pm(j-1,evolve_type,"+",interpolation=interpolation)
     ga_m = core.gamma_pm(j-1,evolve_type,"-",interpolation=interpolation)
     moment_in_p, error_p = singlet_moment_fit(j,eta,t,alpha_prime_ud, alpha_prime_s,norm_Aq, norm_Dq,alpha_prime_T, alpha_prime_S,norm_Ag, norm_Dg,
-                                                moment_label, evolve_type,"+",evolution_order,error_type,interpolation=interpolation)
+                                                moment_label,"+",evolution_order,error_type,interpolation=interpolation)
     moment_in_m, error_m = singlet_moment_fit(j,eta,t,alpha_prime_ud, alpha_prime_s,norm_Aq, norm_Dq,alpha_prime_T, alpha_prime_S,norm_Ag, norm_Dg,
-                                                moment_label, evolve_type,"-",evolution_order,error_type,interpolation=interpolation)
+                                                moment_label,"-",evolution_order,error_type,interpolation=interpolation)
     ga_gq = core.gamma_gq(j-1, evolve_type,"lo",interpolation=interpolation)
     ga_qg = core.gamma_qg(j-1, evolve_type,"lo",interpolation=interpolation)
     if evolution_order != "lo":

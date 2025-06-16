@@ -99,7 +99,7 @@ def evolve_alpha_s(mu, evolution_order="nlo"):
 ### Moment parametrization ###
 ##############################
 
-def non_singlet_isovector_moment(j,eta,t, moment_label="A",evolve_type="vector", evolution_order="nlo",error_type="central"):
+def non_singlet_isovector_moment(j,eta,t, moment_label="A", evolution_order="nlo",error_type="central"):
     """
     Compute the non-singlet isovector moment for given conformal spin and kinematics. Currently skewness independent
 
@@ -113,8 +113,6 @@ def non_singlet_isovector_moment(j,eta,t, moment_label="A",evolve_type="vector",
         Mandelstam variable t 
     moment_label : str, optional
         Label identifying the moment (e.g., "A", "Atilde"). Default is "A".
-    evolve_type : str, optional
-        Type of evolution to apply (e.g., "vector", "axial"). Default is "vector".
     evolution_order : str, optional
         Perturbative order of the evolution (e.g., "lo", "nlo"). Default is "nlo".
     error_type : str, optional
@@ -129,9 +127,8 @@ def non_singlet_isovector_moment(j,eta,t, moment_label="A",evolve_type="vector",
     hp.check_error_type(error_type)
     hp.check_evolution_order(evolution_order)
     hp.check_moment_type_label("non_singlet_isovector",moment_label)
-    hp.check_evolve_type(evolve_type)
 
-    alpha_prime = hp.get_regge_slope("non_singlet_isovector",moment_label,evolve_type,evolution_order)
+    alpha_prime = hp.get_regge_slope("non_singlet_isovector",moment_label,evolution_order)
 
     if moment_label in ["A","B"]:
         uv, uv_error = reg.uv_pdf_regge(j,eta,alpha_prime,t,evolution_order,error_type)
@@ -140,7 +137,7 @@ def non_singlet_isovector_moment(j,eta,t, moment_label="A",evolve_type="vector",
        uv, uv_error = reg.polarized_uv_pdf_regge(j,eta,alpha_prime,t,evolution_order,error_type)
        dv, dv_error = reg.polarized_dv_pdf_regge(j,eta,alpha_prime,t,evolution_order,error_type)
 
-    norm = hp.get_moment_normalizations("non_singlet_isovector",moment_label,evolve_type,evolution_order)
+    norm = hp.get_moment_normalizations("non_singlet_isovector",moment_label,evolution_order)
     sum_squared = uv_error**2+dv_error**2
     error = abs(mp.sqrt(sum_squared))
     error = hp.error_sign(error,error_type)
@@ -148,7 +145,7 @@ def non_singlet_isovector_moment(j,eta,t, moment_label="A",evolve_type="vector",
 
     return result
 
-def non_singlet_isoscalar_moment(j,eta,t, moment_label="A",evolve_type="vector", evolution_order = "nlo", error_type="central"):
+def non_singlet_isoscalar_moment(j,eta,t, moment_label="A", evolution_order = "nlo", error_type="central"):
     """
     Compute the non-singlet isoscalar moment for given conformal spin and kinematics. Currently skewness independent
 
@@ -162,8 +159,6 @@ def non_singlet_isoscalar_moment(j,eta,t, moment_label="A",evolve_type="vector",
         Mandelstam variable t 
     moment_label : str, optional
         Label identifying the moment (e.g., "A", "Atilde"). Default is "A".
-    evolve_type : str, optional
-        Type of evolution to apply (e.g., "vector", "axial"). Default is "vector".
     evolution_order : str, optional
         Perturbative order of the evolution (e.g., "lo", "nlo"). Default is "nlo".
     error_type : str, optional
@@ -178,9 +173,8 @@ def non_singlet_isoscalar_moment(j,eta,t, moment_label="A",evolve_type="vector",
     # Check type
     hp.check_error_type(error_type)
     hp.check_moment_type_label("non_singlet_isoscalar",moment_label)
-    hp.check_evolve_type(evolve_type)
 
-    alpha_prime = hp.get_regge_slope("non_singlet_isoscalar",moment_label,evolve_type,evolution_order)
+    alpha_prime = hp.get_regge_slope("non_singlet_isoscalar",moment_label,evolution_order)
 
     if moment_label in ["A","B"]:
         uv, uv_error = reg.uv_pdf_regge(j,eta,alpha_prime,t,evolution_order,error_type)
@@ -189,7 +183,7 @@ def non_singlet_isoscalar_moment(j,eta,t, moment_label="A",evolve_type="vector",
         uv, uv_error = reg.polarized_uv_pdf_regge(j,eta,alpha_prime,t,evolution_order,error_type)
         dv, dv_error = reg.polarized_dv_pdf_regge(j,eta,alpha_prime,t,evolution_order,error_type)
 
-    norm = hp.get_moment_normalizations("non_singlet_isoscalar",moment_label,evolve_type,evolution_order)
+    norm = hp.get_moment_normalizations("non_singlet_isoscalar",moment_label,evolution_order)
     sum_squared = uv_error**2+dv_error**2
     error = abs(mp.sqrt(sum_squared))
     error = hp.error_sign(error,error_type)
@@ -377,7 +371,7 @@ def quark_singlet_regge_D(j,eta,t,  alpha_prime_ud=0.891,alpha_prime_s=1.828, mo
     result = (d_hat(j,eta,t)-1)*(term_1-term_2)
     return result, error
 
-def quark_singlet_regge(j,eta,t,moment_label="A",evolve_type="vector",evolution_order="nlo",error_type="central"):
+def quark_singlet_regge(j,eta,t,moment_label="A",evolution_order="nlo",error_type="central"):
     """
     Compute the reggeized A and D term of the quark PDFs for given conformal spin and kinematics. The Regge slopes
     are defined in the config file.
@@ -404,16 +398,16 @@ def quark_singlet_regge(j,eta,t,moment_label="A",evolve_type="vector",evolution_
     """
     # Check type
     hp.check_error_type(error_type)
-    hp.check_evolve_type(evolve_type)
     hp.check_moment_type_label("singlet",moment_label)
     hp.check_evolution_order(evolution_order)
+
     if moment_label == "B":
         prf = -1
     else:
         prf = +1
 
-    alpha_prime_ud, alpha_prime_s, _, _ = hp.get_regge_slope("singlet",moment_label,evolve_type,evolution_order)
-    norm_A, norm_D, _, _ = hp.get_moment_normalizations("singlet",moment_label,evolve_type,evolution_order)
+    alpha_prime_ud, alpha_prime_s, _, _ = hp.get_regge_slope("singlet",moment_label,evolution_order)
+    norm_A, norm_D, _, _ = hp.get_moment_normalizations("singlet",moment_label,evolution_order)
 
     term_1, error_1 = quark_singlet_regge_A(j,eta,t,alpha_prime_ud,moment_label,evolution_order,error_type)
     if eta == 0:
@@ -508,7 +502,7 @@ def gluon_singlet_regge_D(j,eta,t, alpha_prime_T = 0.627, alpha_prime_S = 4.277,
         result = term_1 * (term_2-term_3)
         return result, error
     
-def gluon_singlet_regge(j,eta,t,moment_label="A",evolve_type="vector", evolution_order="nlo",error_type="central"):
+def gluon_singlet_regge(j,eta,t,moment_label="A",evolution_order="nlo",error_type="central"):
     """
     Compute the reggeized A and D term of the quark PDFs for given conformal spin and kinematics.
 
@@ -520,10 +514,6 @@ def gluon_singlet_regge(j,eta,t,moment_label="A",evolve_type="vector", evolution
         Skewness parameter.
     t : float
         Mandelstam variable t 
-    alpha_prime_ud : float
-        Regge slope
-    alpha_prime_s : float
-        D-term Regge slope
     moment_label : str, optional
         Label identifying the moment (e.g., "A", "Atilde"). Default is "A".
     evolution_order : str, optional
@@ -538,7 +528,6 @@ def gluon_singlet_regge(j,eta,t,moment_label="A",evolve_type="vector", evolution
     """
     # Check type
     hp.check_error_type(error_type)
-    hp.check_evolve_type(evolve_type)
     hp.check_moment_type_label("singlet",moment_label)
 
     if moment_label == "B":
@@ -546,8 +535,8 @@ def gluon_singlet_regge(j,eta,t,moment_label="A",evolve_type="vector", evolution
     else:
         prf = +1
 
-    _, _, alpha_prime_T, alpha_prime_S = hp.get_regge_slope("singlet",moment_label,evolve_type,evolution_order)
-    _, _, norm_A, norm_D = hp.get_moment_normalizations("singlet",moment_label,evolve_type,evolution_order)
+    _, _, alpha_prime_T, alpha_prime_S = hp.get_regge_slope("singlet",moment_label,evolution_order)
+    _, _, norm_A, norm_D = hp.get_moment_normalizations("singlet",moment_label,evolution_order)
 
     term_1, error_1 = gluon_singlet_regge_A(j,eta,t,alpha_prime_T,moment_label,evolution_order,error_type)
     if eta == 0:
@@ -560,7 +549,7 @@ def gluon_singlet_regge(j,eta,t,moment_label="A",evolve_type="vector", evolution
         result = norm_A * term_1 + norm_D * prf * term_2
     return result, error
 
-def singlet_moment(j,eta,t,moment_label="A",evolve_type="vector",solution="+",evolution_order="nlo",error_type="central",interpolation=True):
+def singlet_moment(j,eta,t,moment_label="A",solution="+",evolution_order="nlo",error_type="central",interpolation=True):
     """
     Compute the diagonal combination of quark and gluon singlet moments for given conformal spin and kinematics.
 
@@ -576,10 +565,10 @@ def singlet_moment(j,eta,t,moment_label="A",evolve_type="vector",solution="+",ev
         Skewness parameter.
     t : float
         Mandelstam variable t.
-    solution : string
-        + or - depending on which solution to pick
     moment_label : str, optional
         Label identifying the moment (e.g., "A", "Atilde"). Default is "A".
+    solution : string
+        + or - depending on which solution to pick
     evolution_order : str, optional
         Perturbative order of the evolution (e.g., "lo", "nlo"). Default is "nlo".
     error_type : str, optional
@@ -594,7 +583,6 @@ def singlet_moment(j,eta,t,moment_label="A",evolve_type="vector",solution="+",ev
         return 0, 0
     # Check type
     hp.check_error_type(error_type)
-    hp.check_evolve_type(evolve_type)
 
     # Switch sign
     if solution == "+":
@@ -603,9 +591,11 @@ def singlet_moment(j,eta,t,moment_label="A",evolve_type="vector",solution="+",ev
         solution = "+"
     else:
         raise ValueError("Invalid solution type. Use '+' or '-'.")
+    
+    evolve_type = hp.get_evolve_type(moment_label)
 
     quark_prf = .5 
-    quark_in, quark_in_error = quark_singlet_regge(j,eta,t,moment_label,evolve_type,evolution_order,error_type)
+    quark_in, quark_in_error = quark_singlet_regge(j,eta,t,moment_label,evolution_order,error_type)
     # Note: j/6 already included in adim.gamma_qg and adim.gamma_qg definitions
     gluon_prf = .5 * (adim.gamma_qg(j-1,evolve_type,"lo",interpolation=interpolation)/
                     (adim.gamma_qq(j-1,"singlet",evolve_type,"lo",interpolation=interpolation)-adim.gamma_pm(j-1,evolve_type,solution,interpolation=interpolation)))
@@ -664,7 +654,7 @@ def evolve_conformal_moment(j,eta,t,mu,A0=1,particle="quark",moment_type="non_si
     particle : str, optional
         "quark" or "gluon". Default is "quark".
     moment_type : str, optional
-        non_singlet_isovector, non_singlet_isoscalar, or singlet.
+        "non_singlet_isovector", "non_singlet_isoscalar", or "singlet".
     moment_label : str, optional
         A(tilde), B(tilde) depending on H(tilde) or E(tilde) GPD etc.
     evolution_order : str, optional
@@ -705,21 +695,18 @@ def evolve_conformal_moment(j,eta,t,mu,A0=1,particle="quark",moment_type="non_si
     alpha_s_in = get_alpha_s(evolution_order)
     alpha_s_evolved = evolve_alpha_s(mu,evolution_order)
 
-    if moment_label in ["A","B"]:
-        evolve_type = "vector"
-    elif moment_label in ["Atilde","Btilde"]:
-        evolve_type = "axial"
+    evolve_type = hp.get_evolve_type(moment_label)
 
     if moment_type == "non_singlet_isovector":
-        moment_in = non_singlet_isovector_moment(j,eta,t,moment_label,evolve_type,evolution_order,error_type)
+        moment_in = non_singlet_isovector_moment(j,eta,t,moment_label,evolution_order,error_type)
     elif moment_type == "non_singlet_isoscalar":
-        moment_in = non_singlet_isoscalar_moment(j,eta,t,moment_label,evolve_type,evolution_order,error_type) 
+        moment_in = non_singlet_isoscalar_moment(j,eta,t,moment_label,evolution_order,error_type) 
     elif moment_type == "singlet":
         # Roots  of lo anomalous dimensions
         ga_p = adim.gamma_pm(j-1,evolve_type,"+",interpolation=interpolation)
         ga_m = adim.gamma_pm(j-1,evolve_type,"-",interpolation=interpolation)
-        moment_in_p, error_p = singlet_moment(j,eta,t,  moment_label, evolve_type,"+",evolution_order,error_type,interpolation=interpolation)
-        moment_in_m, error_m = singlet_moment(j,eta,t,  moment_label, evolve_type,"-",evolution_order,error_type,interpolation=interpolation)
+        moment_in_p, error_p = singlet_moment(j,eta,t,  moment_label,"+",evolution_order,error_type,interpolation=interpolation)
+        moment_in_m, error_m = singlet_moment(j,eta,t,  moment_label,"-",evolution_order,error_type,interpolation=interpolation)
         ga_gq = adim.gamma_gq(j-1, evolve_type,"lo",interpolation=interpolation)
         ga_qg = adim.gamma_qg(j-1, evolve_type,"lo",interpolation=interpolation)
         if evolution_order != "lo":
@@ -766,9 +753,9 @@ def evolve_conformal_moment(j,eta,t,mu,A0=1,particle="quark",moment_type="non_si
     def EB_non_singlet_nlo(k):
         # Combinede function to call in fractional_finite_sum
         if moment_type == "non_singlet_isovector":
-            moment_k  = non_singlet_isovector_moment(k,eta,t,moment_label,evolve_type,evolution_order,error_type)
+            moment_k  = non_singlet_isovector_moment(k,eta,t,moment_label,evolution_order,error_type)
         else:
-            moment_k  = non_singlet_isoscalar_moment(k,eta,t,moment_label,evolve_type,evolution_order,error_type)
+            moment_k  = non_singlet_isoscalar_moment(k,eta,t,moment_label,evolution_order,error_type)
         non_diagonal_terms = eta**(j - k) * E_non_singlet_nlo(k-1) * B_non_singlet_nlo(k-1)
         non_diagonal_terms = non_diagonal_terms * moment_k
         return non_diagonal_terms
@@ -849,8 +836,8 @@ def evolve_conformal_moment(j,eta,t,mu,A0=1,particle="quark",moment_type="non_si
 
         prf_T_1, prf_T_2, prf_T_3, prf_T_4 = prf_T_nlo(k)
 
-        moment_k_p, error_k_p = singlet_moment(k,eta,t,  moment_label, evolve_type,"+",evolution_order,error_type,interpolation=interpolation)
-        moment_k_m, error_k_m = singlet_moment(k,eta,t,  moment_label, evolve_type,"-",evolution_order,error_type,interpolation=interpolation)
+        moment_k_p, error_k_p = singlet_moment(k,eta,t,  moment_label,"+",evolution_order,error_type,interpolation=interpolation)
+        moment_k_m, error_k_m = singlet_moment(k,eta,t,  moment_label,"-",evolution_order,error_type,interpolation=interpolation)
 
         T_1_top = prf_T_1 * 2 * (
             (ga_qq - ga_j_m) * ( ga_qq_nd * (ga_qq_k - ga_k_m) + ga_qg_nd * ga_gq_k )
@@ -892,8 +879,8 @@ def evolve_conformal_moment(j,eta,t,mu,A0=1,particle="quark",moment_type="non_si
 
         prf_T_1, prf_T_2, prf_T_3, prf_T_4 = prf_T_nlo(k)
 
-        moment_k_p, error_k_p = singlet_moment(k,eta,t,  moment_label, evolve_type,"+",evolution_order,error_type,interpolation=interpolation)
-        moment_k_m, error_k_m = singlet_moment(k,eta,t,  moment_label, evolve_type,"-",evolution_order,error_type,interpolation=interpolation)
+        moment_k_p, error_k_p = singlet_moment(k,eta,t,  moment_label,"+",evolution_order,error_type,interpolation=interpolation)
+        moment_k_m, error_k_m = singlet_moment(k,eta,t,  moment_label,"-",evolution_order,error_type,interpolation=interpolation)
 
         T_1_bot = prf_T_1 * 2 * (
             ga_gq * ( ga_qq_nd * (ga_qq_k - ga_k_m) + ga_qg_nd * ga_gq_k )    

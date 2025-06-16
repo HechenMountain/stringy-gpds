@@ -40,7 +40,7 @@ def plot_moment(n,eta,y_label,mu_in=2,t_max=3,A0=1,particle="quark",moment_type=
     # Accessor functions for -t, values, and errors
     def t_values(moment_type, moment_label, pub_id):
         """Return the -t values for a given moment type, label, and publication ID."""
-        data, n_to_row_map = hp.load_lattice_moment_data(particle,moment_type, moment_label, pub_id)
+        data, n_to_row_map = hp.read_lattice_moment_data(particle,moment_type, moment_label, pub_id)
 
         if data is None and n_to_row_map is None:
             print(f"No data found for {moment_type} {moment_label} {pub_id}. Skipping.")
@@ -102,7 +102,7 @@ def plot_moment(n,eta,y_label,mu_in=2,t_max=3,A0=1,particle="quark",moment_type=
     for pub_id, (color,mu) in cfg.PUBLICATION_MAPPING.items():
         if mu != mu_in:
             continue
-        data, n_to_row_map = hp.load_lattice_moment_data(particle,moment_type, moment_label, pub_id)
+        data, n_to_row_map = hp.read_lattice_moment_data(particle,moment_type, moment_label, pub_id)
         if data is None or n not in n_to_row_map:
             continue
         t_vals = t_values(moment_type, moment_label, pub_id)
@@ -154,7 +154,7 @@ def plot_moments_on_grid(eta, y_label, t_max=3, A0=1, particle="quark", moment_t
     # Accessor functions for -t, values, and errors
     def t_values(data_moment_type, data_moment_label, pub_id):
         """Return the -t values for a given moment type, label, and publication ID."""
-        data, n_to_row_map = hp.load_lattice_moment_data(particle,data_moment_type, data_moment_label, pub_id)
+        data, n_to_row_map = hp.read_lattice_moment_data(particle,data_moment_type, data_moment_label, pub_id)
 
         if data is None and n_to_row_map is None:
             print(f"No data found for {data_moment_type} {data_moment_label} {pub_id}. Skipping.")
@@ -205,7 +205,7 @@ def plot_moments_on_grid(eta, y_label, t_max=3, A0=1, particle="quark", moment_t
     publication_data = {}
     mu = None
     for pub_id, (color,mu) in cfg.PUBLICATION_MAPPING.items():
-        data, n_to_row_map = hp.load_lattice_moment_data(particle,moment_type, data_moment_label, pub_id)
+        data, n_to_row_map = hp.read_lattice_moment_data(particle,moment_type, data_moment_label, pub_id)
         if data is None and n_to_row_map is None:
             continue
         num_n_values = (data.shape[1] - 1) // 2
@@ -248,7 +248,7 @@ def plot_moments_on_grid(eta, y_label, t_max=3, A0=1, particle="quark", moment_t
         # Plot data from publications
         if publication_data:
             for pub_id, (color, mu) in cfg.PUBLICATION_MAPPING.items():
-                data, n_to_row_map = hp.load_lattice_moment_data(particle,moment_type, data_moment_label, pub_id)
+                data, n_to_row_map = hp.read_lattice_moment_data(particle,moment_type, data_moment_label, pub_id)
                 if data is None or n not in n_to_row_map:
                     continue
                 t_vals = t_values(moment_type, data_moment_label, pub_id)
@@ -279,7 +279,7 @@ def plot_moments_on_grid(eta, y_label, t_max=3, A0=1, particle="quark", moment_t
         # Plot data from publications
         if publication_data:
             for pub_id, (color, mu) in cfg.PUBLICATION_MAPPING.items():
-                data, n_to_row_map = hp.load_lattice_moment_data(particle,moment_type, data_moment_label, pub_id)
+                data, n_to_row_map = hp.read_lattice_moment_data(particle,moment_type, data_moment_label, pub_id)
                 if data is None or n not in n_to_row_map:
                     continue
                 t_vals = t_values(moment_type, data_moment_label, pub_id)
@@ -356,7 +356,7 @@ def plot_spin_orbit_correlation(eta,mu,particle="quark",evolution_order="nlo",n_
     moment_data = []
     for j, pub in enumerate(publications):
         for i, moment_type in enumerate(moment_types):
-            t_values, val_data, err_data = hp.load_Cz_data(particle,moment_type,pub[0],pub[1])
+            t_values, val_data, err_data = hp.read_Cz_data(particle,moment_type,pub[0],pub[1])
             if (t_values is None or (isinstance(t_values, np.ndarray) and t_values.size == 0)) and \
             (val_data is None or (isinstance(val_data, np.ndarray) and val_data.size == 0)) and \
             (err_data is None or (isinstance(err_data, np.ndarray) and err_data.size == 0)): 
@@ -426,7 +426,7 @@ def plot_orbital_angular_momentum(eta,mu,particle="quark",evolution_order="nlo",
     moment_data = []
     for j, pub in enumerate(publications):
         for i, moment_type in enumerate(moment_types):
-            t_values, val_data, err_data = hp.load_Lz_data(particle,moment_type,pub[0],pub[1],pub[2])
+            t_values, val_data, err_data = hp.read_Lz_data(particle,moment_type,pub[0],pub[1],pub[2])
             if (t_values is None or (isinstance(t_values, np.ndarray) and t_values.size == 0)) and \
             (val_data is None or (isinstance(val_data, np.ndarray) and val_data.size == 0)) and \
             (err_data is None or (isinstance(err_data, np.ndarray) and err_data.size == 0)): 
@@ -1955,7 +1955,7 @@ def plot_gpd_data(particle="quark",gpd_type="non_singlet_isovector",gpd_label="H
             continue
         gpd_interpolation={} # Initialize dictionary
         for error_type in ["central","plus","minus"]:
-            x_values, gpd_values = hp.load_lattice_gpd_data(eta,t,mu,particle,gpd_type,gpd_label,pub_id,error_type)
+            x_values, gpd_values = hp.read_lattice_gpd_data(eta,t,mu,particle,gpd_type,gpd_label,pub_id,error_type)
             if x_values is None:
                 continue
             x_values = np.around(x_values, decimals=4)
@@ -2041,7 +2041,7 @@ def plot_gpd_data(particle="quark",gpd_type="non_singlet_isovector",gpd_label="H
             # Measure time for adaptive grid computation
             start_time_adaptive = time.time()
             if read_from_file:
-                x_val, results = hp.load_gpd_data(eta,t,mu,particle,gpd_type,gpd_label,evolution_order)
+                x_val, results = hp.read_gpd_data(eta,t,mu,particle,gpd_type,gpd_label,evolution_order)
                 if x_val is None:
                     print(f"No data for {gpd_type} {gpd_label} at (eta,t,mu) = {eta},{t},{mu} - abort ")
                     return 
@@ -2052,8 +2052,8 @@ def plot_gpd_data(particle="quark",gpd_type="non_singlet_isovector",gpd_label="H
             # Error bar computations
             if error_bars:
                 if read_from_file:
-                    x_plus, results_plus = hp.load_gpd_data(eta,t,mu,particle,gpd_type,gpd_label,evolution_order,"plus")
-                    x_minus,results_minus = hp.load_gpd_data(eta,t,mu,particle,gpd_type,gpd_label,evolution_order,"minus")
+                    x_plus, results_plus = hp.read_gpd_data(eta,t,mu,particle,gpd_type,gpd_label,evolution_order,"plus")
+                    x_minus,results_minus = hp.read_gpd_data(eta,t,mu,particle,gpd_type,gpd_label,evolution_order,"minus")
                     if not np.array_equal(x_plus, x_minus) or not np.array_equal(x_plus, x_val):
                         raise ValueError(f"Mismatch in x-values between error data files: {gpd_type} {gpd_label} at (eta,t,mu) = {eta},{t},{mu}")
                 else:
@@ -2234,7 +2234,7 @@ def plot_gpds(eta_array, t_array, mu_array, colors,A0=1,  particle="quark",gpd_t
         x_values = x_values[x_values != 0]
         if read_from_file:
                 x_values = None
-                x_values, results = hp.load_gpd_data(eta,t,mu,particle,gpd_type,gpd_label,evolution_order)
+                x_values, results = hp.read_gpd_data(eta,t,mu,particle,gpd_type,gpd_label,evolution_order)
                 if x_values is None:
                     raise ValueError(f"No data found on system for {gpd_type,gpd_label,eta,t,mu}. Change write_to_file = True")
         else:
@@ -2247,8 +2247,8 @@ def plot_gpds(eta_array, t_array, mu_array, colors,A0=1,  particle="quark",gpd_t
         # Error bar computations
         if error_bars:
             if read_from_file:
-                x_plus, results_plus = hp.load_gpd_data(eta,t,mu,particle,gpd_type,gpd_label,evolution_order,"plus")
-                x_minus,results_minus = hp.load_gpd_data(eta,t,mu,particle,gpd_type,gpd_label,evolution_order,"minus")
+                x_plus, results_plus = hp.read_gpd_data(eta,t,mu,particle,gpd_type,gpd_label,evolution_order,"plus")
+                x_minus,results_minus = hp.read_gpd_data(eta,t,mu,particle,gpd_type,gpd_label,evolution_order,"minus")
             else:
                 # Get keys for error types
                 key_p = (particle, moment_type, moment_label, evolution_order, "plus")
