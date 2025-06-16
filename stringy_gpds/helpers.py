@@ -473,6 +473,21 @@ class ComplexInterpolator:
         pt = [j_complex.real, j_complex.imag, *args]
         return complex(self.re_interp(pt).item(), self.im_interp(pt).item())
 
+class ImagOnlyInterpolator:
+    def __init__(self, base_interp):
+        self.base_interp = base_interp
+
+    def __call__(self, pt):
+        return self.base_interp(pt[1]) 
+
+class JointInterpolator:
+    def __init__(self, interp0, interp1):
+        self.interp0 = interp0
+        self.interp1 = interp1
+
+    def __call__(self, x):
+        return self.interp0(x), self.interp1(x)
+
 # Cache interpolation
 @cfg.memory.cache
 def build_harmonic_interpolator(indices):
@@ -612,18 +627,46 @@ def build_moment_interpolator(eta,t,mu,solution,particle,moment_type,moment_labe
     val1_imag = np.array([v.imag for v in val1_list])
 
     # Create interpolators for real and imaginary parts
-    re0_interp = PchipInterpolator(im_j_vals, val0_real, extrapolate=True)
-    im0_interp = PchipInterpolator(im_j_vals, val0_imag, extrapolate=True)
-    re1_interp = PchipInterpolator(im_j_vals, val1_real, extrapolate=True)
-    im1_interp = PchipInterpolator(im_j_vals, val1_imag, extrapolate=True)
+    base_re0 = PchipInterpolator(im_j_vals, val0_real, extrapolate=True)
+    base_im0 = PchipInterpolator(im_j_vals, val0_imag, extrapolate=True)
+    base_re1 = PchipInterpolator(im_j_vals, val1_real, extrapolate=True)
+    base_im1 = PchipInterpolator(im_j_vals, val1_imag, extrapolate=True)
 
-    return ComplexInterpolator(re0_interp, im0_interp), ComplexInterpolator(re1_interp, im1_interp)
+    # Discard real parts in call as it is fixed by j_base
+    re0_interp = ImagOnlyInterpolator(base_re0)
+    im0_interp = ImagOnlyInterpolator(base_im0)
+    re1_interp = ImagOnlyInterpolator(base_re1)
+    im1_interp = ImagOnlyInterpolator(base_im1)
+
+    interp0 = ComplexInterpolator(re0_interp, im0_interp)
+    interp1 = ComplexInterpolator(re1_interp, im1_interp)
+
+    return JointInterpolator(interp0, interp1)
 
 ##########################
 ####   Progress Bar   ####
 ##########################
 
 class TqdmBatchCompletionCallback(BatchCompletionCallBack):
+    """
+    Custom Joblib BatchCompletionCallback to updates tqdm progress bar.
+
+    Used to track progress of parallel jobs.
+
+    Parameters
+    ----------
+    *args : tuple
+        Positional arguments passed to the base BatchCompletionCallBack.
+    tqdm_object : tqdm.tqdm, optional
+        A tqdm progress bar object to be updated after each completed batch.
+    **kwargs : dict
+        Keyword arguments passed to the base BatchCompletionCallBack.
+
+    Methods
+    -------
+    __call__(*args, **kwargs)
+        Called when a batch is completed. Updates the tqdm progress bar.
+    """
     def __init__(self, *args, tqdm_object=None, **kwargs):
         super().__init__(*args, **kwargs)
         self.tqdm_object = tqdm_object
@@ -634,6 +677,27 @@ class TqdmBatchCompletionCallback(BatchCompletionCallBack):
         return super().__call__(*args, **kwargs)
 
 def tqdm_joblib(tqdm_object):
+    """
+    Patches Joblib to report progress via a tqdm progress bar.
+
+    Replaces Joblib's default BatchCompletionCallBack with
+    a custom version that updates the provided tqdm progress bar.
+
+    Parameters
+    ----------
+    tqdm_object : tqdm.tqdm
+        The tqdm progress bar to be updated during parallel processing.
+
+    Returns
+    -------
+    tqdm.tqdm
+        The same tqdm object passed in, for use in a with-statement or tracking externally.
+
+    Examples
+    --------
+    >>> with tqdm_joblib(tqdm(total=10)) as progress_bar:
+    >>>     Parallel(n_jobs=2)(delayed(some_func)(i) for i in range(10))
+    """
     import joblib
     joblib.parallel.BatchCompletionCallBack = lambda *args, **kwargs: TqdmBatchCompletionCallback(*args, tqdm_object=tqdm_object, **kwargs)
     return tqdm_object

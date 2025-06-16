@@ -1,6 +1,7 @@
 ################################
 ##### Anomalous dimensions #####
 ################################
+import numpy as np
 
 from . import config as cfg
 from . import helpers as hp
@@ -8,14 +9,22 @@ from . import special as sp
 # mpmath precision set in config
 from .config import mp
 
+
 # Generate the interpolator
 gamma_qq_lo_interpolation = hp.build_gamma_interpolator("qq","non_singlet_isovector","vector",evolution_order="lo")
+
 def gamma_qq_lo(j,interpolation=True):
+    """
+    See documentation of gamma_qq
+    
+    Note
+    ----
+    Belitsky (4.152) and (4.156)
+    """
     if interpolation:
         interp = gamma_qq_lo_interpolation 
         return interp(j)
-    
-    # Belitsky (4.152)
+
     result = - cfg.C_F * (-4*mp.digamma(j+2)+4*mp.digamma(1)+2/((j+1)*(j+2))+3)
     return result
 
@@ -33,8 +42,15 @@ def gamma_qq_nlo_interpolation(moment_type,evolve_type):
         return gamma_qq_singlet_vector_nlo_interpolation if evolve_type == "vector" else gamma_qq_singlet_axial_nlo_interpolation
     else:
         raise ValueError(f"Wrong moment_type {moment_type}")
-# @cfg.memory.cache
+
 def gamma_qq_nlo(j,moment_type="non_singlet_isovector",evolve_type="vector",interpolation=True):
+    """
+    See documentation of gamma_qq
+    
+    Note
+    ----
+    Nucl.Phys.B 691 (2004) 129-181 and Nucl.Phys.B 688 (2004) 
+    """
     if interpolation:
         # interp = hp.build_gamma_interpolator("qq",moment_type,evolve_type,evolution_order="nlo")
         interp = gamma_qq_nlo_interpolation(moment_type,evolve_type)
@@ -113,14 +129,29 @@ def gamma_qq_nlo(j,moment_type="non_singlet_isovector",evolve_type="vector",inte
 
 def gamma_qq(j,moment_type="non_singlet_isovector",evolve_type="vector",evolution_order="nlo",interpolation=True):
     """
-    Returns conformal qq singlet or non-singlet anomalous dimension for conformal spin-j
+    Return the conformal qq singlet or non-singlet anomalous dimension for conformal spin j.
 
-    Arguments:
-    - j (float): conformal spin
-    - moment_type (str. optional): non_singlet_isovector, non_singlet_isoscalar, singlet
-    - evolve_type (str. optional): vector or axial
-    - evolution_order (str. optional): lo, nlo or nnlo
-    - interpolation (bool, optional): Use tabulated values for interpolation (only beyond lo)
+    Parameters
+    ----------
+    j : complex
+        Conformal spin.
+    moment_type : str, optional
+        "non_singlet_isovector", "non_singlet_isoscalar", or "singlet".
+    evolve_type : str, optional
+        Type of evolution: "vector" or "axial".
+    evolution_order : str, optional
+        "lo", "nlo", or "nnlo".
+    interpolation : bool, optional
+        Use tabulated values for interpolation (only beyond lo).
+
+    Returns
+    -------
+    float or complex
+        The value of the anomalous dimension.
+    
+    Note
+    ----
+    Leading order anomalous dimensions are not interpolated
     """
     if evolution_order == "lo":
         return gamma_qq_lo(j,False)
@@ -137,6 +168,13 @@ def gamma_qg_lo_interpolation(evolve_type):
     return gamma_qg_vector_lo_interpolation if evolve_type == "vector" else gamma_qg_axial_lo_interpolation
 
 def gamma_qg_lo(j,  evolve_type = "vector",interpolation=True):
+    """
+    See documentation of gamma_qg
+    
+    Note
+    ----
+    Belitsky (4.153) and (4.157)
+    """
     if interpolation:
         interp = gamma_qg_lo_interpolation(evolve_type)
         return interp(j)
@@ -162,6 +200,13 @@ def gamma_qg_nlo_interpolation(evolve_type):
     return gamma_qg_singlet_vector_nlo_interpolation if evolve_type == "vector" else gamma_qg_singlet_axial_nlo_interpolation
 
 def gamma_qg_nlo(j,  evolve_type = "vector",interpolation=True):
+    """
+    See documentation of gamma_qg
+    
+    Note
+    ----
+    Nucl.Phys.B 691 (2004) 129-181 and Nucl.Phys.B 889 (2014) 351-400
+    """
     if interpolation:
         # interp = hp.build_gamma_interpolator("qg","singlet",evolve_type,"nlo")
         interp = gamma_qg_nlo_interpolation(evolve_type)
@@ -255,13 +300,27 @@ def gamma_qg_nlo(j,  evolve_type = "vector",interpolation=True):
 
 def gamma_qg(j,evolve_type="vector",evolution_order="nlo",interpolation=True):
     """
-    Returns conformal qg singlet anomalous dimension for conformal spin-j
+    Return the conformal qg singlet anomalous dimension for conformal spin j.
 
-    Arguments:
-    - j (float): conformal spin
-    - evolve_type (str. optional): vector or axial
-    - evolution_order (str. optional): lo, nlo or nnlo
-    - interpolation (bool, optional): Use tabulated values for interpolation (only beyond lo)
+    Parameters
+    ----------
+    j : complex
+        Conformal spin.
+    evolve_type : str, optional
+        Type of evolution: "vector" or "axial".
+    evolution_order : str, optional
+        "lo", "nlo", or "nnlo".
+    interpolation : bool, optional
+        Use tabulated values for interpolation (only beyond lo).
+
+    Returns
+    -------
+    float or complex
+        The value of the anomalous dimension.
+    
+    Note
+    ----
+    Leading order anomalous dimensions are not interpolated
     """
     if evolution_order == "lo":
         return gamma_qg_lo(j,evolve_type,False)
@@ -276,7 +335,15 @@ gamma_gq_axial_lo_interpolation = hp.build_gamma_interpolator("gq","singlet","ax
 # Pick the correct interpolation
 def gamma_gq_lo_interpolation(evolve_type):
     return gamma_gq_vector_lo_interpolation if evolve_type == "vector" else gamma_gq_axial_lo_interpolation
+
 def gamma_gq_lo(j,evolve_type="vector",interpolation=True):
+    """
+    See documentation of gamma_gq
+    
+    Note
+    ----
+    Belitsky (4.154) and (4.158)
+    """
     if interpolation:
         interp = gamma_gq_lo_interpolation(evolve_type)
         return interp(j)
@@ -301,10 +368,15 @@ gamma_gq_singlet_axial_nlo_interpolation = hp.build_gamma_interpolator("gq","sin
 def gamma_gq_nlo_interpolation(evolve_type):
     return gamma_gq_singlet_vector_nlo_interpolation if evolve_type == "vector" else gamma_gq_singlet_axial_nlo_interpolation
 
-# @cfg.memory.cache
 def gamma_gq_nlo(j, evolve_type = "vector",interpolation=True):
+    """
+    See documentation of gamma_gq
+    
+    Note
+    ----
+    Nucl.Phys.B 691 (2004) 129-181 and Nucl.Phys.B 889 (2014) 351-400
+    """
     if interpolation:
-        # interp = hp.build_gamma_interpolator("gq","singlet",evolve_type,evolution_order="nlo")
         interp = gamma_gq_nlo_interpolation(evolve_type)
         result = interp(j)
         return result
@@ -406,13 +478,27 @@ def gamma_gq_nlo(j, evolve_type = "vector",interpolation=True):
 
 def gamma_gq(j,evolve_type="vector",evolution_order="nlo",interpolation=True):
     """
-    Returns conformal gq singlet anomalous dimension for conformal spin-j
+    Return the conformal gq singlet anomalous dimension for conformal spin j.
 
-    Arguments:
-    - j (float): conformal spin
-    - evolve_type (str. optional): vector or axial
-    - evolution_order (str. optional): lo, nlo or nnlo
-    - interpolation (bool, optional): Use tabulated values for interpolation (only beyond lo)
+    Parameters
+    ----------
+    j : complex
+        Conformal spin.
+    evolve_type : str, optional
+        Type of evolution: "vector" or "axial".
+    evolution_order : str, optional
+        "lo", "nlo", or "nnlo".
+    interpolation : bool, optional
+        Use tabulated values for interpolation (only beyond lo).
+
+    Returns
+    -------
+    float or complex
+        The value of the anomalous dimension.
+    
+    Note
+    ----
+    Leading order anomalous dimensions are not interpolated
     """
     if evolution_order == "lo":
         return gamma_gq_lo(j,evolve_type,False)
@@ -420,6 +506,7 @@ def gamma_gq(j,evolve_type="vector",evolution_order="nlo",interpolation=True):
         return gamma_gq_nlo(j,evolve_type,interpolation)
     else:
         raise ValueError(f"Wrong evolution_order {evolution_order}")
+
 # Generate the interpolator
 gamma_gg_vector_lo_interpolation = hp.build_gamma_interpolator("gg","singlet","vector",evolution_order="lo")
 gamma_gg_axial_lo_interpolation = hp.build_gamma_interpolator("gg","singlet","axial",evolution_order="lo")
@@ -428,10 +515,16 @@ def gamma_gg_lo_interpolation(evolve_type):
     return gamma_gg_vector_lo_interpolation if evolve_type == "vector" else gamma_gg_axial_lo_interpolation
 
 def gamma_gg_lo(j,evolve_type="vector",interpolation=True):
+    """
+    See documentation of gamma_gg
+    
+    Note
+    ----
+    Belitsky (4.155) and (4.159)
+    """
     if interpolation:
         interp = gamma_gg_lo_interpolation(evolve_type)
         return interp(j)
-
     if j == 0:
         j = 1e-12
     if evolve_type == "vector":
@@ -448,10 +541,16 @@ gamma_gg_singlet_axial_nlo_interpolation = hp.build_gamma_interpolator("gg","sin
 # Pick the correct interpolation
 def gamma_gg_nlo_interpolation(evolve_type):
     return gamma_gg_singlet_vector_nlo_interpolation if evolve_type == "vector" else gamma_gg_singlet_axial_nlo_interpolation
-# @cfg.memory.cache
+
 def gamma_gg_nlo(j,  evolve_type = "vector",interpolation=True):
+    """
+    See documentation of gamma_gg
+    
+    Note
+    ----
+    Nucl.Phys.B 691 (2004) 129-181 and Nucl.Phys.B 889 (2014) 351-400
+    """
     if interpolation:
-        # interp = hp.build_gamma_interpolator("gg","singlet",evolve_type,evolution_order="nlo")
         interp = gamma_gg_nlo_interpolation(evolve_type)
         result = interp(j)
         return result
@@ -540,13 +639,27 @@ def gamma_gg_nlo(j,  evolve_type = "vector",interpolation=True):
 
 def gamma_gg(j,evolve_type="vector",evolution_order="nlo",interpolation=True):
     """
-    Returns conformal gg singlet anomalous dimension for conformal spin-j
+    Return the conformal gg singlet anomalous dimension for conformal spin j.
 
-    Arguments:
-    - j (float): conformal spin
-    - evolve_type (str. optional): vector or axial
-    - evolution_order (str. optional): lo, nlo or nnlo
-    - interpolation (bool, optional): Use tabulated values for interpolation (only beyond lo)
+    Parameters
+    ----------
+    j : complex
+        Conformal spin.
+    evolve_type : str, optional
+        Type of evolution: "vector" or "axial".
+    evolution_order : str, optional
+        "lo", "nlo", or "nnlo".
+    interpolation : bool, optional
+        Use tabulated values for interpolation (only beyond lo).
+
+    Returns
+    -------
+    float or complex
+        The value of the anomalous dimension.
+    
+    Note
+    ----
+    Leading order anomalous dimensions are not interpolated
     """
     if evolution_order == "lo":
         return gamma_gg_lo(j,evolve_type,False)
@@ -636,7 +749,32 @@ def conformal_anomaly_gg(j,k):
     return result
 
 def gamma_qq_nd(j,k,  evolve_type = "vector",evolution_order="nlo",interpolation=True):
-    """ Belistky (4.203)"""
+    """
+    Return the non-diagonal qq anomalous dimension for conformal spin j and k.
+
+    Parameters
+    ----------
+    j : complex
+        Conformal spin.
+    k : complex
+        Conformal spin.
+    evolve_type : str, optional
+        Type of evolution: "vector" or "axial".
+    evolution_order : str, optional
+        "lo", "nlo", or "nnlo".
+    interpolation : bool, optional
+        Use tabulated values for interpolation (only beyond nlo; placeholder).
+
+    Returns
+    -------
+    float or complex
+        The value of the anomalous dimension.
+    
+    Note
+    ----
+    At NLO, only the lo anomalous dimensions appear, which are not interpolated.
+    Belistky (4.203)
+    """
     if evolution_order == "lo":
         return 0
     if isinstance(j, (int)) and  isinstance(k, (int)) and k >= j:
@@ -654,7 +792,32 @@ def gamma_qq_nd(j,k,  evolve_type = "vector",evolution_order="nlo",interpolation
     return result
 
 def gamma_qg_nd(j,k,  evolve_type = "vector",evolution_order="nlo",interpolation=True):
-    """ Belistky (4.203)"""
+    """
+    Return the non-diagonal qg anomalous dimension for conformal spin j and k.
+
+    Parameters
+    ----------
+    j : complex
+        Conformal spin.
+    k : complex
+        Conformal spin.
+    evolve_type : str, optional
+        Type of evolution: "vector" or "axial".
+    evolution_order : str, optional
+        "lo", "nlo", or "nnlo".
+    interpolation : bool, optional
+        Use tabulated values for interpolation (only beyond nlo; placeholder).
+
+    Returns
+    -------
+    float or complex
+        The value of the anomalous dimension.
+    
+    Note
+    ----
+    At NLO, only the lo anomalous dimensions appear, which are not interpolated.
+    Belistky (4.203)
+    """
     if evolution_order == "lo":
         return 0
     if isinstance(j, (int)) and  isinstance(k, (int)) and k >= j:
@@ -673,7 +836,32 @@ def gamma_qg_nd(j,k,  evolve_type = "vector",evolution_order="nlo",interpolation
     return result
 
 def gamma_gq_nd(j,k,  evolve_type = "vector",evolution_order="nlo",interpolation=True):
-    """ Belistky (4.203)"""
+    """
+    Return the non-diagonal gq anomalous dimension for conformal spin j and k.
+
+    Parameters
+    ----------
+    j : complex
+        Conformal spin.
+    k : complex
+        Conformal spin.
+    evolve_type : str, optional
+        Type of evolution: "vector" or "axial".
+    evolution_order : str, optional
+        "lo", "nlo", or "nnlo".
+    interpolation : bool, optional
+        Use tabulated values for interpolation (only beyond nlo; placeholder).
+
+    Returns
+    -------
+    float or complex
+        The value of the anomalous dimension.
+    
+    Note
+    ----
+    At NLO, only the lo anomalous dimensions appear, which are not interpolated.
+    Belistky (4.203)
+    """
     if evolution_order == "lo":
         return 0
     if isinstance(j, (int)) and  isinstance(k, (int)) and k >= j:
@@ -694,10 +882,35 @@ def gamma_gq_nd(j,k,  evolve_type = "vector",evolution_order="nlo",interpolation
     return result
 
 def gamma_gg_nd(j,k, evolve_type = "vector",evolution_order="nlo",interpolation=True):
-    """ Belistky (4.203)"""
+    """
+    Return the non-diagonal gg anomalous dimension for conformal spin j and k.
+
+    Parameters
+    ----------
+    j : complex
+        Conformal spin.
+    k : complex
+        Conformal spin.
+    evolve_type : str, optional
+        Type of evolution: "vector" or "axial".
+    evolution_order : str, optional
+        "lo", "nlo", or "nnlo".
+    interpolation : bool, optional
+        Use tabulated values for interpolation (only beyond nlo; placeholder).
+
+    Returns
+    -------
+    float or complex
+        The value of the anomalous dimension.
+    
+    Note
+    ----
+    At NLO, only the lo anomalous dimensions appear, which are not interpolated.
+    Belistky (4.203)
+    """
     if evolution_order == "lo":
         return 0
-    if isinstance(j, (int)) and  isinstance(k, (int)) and k >= j:
+    if isinstance(j, (int,np.integer)) and  isinstance(k, (int,np.integer)) and k >= j:
         return 0
 
     if evolution_order == "nlo":
@@ -712,14 +925,28 @@ def gamma_gg_nd(j,k, evolve_type = "vector",evolution_order="nlo",interpolation=
     return result
 
 def gamma_pm(j,  evolve_type = "vector",solution="+",interpolation=True):
-    """ Compute the (+) and (-) eigenvalues of the lo evolution equation of the coupled singlet quark and gluon GPD
-    Arguments:
-    - j: conformal spin,
-    - evolve_type: "vector" or "axial"
-    - interpolation (bool, optional): Use interpolated values
-    Returns:
-    The eigenvalues (+) and (-) in terms of an array
     """
+    Compute the (+) and (-) eigenvalues of the lo evolution equation of the coupled singlet quark and gluon moment.
+
+    Parameters
+    ----------
+    j : conformal spin
+    evolve_type : str
+        "vector" or "axial"
+    solution : str, optional
+        "+" or "-"
+    interpolation : bool, optional
+        Use interpolated values
+
+    Returns
+    -------
+    float, complex
+        The (+) or (-) eigenvalue
+    Note
+    ----
+    Only uses lo anomalous dimensions, which are not interpolated.
+    """
+
     # Check evolve_type
     hp.check_evolve_type(evolve_type)
 
@@ -736,28 +963,104 @@ def gamma_pm(j,  evolve_type = "vector",solution="+",interpolation=True):
     return result
 
 def R_qq(j,evolve_type="vector",interpolation=True):
-    
+    """
+    Compute the qq entries of the diagonal eigenvalue matrix gamma_jj for conformal spin-j
+
+    Parameters
+    ----------
+    j : conformal spin
+    evolve_type : str
+        "vector" or "axial"
+    interpolation : bool, optional
+        Use interpolated values
+
+    Returns
+    -------
+    float, complex
+
+    Note
+    ----
+    Only uses lo anomalous dimensions, which are not interpolated.
+    Belitsky (4.273)
+    """
     term1 = gamma_qq(j,"singlet",evolve_type,evolution_order="nlo",interpolation=interpolation)
     term2 = - .5 * cfg.BETA_1/cfg.BETA_0 * gamma_qq(j,"singlet",evolve_type,evolution_order="lo",interpolation=interpolation)
     result = term1 + term2
     return result
 
 def R_qg(j,evolve_type="vector",interpolation=True):
-    
+    """
+    Compute the qg entries of the diagonal eigenvalue matrix gamma_jj for conformal spin-j
+
+    Parameters
+    ----------
+    j : conformal spin
+    evolve_type : str
+        "vector" or "axial"
+    interpolation : bool, optional
+        Use interpolated values
+
+    Returns
+    -------
+    float, complex
+
+    Note
+    ----
+    Only uses lo anomalous dimensions, which are not interpolated.
+    Belitsky (4.273)
+    """
     term1 = gamma_qg(j,evolve_type,"nlo",interpolation=interpolation)
     term2 = - .5 * cfg.BETA_1/cfg.BETA_0 * gamma_qg(j,evolve_type,"lo",interpolation=interpolation)
     result = term1 + term2
     return result
 
 def R_gq(j,evolve_type="vector",interpolation=True):
-    
+    """
+    Compute the gq entries of the diagonal eigenvalue matrix gamma_jj for conformal spin-j
+
+    Parameters
+    ----------
+    j : conformal spin
+    evolve_type : str
+        "vector" or "axial"
+    interpolation : bool, optional
+        Use interpolated values
+
+    Returns
+    -------
+    float, complex
+
+    Note
+    ----
+    Only uses lo anomalous dimensions, which are not interpolated.
+    Belitsky (4.273)
+    """
     term1 = gamma_gq(j,evolve_type,"nlo",interpolation=interpolation)
     term2 = - .5 * cfg.BETA_1/cfg.BETA_0 * gamma_gq(j,evolve_type,"lo",interpolation=interpolation)
     result = term1 + term2
     return result
 
 def R_gg(j,evolve_type="vector",interpolation=True):
-    
+    """
+    Compute the gg entries of the diagonal eigenvalue matrix gamma_jj for conformal spin-j
+
+    Parameters
+    ----------
+    j : conformal spin
+    evolve_type : str
+        "vector" or "axial"
+    interpolation : bool, optional
+        Use interpolated values
+
+    Returns
+    -------
+    float, complex
+
+    Note
+    ----
+    Only uses lo anomalous dimensions, which are not interpolated.
+    Belitsky (4.273)
+    """
     term1 = gamma_gg(j,evolve_type,"nlo",interpolation=interpolation)
     term2 = - .5 * cfg.BETA_1/cfg.BETA_0 * gamma_gg(j,evolve_type,"lo",interpolation=interpolation)
     result = term1 + term2

@@ -44,33 +44,22 @@ memory = Memory(CACHE_PATH,verbose=0)
 ## Kinematics used for interpolation ##
 ##     Need to have equal length     ##
 #######################################
-INTERPOLATE_MOMENTS = False
+
+# Interpolate evolved moments (recommended: True)
+# run generate_moment_table first, 
+# then set to True
+INTERPOLATE_MOMENTS = True
+
+# Compute non-diagonal evolution
+# for analytically continued moments
+# Can usually be neglected (recommended: False)
+ND_EVOLVED_COMPLEX_MOMENT = False
 
 # If no lattice data:
 ETA_ARRAY = [0,0.33,0.1]
 T_ARRAY = [-0.69,-0.69,-0.23]
 MU_ARRAY = [2,2,2]
 
-# Additional non_singlet_isovector 
-# ETA_ARRAY = [0]
-# T_ARRAY = [-0.39]
-# MU_ARRAY = [3]
-
-# ETA_ARRAY = [0,0,0.33,0.1]
-# T_ARRAY = [-0.69,-0.39,-0.69,-0.23]
-# MU_ARRAY = [2,3,2,2]
-
-# Check whether we recover input PDFs
-# ETA_ARRAY = [0]
-# T_ARRAY = [0]
-# MU_ARRAY = [1]
-
-# Martha
-# ETA_ARRAY = [0,0]
-# T_ARRAY = [-0.17,-0.65]
-# MU_ARRAY = [2,2]
-
-# MOMENTS = ["non_singlet_isovector"]
 PARTICLES = ["quark","gluon"]
 MOMENTS = ["singlet","non_singlet_isoscalar","non_singlet_isovector"]
 LABELS = ["A","Atilde"]
@@ -120,11 +109,13 @@ GPD_PUBLICATION_MAPPING = {
 # Add more publication IDs and corresponding colors here
 }
 
+# Map GPDs to moment labels
 GPD_LABEL_MAP ={"H": "A",
                 "E": "B",
                 "Htilde": "Atilde"
                     }
 
+# Invert map
 INVERTED_GPD_LABEL_MAP = {v: k for k, v in GPD_LABEL_MAP.items()}
 
 #####################

@@ -696,7 +696,7 @@ def evolve_conformal_moment(j,eta,t,mu,A0=1,particle="quark",moment_type="non_si
         key = (particle,moment_type,moment_label,evolution_order,error_type)
         interp = evolve_moment_interpolation[key][index]
         # Interpolator generated with fixed j_re = get_j_base(...)
-        return interp(j.imag)
+        return interp(j)
 
     if error_type != "central" and j.imag != 0:
         raise ValueError("Error propagation for complex spin-j not supported")
@@ -922,7 +922,9 @@ def evolve_conformal_moment(j,eta,t,mu,A0=1,particle="quark",moment_type="non_si
         else:
             return gluon_non_diagonal_part
         
-    # Initialize alternating non-diagonal parts in evolution
+    # Initialize non-diagonal terms in evolution
+    non_diagonal_terms = 0
+    non_diagonal_errors = 0
     non_diagonal_terms_alt = 0
 
     if moment_type == "singlet":
@@ -937,15 +939,13 @@ def evolve_conformal_moment(j,eta,t,mu,A0=1,particle="quark",moment_type="non_si
                 diagonal_terms = plus_terms * moment_in_p + minus_terms * moment_in_m
                 sum_squared = plus_terms**2 * error_p**2 + minus_terms**2 * error_m**2
                 diagonal_errors = abs(mp.sqrt(sum_squared))
-                non_diagonal_terms = 0
-                non_diagonal_errors = 0
                 if isinstance(j, (int, np.integer)) and eta != 0:
                     for k in range(2,j - 2 + 1):
                         non_diagonal_terms += T_quark_nlo(k)[0]
                         non_diagonal_errors += T_quark_nlo(k)[1]
                     # Exactly resum for real j
                     non_diagonal_terms_alt = 0
-                elif eta != 0:
+                elif eta != 0 and cfg.ND_EVOLVED_COMPLEX_MOMENT:
                     # ND evolution comes with a factor of 1 + (-1)**(j-k)
                     # that needs to be treated separately
                     non_diagonal_terms = sp.fractional_finite_sum(T_quark_nlo,k_0=2,k_1=j - 2 + 1,n_tuple=1)
@@ -965,15 +965,13 @@ def evolve_conformal_moment(j,eta,t,mu,A0=1,particle="quark",moment_type="non_si
                 diagonal_terms =  plus_terms * moment_in_p + minus_terms * moment_in_m
                 sum_squared = plus_terms**2 * error_p**2 + minus_terms**2 * error_m**2
                 diagonal_errors = abs(mp.sqrt(sum_squared))
-                non_diagonal_terms = 0
-                non_diagonal_errors = 0
                 if isinstance(j, (int, np.integer)) and eta != 0:
                     for k in range(2,j - 2 + 1):
                         non_diagonal_terms += T_gluon_nlo(k)[0]
                         non_diagonal_errors += T_gluon_nlo(k)[1]
                     # Exactly resum for real j
                     non_diagonal_terms_alt = 0
-                elif eta != 0:
+                elif eta != 0 and cfg.ND_EVOLVED_COMPLEX_MOMENT:
                     # ND evolution comes with a factor of 1 + (-1)**(j-k)
                     # that needs to be treated separately
                     non_diagonal_terms = sp.fractional_finite_sum(T_gluon_nlo,k_0=2,k_1=j - 2 + 1,n_tuple=1)
@@ -994,7 +992,7 @@ def evolve_conformal_moment(j,eta,t,mu,A0=1,particle="quark",moment_type="non_si
                     non_diagonal_terms += EB_non_singlet_nlo(k)
                 # Exactly resum for real j
                 non_diagonal_terms_alt = 0
-            elif eta != 0:
+            elif eta != 0 and cfg.ND_EVOLVED_COMPLEX_MOMENT:
                 # ND evolution comes with a factor of 1 + (-1)**(j-k)
                 # that needs to be treated separately
                 non_diagonal_terms = sp.fractional_finite_sum(EB_non_singlet_nlo,k_0=1,k_1=j - 2 + 1,n_tuple=1)
