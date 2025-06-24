@@ -55,7 +55,7 @@ def pdf(x,A_pdf,eta_1,eta_2,epsilon,gamma_pdf):
     x : float
         parton x
     A_pdf : float
-        Normalization constant of the polarized PDF
+        Normalization constant of the unpolarized PDF
     eta_1 : float
         Small-x parameter.
     eta_2 : float

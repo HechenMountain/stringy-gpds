@@ -4,6 +4,7 @@ import os
 
 from . import helpers as hp
 from . import core
+from . import adim
 from . import config as cfg
 from .mstw_pdf import get_alpha_s
 
@@ -369,11 +370,14 @@ def singlet_moment_fit(j,eta,t,alpha_prime_ud, alpha_prime_s,norm_Aq, norm_Dq,al
     else:
         raise ValueError("Invalid solution type. Use '+' or '-'.")
 
+    index  = 0 if solution == "+" else 1
+    ga_pm = adim.gamma_pm(j-1,evolve_type,solution,interpolation=interpolation)[index]
+
     quark_prf = .5 
     quark_in, quark_in_error = quark_singlet_regge_fit(j,eta,t,alpha_prime_ud, alpha_prime_s,norm_Aq, norm_Dq,moment_label,evolution_order,error_type)
     # Note: j/6 already included in gamma_qg and gamma_gg definitions
-    gluon_prf = .5 * (core.gamma_qg(j-1,evolve_type,"lo",interpolation=interpolation)/
-                    (core.gamma_qq(j-1,"singlet",evolve_type,"lo",interpolation=interpolation)-core.gamma_pm(j-1,evolve_type,solution,interpolation=interpolation)))
+    gluon_prf = .5 * (adim.gamma_qg(j-1,evolve_type,"lo",interpolation=interpolation)/
+                    (adim.gamma_qq(j-1,"singlet",evolve_type,"lo",interpolation=interpolation)-ga_pm))
     gluon_in, gluon_in_error = gluon_singlet_regge_fit(j,eta,t,alpha_prime_T, alpha_prime_S,norm_Ag, norm_Dg,moment_label,evolve_type,evolution_order,error_type)
     # print(solution,gluon_prf)
     sum_squared = quark_prf**1 * quark_in_error**2 + gluon_prf**2*gluon_in_error**2
@@ -444,23 +448,23 @@ def evolve_singlet_fit(eta,t,mu,alpha_prime_ud, alpha_prime_s,norm_Aq, norm_Dq,a
 
     evolve_type = hp.get_evolve_type(moment_label)
 
-    ga_qq = core.gamma_qq(j-1,"singlet",evolve_type,evolution_order="nlo",interpolation=interpolation)
+    ga_qq = adim.gamma_qq(j-1,"singlet",evolve_type,evolution_order="nlo",interpolation=interpolation)
 
     # Roots  of lo anomalous dimensions
-    ga_p = core.gamma_pm(j-1,evolve_type,"+",interpolation=interpolation)
-    ga_m = core.gamma_pm(j-1,evolve_type,"-",interpolation=interpolation)
+    ga_p = adim.gamma_pm(j-1,evolve_type,"+",interpolation=interpolation)
+    ga_m = adim.gamma_pm(j-1,evolve_type,"-",interpolation=interpolation)
     moment_in_p, error_p = singlet_moment_fit(j,eta,t,alpha_prime_ud, alpha_prime_s,norm_Aq, norm_Dq,alpha_prime_T, alpha_prime_S,norm_Ag, norm_Dg,
                                                 moment_label,"+",evolution_order,error_type,interpolation=interpolation)
     moment_in_m, error_m = singlet_moment_fit(j,eta,t,alpha_prime_ud, alpha_prime_s,norm_Aq, norm_Dq,alpha_prime_T, alpha_prime_S,norm_Ag, norm_Dg,
                                                 moment_label,"-",evolution_order,error_type,interpolation=interpolation)
-    ga_gq = core.gamma_gq(j-1, evolve_type,"lo",interpolation=interpolation)
-    ga_qg = core.gamma_qg(j-1, evolve_type,"lo",interpolation=interpolation)
+    ga_gq = adim.gamma_gq(j-1, evolve_type,"lo",interpolation=interpolation)
+    ga_qg = adim.gamma_qg(j-1, evolve_type,"lo",interpolation=interpolation)
     if evolution_order != "lo":
-        ga_gg = core.gamma_gg(j-1,evolve_type,"lo",interpolation=interpolation)
-        r_qq = core.R_qq(j-1,evolve_type,interpolation=interpolation)
-        r_qg = core.R_qg(j-1,evolve_type,interpolation=interpolation)
-        r_gq = core.R_gq(j-1,evolve_type,interpolation=interpolation)
-        r_gg = core.R_gg(j-1,evolve_type,interpolation=interpolation) 
+        ga_gg = adim.gamma_gg(j-1,evolve_type,"lo",interpolation=interpolation)
+        r_qq = adim.R_qq(j-1,evolve_type,interpolation=interpolation)
+        r_qg = adim.R_qg(j-1,evolve_type,interpolation=interpolation)
+        r_gq = adim.R_gq(j-1,evolve_type,interpolation=interpolation)
+        r_gg = adim.R_gg(j-1,evolve_type,interpolation=interpolation) 
 
     # Precompute alpha_s fraction:
     alpha_frac  = (alpha_s_in/alpha_s_evolved)    

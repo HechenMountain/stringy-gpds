@@ -12,424 +12,565 @@ from .core import mp
 
 
 def pdf_regge(A_pdf,eta_1,eta_2,epsilon,gamma_pdf,j,alpha_p,t):
-        """ Returns the result of the integral of a Reggeized PDF \int pdf(x) x**(j-1 - alpha_p * t )
-        of the form
-        pdf(x) = A_pdf * x**eta_1(1-x)**eta_2 * ( 1 + epsilon * sqrt(x) + gamma_pdf * x )
+    """
+    Result of the integral of a Reggeized PDF of the form:
 
-        Parameters:
-        - A_pdf (float): Magnitude of the input PDF.
-        - eta_1 (float): Exponent determining low-x behavior of input PDF.
-        - eta_2 (float): Exponent determining the large-x behavior of input PDF.
-        - epsilon (float): Prefacotr of sqrt(x) determining intermetiate behavior of input PDF.
-        - gamma_pdf (float): Prefactor of x determining intermetiate behavior of input PDF.
-        - j (float): conformal spin.
-        - alpha_p (float): Regge slope.
-        - t (float, or array): Mandelstam t (< 0 in physical region)
-        """
-        frac_1 = epsilon*mp.gamma(eta_1+j-alpha_p*t -.5)/(mp.gamma(eta_1+eta_2+j-alpha_p*t+.5))
-        frac_2 = (eta_1+eta_2-gamma_pdf+eta_1*gamma_pdf+j*(1+gamma_pdf)-(1+gamma_pdf)*alpha_p*t)*mp.gamma(eta_1+j-alpha_p*t-1)/mp.gamma(1+eta_1+eta_2+j-alpha_p*t)
-        result = A_pdf*mp.gamma(1+eta_2)*(frac_1+frac_2)
-        return result
+        \int dx x**(j - 1 - alpha_p * t) * pdf(x),
+
+    where the PDF is parameterized as:
+
+        pdf(x) = A_pdf * x**eta_1 * (1 - x)**eta_2 * (1 + epsilon * sqrt(x) + gamma_pdf * x)
+
+    Parameters
+    ----------
+    A_pdf : float
+        Normalization constant of the unpolarized input PDF.
+    eta_1 : float
+        Small-x parameter.
+    eta_2 : float
+        Large-x parameter
+    epsilon : float
+        sqrt(x) prefactor
+    gamma_pdf : float
+        Additional linear piece
+    j : float
+        Conformal spin.
+    alpha_p : float
+        Regge slope.
+    t : float
+        Mandelstam t.
+
+    Returns
+    -------
+    float or array_like
+        Value of the Reggeized moment.
+    """
+    frac_1 = epsilon*mp.gamma(eta_1+j-alpha_p*t -.5)/(mp.gamma(eta_1+eta_2+j-alpha_p*t+.5))
+    frac_2 = (eta_1+eta_2-gamma_pdf+eta_1*gamma_pdf+j*(1+gamma_pdf)-(1+gamma_pdf)*alpha_p*t)*mp.gamma(eta_1+j-alpha_p*t-1)/mp.gamma(1+eta_1+eta_2+j-alpha_p*t)
+    result = A_pdf*mp.gamma(1+eta_2)*(frac_1+frac_2)
+    return result
 
 def polarized_pdf_regge(
                 A_pdf,eta_1,eta_2,epsilon,gamma_pdf,
                 Delta_A_pdf,alpha,gamma_pol, lambda_pol,
                 j,alpha_p,t,evolution_order="nlo"
                 ):
-        """ Returns the result of the integral of a Reggeized polarized PDF \int polarized_pdf(x) x**(j-1 - alpha_p * t )
-        of the form
-        polarized_pdf(x) = A_pdf * x**alpha * ( 1 + gamma_pol * x**lambda_pol ) pdf_(x).
-        The input PDF is of the form
-        pdf(x) = A_pdf * x**eta_1(1-x)**eta_2 * ( 1 + epsilon * sqrt(x) + gamma_pdf * x )
-        and taken at its central value, without error.
+    """
+    Result of the integral of a Reggeized polarized PDF of the form:
 
-        Parameters:
-        - A_pdf (float): Magnitude of the input PDF.
-        - eta_1 (float): Exponent determining low-x behavior of input PDF.
-        - eta_2 (float): Exponent determining the large-x behavior of input PDF.
-        - epsilon (float): Prefactor of sqrt(x) determining intermediate behavior of input PDF.
-        - gamma_pdf (float): Prefactor of x determining intermediate behavior of input PDF.
-        - Delta_A_pdf (float): Magnitude of the polarized input PDF.
-        - alpha (float):  Exponent determining low-x behavior of input polarized PDF.
-        - gamma_pol (float): Parametrizing intermediate-x behavior of polarized PDF.
-        - lambda_pol (float): Parametrizing intermediate-x behavior of polarized PDF.
-        - j (float): conformal spin.
-        - alpha_p (float): Regge slope.
-        - t (float): Mandelstam t (< 0 in physical region)
-        - evolution_order (str. optional): lo, nlo, nnlo
-        """
-        hp.check_evolution_order(evolution_order)
-        term1 = (
-                A_pdf * Delta_A_pdf * mp.gamma(eta_2 + 1) * (
-                (
-                        (gamma_pol * epsilon * mp.gamma(eta_1 + j - alpha_p * t + alpha + lambda_pol - 0.5))
-                        / mp.gamma(eta_1 + eta_2 + j - alpha_p * t + alpha + lambda_pol + 0.5)
-                )
-                + (
-                        (epsilon * mp.gamma(eta_1 + j - alpha_p * t + alpha - 0.5))
-                        / mp.gamma(eta_1 + eta_2 + j - alpha_p * t + alpha + 0.5)
-                )
-                + (
-                        (gamma_pol * mp.gamma(eta_1 + j - alpha_p * t + alpha + lambda_pol - 1))
-                        * (
-                        alpha + lambda_pol + eta_1 * (gamma_pdf + 1)
-                        + eta_2 + gamma_pdf * (alpha + lambda_pol + j - alpha_p * t - 1)
-                        + j - alpha_p * t
-                        )
-                        / mp.gamma(eta_1 + eta_2 + j - alpha_p * t + alpha + lambda_pol + 1)
-                )
-                + (
-                        (mp.gamma(eta_1 + j - alpha_p * t + alpha - 1))
-                        * (
-                        alpha + eta_1 * (gamma_pdf + 1)
-                        + eta_2 + gamma_pdf * (alpha + j - alpha_p * t - 1)
-                        + j - alpha_p * t
-                        )
-                        / mp.gamma(eta_1 + eta_2 + j - alpha_p * t + alpha + 1)
-                )
-                )
-        )
+        \int dx x**(j - 1 - alpha_p * t) * polarized_pdf(x),
 
-        if evolution_order == "lo":
-            result = term1
-        elif evolution_order == "nlo":
-            term2 = - A_pdf * Delta_A_pdf * gamma_pol * mp.gamma(eta_2 + 1)*(
-                        (epsilon * mp.gamma(eta_1 + j - alpha_p * t + alpha - 0.5))
-                        / mp.gamma(eta_1 + eta_2 + j - alpha_p * t + alpha + 0.5)
-                        + (mp.gamma(eta_1 + j - alpha_p * t + alpha - 1)
-                        * (
-                        alpha + eta_1 * (gamma_pdf + 1)
-                        + eta_2 + gamma_pdf * (alpha + j - alpha_p * t - 1)
-                        + j - alpha_p * t)
-                        )
-                        / mp.gamma(eta_1 + eta_2 + j - alpha_p * t + alpha + 1)
+    where the polarized PDF is modeled as:
+
+        polarized_pdf(x) = Delta_A_pdf * x**alpha * (1 + gamma_pol * x**lambda_pol) * pdf(x)
+
+    and the unpolarized input PDF is:
+
+        pdf(x) = A_pdf * x**eta_1 * (1 - x)**eta_2 * (1 + epsilon * sqrt(x) + gamma_pdf * x)
+
+    The unpolarized input PDF is taken at its central value, without error variation.
+
+    Parameters
+    ----------
+    A_pdf : float
+        Normalization constant of the unpolarized input PDF.
+    eta_1 : float
+        Small-x exponent of the unpolarized PDF.
+    eta_2 : float
+        Large-x exponent of the unpolarized PDF.
+    epsilon : float
+        Coefficient of sqrt(x) in the unpolarized PDF.
+    gamma_pdf : float
+        Coefficient of x in the unpolarized PDF.
+    Delta_A_pdf : float
+        Normalization constant of the polarized input PDF.
+    alpha : float
+        Small-x exponent of the polarized PDF.
+    gamma_pol : float
+        Coefficient of x^lambda_pol in the polarized PDF.
+    lambda_pol : float
+        Exponent controlling intermediate-x behavior in the polarized PDF.
+    j : float
+        Conformal spin.
+    alpha_p : float
+        Regge slope.
+    t : float
+        Mandelstam t.
+    evolution_order : str, optional
+        "lo", "nlo",...
+
+    Returns
+    -------
+    float
+        Value of the Reggeized polarized moment integral.
+    """
+    hp.check_evolution_order(evolution_order)
+    term1 = (
+            A_pdf * Delta_A_pdf * mp.gamma(eta_2 + 1) * (
+            (
+                    (gamma_pol * epsilon * mp.gamma(eta_1 + j - alpha_p * t + alpha + lambda_pol - 0.5))
+                    / mp.gamma(eta_1 + eta_2 + j - alpha_p * t + alpha + lambda_pol + 0.5)
             )
-            result = term1 + term2
-        else:
-            raise ValueError("Currently unsupported evolution type")
-        
-        return result
+            + (
+                    (epsilon * mp.gamma(eta_1 + j - alpha_p * t + alpha - 0.5))
+                    / mp.gamma(eta_1 + eta_2 + j - alpha_p * t + alpha + 0.5)
+            )
+            + (
+                    (gamma_pol * mp.gamma(eta_1 + j - alpha_p * t + alpha + lambda_pol - 1))
+                    * (
+                    alpha + lambda_pol + eta_1 * (gamma_pdf + 1)
+                    + eta_2 + gamma_pdf * (alpha + lambda_pol + j - alpha_p * t - 1)
+                    + j - alpha_p * t
+                    )
+                    / mp.gamma(eta_1 + eta_2 + j - alpha_p * t + alpha + lambda_pol + 1)
+            )
+            + (
+                    (mp.gamma(eta_1 + j - alpha_p * t + alpha - 1))
+                    * (
+                    alpha + eta_1 * (gamma_pdf + 1)
+                    + eta_2 + gamma_pdf * (alpha + j - alpha_p * t - 1)
+                    + j - alpha_p * t
+                    )
+                    / mp.gamma(eta_1 + eta_2 + j - alpha_p * t + alpha + 1)
+            )
+            )
+    )
+
+    if evolution_order == "lo":
+        result = term1
+    elif evolution_order == "nlo":
+        term2 = - A_pdf * Delta_A_pdf * gamma_pol * mp.gamma(eta_2 + 1)*(
+                    (epsilon * mp.gamma(eta_1 + j - alpha_p * t + alpha - 0.5))
+                    / mp.gamma(eta_1 + eta_2 + j - alpha_p * t + alpha + 0.5)
+                    + (mp.gamma(eta_1 + j - alpha_p * t + alpha - 1)
+                    * (
+                    alpha + eta_1 * (gamma_pdf + 1)
+                    + eta_2 + gamma_pdf * (alpha + j - alpha_p * t - 1)
+                    + j - alpha_p * t)
+                    )
+                    / mp.gamma(eta_1 + eta_2 + j - alpha_p * t + alpha + 1)
+        )
+        result = term1 + term2
+    else:
+        raise ValueError("Currently unsupported evolution type")
+    
+    return result
 
 def pdf_regge_error(A_pdf,delta_A_pdf,eta_1,delta_eta_1,eta_2,delta_eta_2,epsilon,delta_epsilon,gamma_pdf,delta_gamma_pdf,j,alpha_p,t, error_type="central"):
-        """ Returns the result of error added in quadrature of the integral of a 
-        Reggeized PDF f = \int pdf(x) x**(j-1 - alpha_p * t ) 
-        error_pdf = sqrt(df/dA_pdf**2 * delta_A_pdf**2 + df/deta_1**2 * delta_eta_1**2 + ...)
-        of the form 
-        pdf(x) = A_pdf * x**eta_1(1-x)**eta_2 * ( 1 + epsilon * sqrt(x) + gamma_pdf * x )
+    """
+    Compute the error (added in quadrature) of the Reggeized PDF moment:
 
-        Parameters:
-        - A_pdf (float): Magnitude of the input PDF.
-        - delta_A_pdf (float): Error of A_pdf
-        - eta_1 (float): Exponent determining low-x behavior of input PDF.
-        - delta_eta_1 (float): Error of eta_1
-        - eta_2 (float): Exponent determining the large-x behavior of input PDF.
-        - delta_eta_2 (float): Error of eta_2
-        - epsilon (float): Prefacotr of sqrt(x) determining intermetiate behavior of input PDF.
-        - delta_epsilon (float): Error of delta_epsilon
-        - gamma_pdf (float): Prefactor of x determining intermetiate behavior of input PDF.
-        - delta_gamma_pdf (float): Error of gamma_pdf
-        - j (float): conformal spin.
-        - alpha_p (float): Regge slope.
-        - t (float): Mandelstam t (< 0 in physical region)
-        
-        Returns:
-        0 if the central value of the input PDF is picked.
-        +- error_pdf if error_type ="plus" or "minus".
-        """
+        f = ∫ dx x**(j - 1 - alpha_p * t) * pdf(x)
 
-        hp.check_error_type(error_type)
-        if error_type == "central":
-                return 0
-        def dpdf_dA_pdf(A_pdf, epsilon, eta_1, eta_2, j, t, alpha_p, gamma_pdf):
-                frac_1 = epsilon*mp.gamma(eta_1+j-alpha_p*t -.5)/(mp.gamma(eta_1+eta_2+j-alpha_p*t+.5))
-                frac_2 = (eta_1+eta_2-gamma_pdf+eta_1*gamma_pdf+j*(1+gamma_pdf)-(1+gamma_pdf)*alpha_p*t)*mp.gamma(eta_1+j-alpha_p*t-1)/mp.gamma(1+eta_1+eta_2+j-alpha_p*t)
-                result = mp.gamma(1+eta_2)*(frac_1+frac_2)
-                return result
+    The error is computed using Gaussian quadrature.
 
-        def dpdf_deta_1(A_pdf, epsilon, eta_1, eta_2, j, t, alpha_p, gamma_pdf):
-                term_1 = (epsilon * mp.gamma(eta_1 + j - t * alpha_p - 0.5) * 
-                        mp.digamma(eta_1 + j - t * alpha_p - 0.5) / 
-                        mp.gamma(eta_1 + eta_2 + j - t * alpha_p + 0.5))
+    The PDF is parameterized as:
 
-                term_2 = (epsilon * mp.gamma(eta_1 + j - t * alpha_p - 0.5) * 
-                        mp.digamma(eta_1 + eta_2 + j - t * alpha_p + 0.5) / 
-                        mp.gamma(eta_1 + eta_2 + j - t * alpha_p + 0.5))
+        pdf(x) = A_pdf * x**eta_1 * (1 - x)**eta_2 * (1 + epsilon * sqrt(x) + gamma_pdf * x)
 
-                term_3 = ((gamma_pdf + 1) * mp.gamma(eta_1 + j - t * alpha_p - 1) / 
-                        mp.gamma(eta_1 + eta_2 + j - t * alpha_p + 1))
+    Parameters
+    ----------
+    A_pdf : float
+        Normalization constant of the input PDF.
+    delta_A_pdf : float
+        Error in A_pdf.
+    eta_1 : float
+        Small-x exponent of the input PDF.
+    delta_eta_1 : float
+        Error in eta_1.
+    eta_2 : float
+        Large-x exponent of the input PDF.
+    delta_eta_2 : float
+        Error in eta_2.
+    epsilon : float
+        Coefficient of sqrt(x) in the input PDF.
+    delta_epsilon : float
+        Error in epsilon.
+    gamma_pdf : float
+        Coefficient of x in the input PDF.
+    delta_gamma_pdf : float
+        Error in gamma_pdf.
+    j : float
+        Conformal spin.
+    alpha_p : float
+        Regge slope.
+    t : float
+        Mandelstam t.
 
-                factor = (eta_1 * (gamma_pdf + 1) + eta_2 + 
-                        gamma_pdf * (j - alpha_p * t - 1) + j - alpha_p * t)
+    Returns
+    -------
+    float
+        0 if the central value is selected; +/- error if `error_type` is "plus" or "minus".
 
-                term_4 = (mp.gamma(eta_1 + j - t * alpha_p - 1) * mp.digamma(eta_1 + j - t * alpha_p - 1) * factor /
-                        mp.gamma(eta_1 + eta_2 + j - t * alpha_p + 1))
+    Note
+    ----
+    Gaussian quadrature overshoots the error significantly at low-x
+    """
 
-                term_5 = (mp.gamma(eta_1 + j - t * alpha_p - 1) * factor * 
-                        mp.digamma(eta_1 + eta_2 + j - t * alpha_p + 1) /
-                        mp.gamma(eta_1 + eta_2 + j - t * alpha_p + 1))
 
-                return A_pdf * mp.gamma(eta_2 + 1) * (term_1 - term_2 + term_3 + term_4 - term_5)
-        def dpdf_deta_2(A_pdf, epsilon, eta_1, eta_2, j, t, alpha_p, gamma_pdf):
-                term_1 = (epsilon * mp.gamma(eta_1 + j - t * alpha_p - 0.5) / 
-                        mp.gamma(eta_1 + eta_2 + j - t * alpha_p + 0.5))
+    hp.check_error_type(error_type)
+    if error_type == "central":
+            return 0
+    def dpdf_dA_pdf(A_pdf, epsilon, eta_1, eta_2, j, t, alpha_p, gamma_pdf):
+            frac_1 = epsilon*mp.gamma(eta_1+j-alpha_p*t -.5)/(mp.gamma(eta_1+eta_2+j-alpha_p*t+.5))
+            frac_2 = (eta_1+eta_2-gamma_pdf+eta_1*gamma_pdf+j*(1+gamma_pdf)-(1+gamma_pdf)*alpha_p*t)*mp.gamma(eta_1+j-alpha_p*t-1)/mp.gamma(1+eta_1+eta_2+j-alpha_p*t)
+            result = mp.gamma(1+eta_2)*(frac_1+frac_2)
+            return result
 
-                factor = (eta_1 * (gamma_pdf + 1) + eta_2 + 
-                        gamma_pdf * (j - alpha_p * t - 1) + j - alpha_p * t)
+    def dpdf_deta_1(A_pdf, epsilon, eta_1, eta_2, j, t, alpha_p, gamma_pdf):
+            term_1 = (epsilon * mp.gamma(eta_1 + j - t * alpha_p - 0.5) * 
+                    mp.digamma(eta_1 + j - t * alpha_p - 0.5) / 
+                    mp.gamma(eta_1 + eta_2 + j - t * alpha_p + 0.5))
 
-                term_2 = (mp.gamma(eta_1 + j - t * alpha_p - 1) * factor / 
-                        mp.gamma(eta_1 + eta_2 + j - t * alpha_p + 1))
+            term_2 = (epsilon * mp.gamma(eta_1 + j - t * alpha_p - 0.5) * 
+                    mp.digamma(eta_1 + eta_2 + j - t * alpha_p + 0.5) / 
+                    mp.gamma(eta_1 + eta_2 + j - t * alpha_p + 0.5))
 
-                term_3 = (-epsilon * mp.gamma(eta_1 + j - t * alpha_p - 0.5) * 
-                        mp.digamma(eta_1 + eta_2 + j - t * alpha_p + 0.5) / 
-                        mp.gamma(eta_1 + eta_2 + j - t * alpha_p + 0.5))
+            term_3 = ((gamma_pdf + 1) * mp.gamma(eta_1 + j - t * alpha_p - 1) / 
+                    mp.gamma(eta_1 + eta_2 + j - t * alpha_p + 1))
 
-                term_4 = (-mp.gamma(eta_1 + j - t * alpha_p - 1) * factor * 
-                        mp.digamma(eta_1 + eta_2 + j - t * alpha_p + 1) /
-                        mp.gamma(eta_1 + eta_2 + j - t * alpha_p + 1))
+            factor = (eta_1 * (gamma_pdf + 1) + eta_2 + 
+                    gamma_pdf * (j - alpha_p * t - 1) + j - alpha_p * t)
 
-                term_5 = (mp.gamma(eta_1 + j - t * alpha_p - 1) /
-                        mp.gamma(eta_1 + eta_2 + j - t * alpha_p + 1))
+            term_4 = (mp.gamma(eta_1 + j - t * alpha_p - 1) * mp.digamma(eta_1 + j - t * alpha_p - 1) * factor /
+                    mp.gamma(eta_1 + eta_2 + j - t * alpha_p + 1))
 
-                return (A_pdf * mp.gamma(eta_2 + 1) * mp.digamma(eta_2 + 1) * (term_1 + term_2) +
-                        A_pdf * mp.gamma(eta_2 + 1) * (term_3 + term_4 + term_5))
+            term_5 = (mp.gamma(eta_1 + j - t * alpha_p - 1) * factor * 
+                    mp.digamma(eta_1 + eta_2 + j - t * alpha_p + 1) /
+                    mp.gamma(eta_1 + eta_2 + j - t * alpha_p + 1))
 
-        def dpdf_depsilon(A_pdf, epsilon, eta_1, eta_2, j, t, alpha_p, gamma_pdf):
-                term1 = A_pdf * mp.gamma(eta_2 + 1) * mp.gamma(eta_1 + j - alpha_p * t - 0.5)
-                term2 = mp.gamma(eta_1 + eta_2 + j - alpha_p * t + 0.5)
-                return term1/term2
-        
-        def dpdf_dgamma(A_pdf, epsilon, eta_1, eta_2, j, t, alpha_p, gamma_pdf):
-                term1 = A_pdf * mp.gamma(eta_2 + 1) * (eta_1 + j - alpha_p * t - 1) * mp.gamma(eta_1 + j - t * alpha_p - 1)
-                term2 = mp.gamma(eta_1 + eta_2 + j - t * alpha_p + 1)
-                return term1/term2
-        
-        Delta_A_pdf = dpdf_dA_pdf(A_pdf, epsilon, eta_1, eta_2, j, t, alpha_p, gamma_pdf) * delta_A_pdf
-        Delta_eta_1 = dpdf_deta_1(A_pdf, epsilon, eta_1, eta_2, j, t, alpha_p, gamma_pdf) * delta_eta_1
-        Delta_eta_2 = dpdf_deta_2(A_pdf, epsilon, eta_1, eta_2, j, t, alpha_p, gamma_pdf) * delta_eta_2
-        Delta_epsilon = dpdf_depsilon(A_pdf, epsilon, eta_1, eta_2, j, t, alpha_p, gamma_pdf) * delta_epsilon
-        Delta_gamma_pdf = dpdf_dgamma(A_pdf, epsilon, eta_1, eta_2, j, t, alpha_p, gamma_pdf) * delta_gamma_pdf
+            return A_pdf * mp.gamma(eta_2 + 1) * (term_1 - term_2 + term_3 + term_4 - term_5)
+    def dpdf_deta_2(A_pdf, epsilon, eta_1, eta_2, j, t, alpha_p, gamma_pdf):
+            term_1 = (epsilon * mp.gamma(eta_1 + j - t * alpha_p - 0.5) / 
+                    mp.gamma(eta_1 + eta_2 + j - t * alpha_p + 0.5))
 
-        sum_squared = Delta_A_pdf**2+Delta_eta_1**2+Delta_eta_2**2+Delta_epsilon**2+Delta_gamma_pdf**2
-        result = abs(mp.sqrt(sum_squared))
-        return result
+            factor = (eta_1 * (gamma_pdf + 1) + eta_2 + 
+                    gamma_pdf * (j - alpha_p * t - 1) + j - alpha_p * t)
+
+            term_2 = (mp.gamma(eta_1 + j - t * alpha_p - 1) * factor / 
+                    mp.gamma(eta_1 + eta_2 + j - t * alpha_p + 1))
+
+            term_3 = (-epsilon * mp.gamma(eta_1 + j - t * alpha_p - 0.5) * 
+                    mp.digamma(eta_1 + eta_2 + j - t * alpha_p + 0.5) / 
+                    mp.gamma(eta_1 + eta_2 + j - t * alpha_p + 0.5))
+
+            term_4 = (-mp.gamma(eta_1 + j - t * alpha_p - 1) * factor * 
+                    mp.digamma(eta_1 + eta_2 + j - t * alpha_p + 1) /
+                    mp.gamma(eta_1 + eta_2 + j - t * alpha_p + 1))
+
+            term_5 = (mp.gamma(eta_1 + j - t * alpha_p - 1) /
+                    mp.gamma(eta_1 + eta_2 + j - t * alpha_p + 1))
+
+            return (A_pdf * mp.gamma(eta_2 + 1) * mp.digamma(eta_2 + 1) * (term_1 + term_2) +
+                    A_pdf * mp.gamma(eta_2 + 1) * (term_3 + term_4 + term_5))
+
+    def dpdf_depsilon(A_pdf, epsilon, eta_1, eta_2, j, t, alpha_p, gamma_pdf):
+            term1 = A_pdf * mp.gamma(eta_2 + 1) * mp.gamma(eta_1 + j - alpha_p * t - 0.5)
+            term2 = mp.gamma(eta_1 + eta_2 + j - alpha_p * t + 0.5)
+            return term1/term2
+    
+    def dpdf_dgamma(A_pdf, epsilon, eta_1, eta_2, j, t, alpha_p, gamma_pdf):
+            term1 = A_pdf * mp.gamma(eta_2 + 1) * (eta_1 + j - alpha_p * t - 1) * mp.gamma(eta_1 + j - t * alpha_p - 1)
+            term2 = mp.gamma(eta_1 + eta_2 + j - t * alpha_p + 1)
+            return term1/term2
+    
+    Delta_A_pdf = dpdf_dA_pdf(A_pdf, epsilon, eta_1, eta_2, j, t, alpha_p, gamma_pdf) * delta_A_pdf
+    Delta_eta_1 = dpdf_deta_1(A_pdf, epsilon, eta_1, eta_2, j, t, alpha_p, gamma_pdf) * delta_eta_1
+    Delta_eta_2 = dpdf_deta_2(A_pdf, epsilon, eta_1, eta_2, j, t, alpha_p, gamma_pdf) * delta_eta_2
+    Delta_epsilon = dpdf_depsilon(A_pdf, epsilon, eta_1, eta_2, j, t, alpha_p, gamma_pdf) * delta_epsilon
+    Delta_gamma_pdf = dpdf_dgamma(A_pdf, epsilon, eta_1, eta_2, j, t, alpha_p, gamma_pdf) * delta_gamma_pdf
+
+    sum_squared = Delta_A_pdf**2+Delta_eta_1**2+Delta_eta_2**2+Delta_epsilon**2+Delta_gamma_pdf**2
+    result = abs(mp.sqrt(sum_squared))
+    return result
 
 
 def polarized_pdf_regge_error(A_pdf,eta_1,eta_2,epsilon,gamma_pdf,
                                        Delta_A_pdf,err_Delta_A_pdf,alpha,err_alpha,gamma_pol,err_gamma_pol, lambda_pol,err_lambda_pol,
                                        j,alpha_p,t,evolution_order="nlo", error_type="central"):
-        hp.check_evolution_order(evolution_order)
-        if error_type == "central":
-                return 0
-        def dpol_pdf_dDelta_A_pdf(
-                        A_pdf,eta_1,eta_2,epsilon,gamma_pdf,
-                        Delta_A_pdf,alpha,gamma_pol, lambda_pol,
-                        j,alpha_p,t
-        ):
-                term1 = A_pdf * mp.gamma(eta_2 + 1)
-                
-                term2 = (gamma_pol * epsilon * mp.gamma(eta_1 + j - alpha_p * t + alpha + lambda_pol - 0.5)) / \
-                        mp.gamma(eta_1 + eta_2 + j - alpha_p * t + alpha + lambda_pol + 0.5)
-                
-                term3 = (epsilon * mp.gamma(eta_1 + j - alpha_p * t + alpha - 0.5)) / \
-                        mp.gamma(eta_1 + eta_2 + j - alpha_p * t + alpha + 0.5)
-                
-                term4 = (mp.gamma(eta_1 + j - alpha_p * t + alpha + lambda_pol - 1) * 
-                        (gamma_pol + (gamma_pol * gamma_pdf * 
-                        (alpha + lambda_pol + eta_1 + j - alpha_p * t - 1)) / 
-                        (alpha + lambda_pol + eta_1 + eta_2 + j - alpha_p * t))) / \
-                        mp.gamma(eta_1 + eta_2 + j - alpha_p * t + alpha + lambda_pol)
-                
-                term5 = (mp.gamma(eta_1 + j - alpha_p * t + alpha - 1) * 
-                        ((gamma_pdf * (alpha + eta_1 + j - alpha_p * t - 1)) / 
-                        (alpha + eta_1 + eta_2 + j - alpha_p * t) + 1)) / \
-                        mp.gamma(eta_1 + eta_2 + j - alpha_p * t + alpha)
-                if evolution_order == "lo":
-                    term6 = 0
-                elif evolution_order == "nlo":
-                    term6 = - gamma_pol * (
-                        term3 +
-                        mp.gamma(eta_1 + j - alpha_p * t + alpha - 1)/mp.gamma(1+ eta_1 + eta_2 + j - alpha_p * t + alpha) * \
-                        ((eta_2+eta_1*(1+gamma_pdf)+j -alpha_p * t + alpha + gamma_pdf * (-1+j-alpha_p *t + alpha)))
-                    )
-                
-                return term1 * (term2 + term3 + term4 + term5 + term6)
-        def dpol_pdf_dalpha(
-                        A_pdf,eta_1,eta_2,epsilon,gamma_pdf,
-                        Delta_A_pdf,alpha,gamma_pol, lambda_pol,
-                        j,alpha_p,t
-        ):
-                term1 = A_pdf * Delta_A_pdf * mp.gamma(eta_2 + 1)
-    
-                term2 = (gamma_pol * epsilon * mp.gamma(eta_1 + j - alpha_p * t + alpha + lambda_pol - 0.5) 
-                        * mp.digamma(eta_1 + j - alpha_p * t + alpha + lambda_pol - 0.5)) \
-                        / mp.gamma(eta_1 + eta_2 + j - alpha_p * t + alpha + lambda_pol + 0.5)
-                
-                term3 = - (gamma_pol * epsilon * mp.gamma(eta_1 + j - alpha_p * t + alpha + lambda_pol - 0.5) 
-                                * mp.digamma(eta_1 + eta_2 + j - alpha_p * t + alpha + lambda_pol + 0.5)) \
-                        / mp.gamma(eta_1 + eta_2 + j - alpha_p * t + alpha + lambda_pol + 0.5)
-                
-                term4 = (epsilon * mp.gamma(eta_1 + j - alpha_p * t + alpha - 0.5) 
-                        * mp.digamma(eta_1 + j - alpha_p * t + alpha - 0.5)) \
-                        / mp.gamma(eta_1 + eta_2 + j - alpha_p * t + alpha + 0.5)
-                
-                term5 = - (epsilon * mp.gamma(eta_1 + j - alpha_p * t + alpha - 0.5) 
-                        * mp.digamma(eta_1 + eta_2 + j - alpha_p * t + alpha + 0.5)) \
-                        / mp.gamma(eta_1 + eta_2 + j - alpha_p * t + alpha + 0.5)
-                
-                term6 = (gamma_pol * (eta_2 + 1) * gamma_pdf * mp.gamma(eta_1 + j - alpha_p * t + alpha + lambda_pol - 1)) \
-                        / ((alpha + lambda_pol + eta_1 + eta_2 + j - alpha_p * t)**2 
-                        * mp.gamma(eta_1 + eta_2 + j - alpha_p * t + alpha + lambda_pol))
-                
-                term7 = (mp.gamma(eta_1 + j - alpha_p * t + alpha + lambda_pol - 1) 
-                        * mp.digamma(eta_1 + j - alpha_p * t + alpha + lambda_pol - 1)
-                        * (gamma_pol + (gamma_pol * gamma_pdf * (alpha + lambda_pol + eta_1 + j - alpha_p * t - 1))
-                                / (alpha + lambda_pol + eta_1 + eta_2 + j - alpha_p * t))) \
-                        / mp.gamma(eta_1 + eta_2 + j - alpha_p * t + alpha + lambda_pol)
-                
-                term8 = - (mp.gamma(eta_1 + j - alpha_p * t + alpha + lambda_pol - 1) 
-                                * mp.digamma(eta_1 + eta_2 + j - alpha_p * t + alpha + lambda_pol)
-                                * (gamma_pol + (gamma_pol * gamma_pdf * (alpha + lambda_pol + eta_1 + j - alpha_p * t - 1))
-                                / (alpha + lambda_pol + eta_1 + eta_2 + j - alpha_p * t))) \
-                        / mp.gamma(eta_1 + eta_2 + j - alpha_p * t + alpha + lambda_pol)
-                
-                term9 = ((eta_2 + 1) * gamma_pdf * mp.gamma(eta_1 + j - alpha_p * t + alpha - 1)) \
-                        / ((alpha + eta_1 + eta_2 + j - alpha_p * t)**2 * mp.gamma(eta_1 + eta_2 + j - alpha_p * t + alpha))
-                
-                term10 = (mp.gamma(eta_1 + j - alpha_p * t + alpha - 1) * mp.digamma(eta_1 + j - alpha_p * t + alpha - 1)
-                        * (1 + (gamma_pdf * (alpha + eta_1 + j - alpha_p * t - 1))
-                                / (alpha + eta_1 + eta_2 + j - alpha_p * t))) \
-                        / mp.gamma(eta_1 + eta_2 + j - alpha_p * t + alpha)
-                
-                term11 = - (mp.gamma(eta_1 + j - alpha_p * t + alpha - 1) * mp.digamma(eta_1 + eta_2 + j - alpha_p * t + alpha)
-                                * (1 + (gamma_pdf * (alpha + eta_1 + j - alpha_p * t - 1))
-                                / (alpha + eta_1 + eta_2 + j - alpha_p * t))) \
-                        / mp.gamma(eta_1 + eta_2 + j - alpha_p * t + alpha)
-                if evolution_order == "lo":
-                    term12 = 0
-                elif evolution_order == "nlo":
-                    term12 = gamma_pol * (- (term4 + term5) + mp.gamma(eta_1 + j - alpha_p * t + alpha - 1) *(
-                         -(eta_2 + 1) * gamma_pdf /(eta_1 + eta_2 + j - alpha_p * t + alpha) - 
-                         (eta_2 + eta_1 * (1 + gamma_pdf) + j - alpha_p * t + alpha + gamma_pdf * (j - alpha_p * t + alpha -1)) * \
-                         (mp.digamma(eta_1 + j - alpha_p * t + alpha - 1)- mp.digamma(eta_1 + eta_2 + j - alpha_p * t + alpha))
-                    )/mp.gamma(1 + eta_1 +eta_2 + j - alpha_p * t + alpha))
+    """
+    Compute the error (added in quadrature) of the Reggeized **polarized** PDF moment:
 
-                return term1 * (term2 + term3 + term4 + term5 + term6 + term7 + term8 + term9 + term10 + term11 + term12)
-        
-        
-        def dpol_pdf_dgamma_pol(
-                        A_pdf,eta_1,eta_2,epsilon,gamma_pdf,
-                        Delta_A_pdf,alpha,gamma_pol, lambda_pol,
-                        j,alpha_p,t
-        ):
-                term1 = A_pdf * Delta_A_pdf * mp.gamma(eta_2 + 1)
+        \int dx x**(j - 1 - alpha_p * t) * polarized_pdf(x)
+
+    where the polarized PDF is of the form:
+
+        polarized_pdf(x) = Delta_A_pdf * x**alpha * (1 + gamma_pol * x**lambda_pol) * pdf(x)
+
+    and the unpolarized input PDF is:
+
+        pdf(x) = A_pdf * x**eta_1 * (1 - x)**eta_2 * (1 + epsilon * sqrt(x) + gamma_pdf * x)
+
+    The error is computed using Gaussian quadrature.
+
+    Parameters
+    ----------
+    A_pdf : float
+        Normalization constant of the unpolarized input PDF.
+    eta_1 : float
+        Small-x exponent of the unpolarized PDF.
+    eta_2 : float
+        Large-x exponent of the unpolarized PDF.
+    epsilon : float
+        Coefficient of sqrt(x) in the unpolarized PDF.
+    gamma_pdf : float
+        Coefficient of x in the unpolarized PDF.
+    Delta_A_pdf : float
+        Normalization constant of the polarized PDF.
+    err_Delta_A_pdf : float
+        Error in Delta_A_pdf.
+    alpha : float
+        Small-x exponent of the polarized PDF.
+    err_alpha : float
+        Error in alpha.
+    gamma_pol : float
+        Coefficient of x**lambda_pol in the polarized PDF.
+    err_gamma_pol : float
+        Error in gamma_pol.
+    lambda_pol : float
+        Exponent controlling intermediate-x behavior in the polarized PDF.
+    err_lambda_pol : float
+        Error in lambda_pol.
+    j : float
+        Conformal spin.
+    alpha_p : float
+        Regge slope.
+    t : float
+        Mandelstam variable t (typically < 0 in the physical region).
+    evolution_order : str, optional
+        "lo", "nlo",...  Default is "nlo"
+    error_type : str, optional
+        "central", "plus", or "minus". Default is "central".
+
+    Returns
+    -------
+    float
+        0 if the central value is selected; ±error if `error_type` is "plus" or "minus".
+
+    Notes
+    -----
+    - Gaussian quadrature overshoots the error significantly at low-x. So we manually make it smaller
+      to reflect the correct error quoted in the input parametrization.
+    """
+    hp.check_evolution_order(evolution_order)
+    if error_type == "central":
+            return 0
+    def dpol_pdf_dDelta_A_pdf(
+                    A_pdf,eta_1,eta_2,epsilon,gamma_pdf,
+                    Delta_A_pdf,alpha,gamma_pol, lambda_pol,
+                    j,alpha_p,t
+    ):
+            term1 = A_pdf * mp.gamma(eta_2 + 1)
+            
+            term2 = (gamma_pol * epsilon * mp.gamma(eta_1 + j - alpha_p * t + alpha + lambda_pol - 0.5)) / \
+                    mp.gamma(eta_1 + eta_2 + j - alpha_p * t + alpha + lambda_pol + 0.5)
+            
+            term3 = (epsilon * mp.gamma(eta_1 + j - alpha_p * t + alpha - 0.5)) / \
+                    mp.gamma(eta_1 + eta_2 + j - alpha_p * t + alpha + 0.5)
+            
+            term4 = (mp.gamma(eta_1 + j - alpha_p * t + alpha + lambda_pol - 1) * 
+                    (gamma_pol + (gamma_pol * gamma_pdf * 
+                    (alpha + lambda_pol + eta_1 + j - alpha_p * t - 1)) / 
+                    (alpha + lambda_pol + eta_1 + eta_2 + j - alpha_p * t))) / \
+                    mp.gamma(eta_1 + eta_2 + j - alpha_p * t + alpha + lambda_pol)
+            
+            term5 = (mp.gamma(eta_1 + j - alpha_p * t + alpha - 1) * 
+                    ((gamma_pdf * (alpha + eta_1 + j - alpha_p * t - 1)) / 
+                    (alpha + eta_1 + eta_2 + j - alpha_p * t) + 1)) / \
+                    mp.gamma(eta_1 + eta_2 + j - alpha_p * t + alpha)
+            if evolution_order == "lo":
+                term6 = 0
+            elif evolution_order == "nlo":
+                term6 = - gamma_pol * (
+                    term3 +
+                    mp.gamma(eta_1 + j - alpha_p * t + alpha - 1)/mp.gamma(1+ eta_1 + eta_2 + j - alpha_p * t + alpha) * \
+                    ((eta_2+eta_1*(1+gamma_pdf)+j -alpha_p * t + alpha + gamma_pdf * (-1+j-alpha_p *t + alpha)))
+                )
+            
+            return term1 * (term2 + term3 + term4 + term5 + term6)
+    def dpol_pdf_dalpha(
+                    A_pdf,eta_1,eta_2,epsilon,gamma_pdf,
+                    Delta_A_pdf,alpha,gamma_pol, lambda_pol,
+                    j,alpha_p,t
+    ):
+            term1 = A_pdf * Delta_A_pdf * mp.gamma(eta_2 + 1)
+
+            term2 = (gamma_pol * epsilon * mp.gamma(eta_1 + j - alpha_p * t + alpha + lambda_pol - 0.5) 
+                    * mp.digamma(eta_1 + j - alpha_p * t + alpha + lambda_pol - 0.5)) \
+                    / mp.gamma(eta_1 + eta_2 + j - alpha_p * t + alpha + lambda_pol + 0.5)
+            
+            term3 = - (gamma_pol * epsilon * mp.gamma(eta_1 + j - alpha_p * t + alpha + lambda_pol - 0.5) 
+                            * mp.digamma(eta_1 + eta_2 + j - alpha_p * t + alpha + lambda_pol + 0.5)) \
+                    / mp.gamma(eta_1 + eta_2 + j - alpha_p * t + alpha + lambda_pol + 0.5)
+            
+            term4 = (epsilon * mp.gamma(eta_1 + j - alpha_p * t + alpha - 0.5) 
+                    * mp.digamma(eta_1 + j - alpha_p * t + alpha - 0.5)) \
+                    / mp.gamma(eta_1 + eta_2 + j - alpha_p * t + alpha + 0.5)
+            
+            term5 = - (epsilon * mp.gamma(eta_1 + j - alpha_p * t + alpha - 0.5) 
+                    * mp.digamma(eta_1 + eta_2 + j - alpha_p * t + alpha + 0.5)) \
+                    / mp.gamma(eta_1 + eta_2 + j - alpha_p * t + alpha + 0.5)
+            
+            term6 = (gamma_pol * (eta_2 + 1) * gamma_pdf * mp.gamma(eta_1 + j - alpha_p * t + alpha + lambda_pol - 1)) \
+                    / ((alpha + lambda_pol + eta_1 + eta_2 + j - alpha_p * t)**2 
+                    * mp.gamma(eta_1 + eta_2 + j - alpha_p * t + alpha + lambda_pol))
+            
+            term7 = (mp.gamma(eta_1 + j - alpha_p * t + alpha + lambda_pol - 1) 
+                    * mp.digamma(eta_1 + j - alpha_p * t + alpha + lambda_pol - 1)
+                    * (gamma_pol + (gamma_pol * gamma_pdf * (alpha + lambda_pol + eta_1 + j - alpha_p * t - 1))
+                            / (alpha + lambda_pol + eta_1 + eta_2 + j - alpha_p * t))) \
+                    / mp.gamma(eta_1 + eta_2 + j - alpha_p * t + alpha + lambda_pol)
+            
+            term8 = - (mp.gamma(eta_1 + j - alpha_p * t + alpha + lambda_pol - 1) 
+                            * mp.digamma(eta_1 + eta_2 + j - alpha_p * t + alpha + lambda_pol)
+                            * (gamma_pol + (gamma_pol * gamma_pdf * (alpha + lambda_pol + eta_1 + j - alpha_p * t - 1))
+                            / (alpha + lambda_pol + eta_1 + eta_2 + j - alpha_p * t))) \
+                    / mp.gamma(eta_1 + eta_2 + j - alpha_p * t + alpha + lambda_pol)
+            
+            term9 = ((eta_2 + 1) * gamma_pdf * mp.gamma(eta_1 + j - alpha_p * t + alpha - 1)) \
+                    / ((alpha + eta_1 + eta_2 + j - alpha_p * t)**2 * mp.gamma(eta_1 + eta_2 + j - alpha_p * t + alpha))
+            
+            term10 = (mp.gamma(eta_1 + j - alpha_p * t + alpha - 1) * mp.digamma(eta_1 + j - alpha_p * t + alpha - 1)
+                    * (1 + (gamma_pdf * (alpha + eta_1 + j - alpha_p * t - 1))
+                            / (alpha + eta_1 + eta_2 + j - alpha_p * t))) \
+                    / mp.gamma(eta_1 + eta_2 + j - alpha_p * t + alpha)
+            
+            term11 = - (mp.gamma(eta_1 + j - alpha_p * t + alpha - 1) * mp.digamma(eta_1 + eta_2 + j - alpha_p * t + alpha)
+                            * (1 + (gamma_pdf * (alpha + eta_1 + j - alpha_p * t - 1))
+                            / (alpha + eta_1 + eta_2 + j - alpha_p * t))) \
+                    / mp.gamma(eta_1 + eta_2 + j - alpha_p * t + alpha)
+            if evolution_order == "lo":
+                term12 = 0
+            elif evolution_order == "nlo":
+                term12 = gamma_pol * (- (term4 + term5) + mp.gamma(eta_1 + j - alpha_p * t + alpha - 1) *(
+                        -(eta_2 + 1) * gamma_pdf /(eta_1 + eta_2 + j - alpha_p * t + alpha) - 
+                        (eta_2 + eta_1 * (1 + gamma_pdf) + j - alpha_p * t + alpha + gamma_pdf * (j - alpha_p * t + alpha -1)) * \
+                        (mp.digamma(eta_1 + j - alpha_p * t + alpha - 1)- mp.digamma(eta_1 + eta_2 + j - alpha_p * t + alpha))
+                )/mp.gamma(1 + eta_1 +eta_2 + j - alpha_p * t + alpha))
+
+            return term1 * (term2 + term3 + term4 + term5 + term6 + term7 + term8 + term9 + term10 + term11 + term12)
     
-                term2 = (epsilon * mp.gamma(eta_1 + j - alpha_p * t + alpha + lambda_pol - 0.5)) \
-                        / mp.gamma(eta_1 + eta_2 + j - alpha_p * t + alpha + lambda_pol + 0.5)
-                
-                term3 = (mp.gamma(eta_1 + j - alpha_p * t + alpha + lambda_pol - 1) * 
-                        (- alpha_p * t  + alpha + lambda_pol + eta_1 * (gamma_pdf + 1) + eta_2 +
-                        gamma_pdf * (- alpha_p * t  + alpha + lambda_pol + j - 1) + j)) \
-                        / mp.gamma(eta_1 + eta_2 + j - alpha_p * t + alpha + lambda_pol + 1)
-                
-                if evolution_order == "lo":
-                    term4 = 0
-                elif evolution_order == "nlo":
-                    term4 = - ((epsilon * mp.gamma(eta_1 + j - alpha_p * t + alpha - 0.5)) \
-                        / mp.gamma(eta_1 + eta_2 + j - alpha_p * t + alpha + 0.5)
-                        + (eta_2 + eta_1*(1+gamma_pdf) +  j - alpha_p * t + alpha
-                        + gamma_pdf * ( j - alpha_p * t + alpha - 1)) * mp.gamma(eta_1 +  j - alpha_p * t + alpha - 1)/\
-                        mp.gamma(eta_1 + eta_2 + j - alpha_p * t + alpha + 1)
-                    )
-                return term1 * (term2 + term3 + term4)
-        
-        def dpol_pdf_dlambda_pol(
-                        A_pdf,eta_1,eta_2,epsilon,gamma_pdf,
-                        Delta_A_pdf,alpha,gamma_pol, lambda_pol,
-                        j,alpha_p,t
-        ):
-                # Same for lo and nlo
-                term1 = A_pdf * Delta_A_pdf * mp.gamma(eta_2 + 1)
-                
-                term2 = (gamma_pol * epsilon * mp.gamma(eta_1 + j - alpha_p * t + alpha + lambda_pol - 0.5) * 
-                        mp.digamma(eta_1 + j - alpha_p * t + alpha + lambda_pol - 0.5)) / \
-                        mp.gamma(eta_1 + eta_2 + j - alpha_p * t + alpha + lambda_pol + 0.5)
-                
-                term3 = -(gamma_pol * epsilon * mp.gamma(eta_1 + j - alpha_p * t + alpha + lambda_pol - 0.5) * 
-                        mp.digamma(eta_1 + eta_2 + j - alpha_p * t + alpha + lambda_pol + 0.5)) / \
-                        mp.gamma(eta_1 + eta_2 + j - alpha_p * t + alpha + lambda_pol + 0.5)
-                
-                term4 = (gamma_pol * (eta_2 + 1) * gamma_pdf * mp.gamma(eta_1 + j - alpha_p * t + alpha + lambda_pol - 1)) / \
-                        ((alpha + lambda_pol + eta_1 + eta_2 + j - alpha_p * t)**2 * 
-                        mp.gamma(eta_1 + eta_2 + j - alpha_p * t + alpha + lambda_pol))
-                
-                term5 = (mp.gamma(eta_1 + j - alpha_p * t + alpha + lambda_pol - 1) * 
-                        mp.digamma(eta_1 + j - alpha_p * t + alpha + lambda_pol - 1) * 
-                        (gamma_pol + (gamma_pol * gamma_pdf * 
-                        (alpha + lambda_pol + eta_1 + j - alpha_p * t - 1)) / 
-                        (alpha + lambda_pol + eta_1 + eta_2 + j - alpha_p * t))) / \
-                        mp.gamma(eta_1 + eta_2 + j - alpha_p * t + alpha + lambda_pol)
-                
-                term6 = -(mp.gamma(eta_1 + j - alpha_p * t + alpha + lambda_pol - 1) * 
-                        mp.digamma(eta_1 + eta_2 + j - alpha_p * t + alpha + lambda_pol) * 
-                        (gamma_pol + (gamma_pol * gamma_pdf * 
-                        (alpha + lambda_pol + eta_1 + j - alpha_p * t - 1)) / 
-                        (alpha + lambda_pol + eta_1 + eta_2 + j - alpha_p * t))) / \
-                        mp.gamma(eta_1 + eta_2 + j - alpha_p * t + alpha + lambda_pol)
-                                
-                return term1 * (term2 + term3 + term4 + term5 + term6)
-        
-        Delta_Delta_A_pdf = dpol_pdf_dDelta_A_pdf(
-                        A_pdf,eta_1,eta_2,epsilon,gamma_pdf,
-                        Delta_A_pdf,alpha,gamma_pol, lambda_pol,
-                        j,alpha_p,t
-                        ) * err_Delta_A_pdf
-        Delta_alpha = dpol_pdf_dalpha(
-                        A_pdf,eta_1,eta_2,epsilon,gamma_pdf,
-                        Delta_A_pdf,alpha,gamma_pol, lambda_pol,
-                        j,alpha_p,t
-                        ) * err_alpha
-        Delta_gamma_pol = dpol_pdf_dgamma_pol(
-                        A_pdf,eta_1,eta_2,epsilon,gamma_pdf,
-                        Delta_A_pdf,alpha,gamma_pol, lambda_pol,
-                        j,alpha_p,t
-                        ) * err_gamma_pol
-        Delta_lambda_pol= dpol_pdf_dlambda_pol(
-                        A_pdf,eta_1,eta_2,epsilon,gamma_pdf,
-                        Delta_A_pdf,alpha,gamma_pol, lambda_pol,
-                        j,alpha_p,t
-                        ) * err_lambda_pol
-        
-        sum_squared = Delta_Delta_A_pdf**2+Delta_alpha**2+Delta_gamma_pol**2+Delta_lambda_pol**2
-        result = abs(mp.sqrt(sum_squared))
-        return result
+    
+    def dpol_pdf_dgamma_pol(
+                    A_pdf,eta_1,eta_2,epsilon,gamma_pdf,
+                    Delta_A_pdf,alpha,gamma_pol, lambda_pol,
+                    j,alpha_p,t
+    ):
+            term1 = A_pdf * Delta_A_pdf * mp.gamma(eta_2 + 1)
+
+            term2 = (epsilon * mp.gamma(eta_1 + j - alpha_p * t + alpha + lambda_pol - 0.5)) \
+                    / mp.gamma(eta_1 + eta_2 + j - alpha_p * t + alpha + lambda_pol + 0.5)
+            
+            term3 = (mp.gamma(eta_1 + j - alpha_p * t + alpha + lambda_pol - 1) * 
+                    (- alpha_p * t  + alpha + lambda_pol + eta_1 * (gamma_pdf + 1) + eta_2 +
+                    gamma_pdf * (- alpha_p * t  + alpha + lambda_pol + j - 1) + j)) \
+                    / mp.gamma(eta_1 + eta_2 + j - alpha_p * t + alpha + lambda_pol + 1)
+            
+            if evolution_order == "lo":
+                term4 = 0
+            elif evolution_order == "nlo":
+                term4 = - ((epsilon * mp.gamma(eta_1 + j - alpha_p * t + alpha - 0.5)) \
+                    / mp.gamma(eta_1 + eta_2 + j - alpha_p * t + alpha + 0.5)
+                    + (eta_2 + eta_1*(1+gamma_pdf) +  j - alpha_p * t + alpha
+                    + gamma_pdf * ( j - alpha_p * t + alpha - 1)) * mp.gamma(eta_1 +  j - alpha_p * t + alpha - 1)/\
+                    mp.gamma(eta_1 + eta_2 + j - alpha_p * t + alpha + 1)
+                )
+            return term1 * (term2 + term3 + term4)
+    
+    def dpol_pdf_dlambda_pol(
+                    A_pdf,eta_1,eta_2,epsilon,gamma_pdf,
+                    Delta_A_pdf,alpha,gamma_pol, lambda_pol,
+                    j,alpha_p,t
+    ):
+            # Same for lo and nlo
+            term1 = A_pdf * Delta_A_pdf * mp.gamma(eta_2 + 1)
+            
+            term2 = (gamma_pol * epsilon * mp.gamma(eta_1 + j - alpha_p * t + alpha + lambda_pol - 0.5) * 
+                    mp.digamma(eta_1 + j - alpha_p * t + alpha + lambda_pol - 0.5)) / \
+                    mp.gamma(eta_1 + eta_2 + j - alpha_p * t + alpha + lambda_pol + 0.5)
+            
+            term3 = -(gamma_pol * epsilon * mp.gamma(eta_1 + j - alpha_p * t + alpha + lambda_pol - 0.5) * 
+                    mp.digamma(eta_1 + eta_2 + j - alpha_p * t + alpha + lambda_pol + 0.5)) / \
+                    mp.gamma(eta_1 + eta_2 + j - alpha_p * t + alpha + lambda_pol + 0.5)
+            
+            term4 = (gamma_pol * (eta_2 + 1) * gamma_pdf * mp.gamma(eta_1 + j - alpha_p * t + alpha + lambda_pol - 1)) / \
+                    ((alpha + lambda_pol + eta_1 + eta_2 + j - alpha_p * t)**2 * 
+                    mp.gamma(eta_1 + eta_2 + j - alpha_p * t + alpha + lambda_pol))
+            
+            term5 = (mp.gamma(eta_1 + j - alpha_p * t + alpha + lambda_pol - 1) * 
+                    mp.digamma(eta_1 + j - alpha_p * t + alpha + lambda_pol - 1) * 
+                    (gamma_pol + (gamma_pol * gamma_pdf * 
+                    (alpha + lambda_pol + eta_1 + j - alpha_p * t - 1)) / 
+                    (alpha + lambda_pol + eta_1 + eta_2 + j - alpha_p * t))) / \
+                    mp.gamma(eta_1 + eta_2 + j - alpha_p * t + alpha + lambda_pol)
+            
+            term6 = -(mp.gamma(eta_1 + j - alpha_p * t + alpha + lambda_pol - 1) * 
+                    mp.digamma(eta_1 + eta_2 + j - alpha_p * t + alpha + lambda_pol) * 
+                    (gamma_pol + (gamma_pol * gamma_pdf * 
+                    (alpha + lambda_pol + eta_1 + j - alpha_p * t - 1)) / 
+                    (alpha + lambda_pol + eta_1 + eta_2 + j - alpha_p * t))) / \
+                    mp.gamma(eta_1 + eta_2 + j - alpha_p * t + alpha + lambda_pol)
+                            
+            return term1 * (term2 + term3 + term4 + term5 + term6)
+    
+    Delta_Delta_A_pdf = dpol_pdf_dDelta_A_pdf(
+                    A_pdf,eta_1,eta_2,epsilon,gamma_pdf,
+                    Delta_A_pdf,alpha,gamma_pol, lambda_pol,
+                    j,alpha_p,t
+                    ) * err_Delta_A_pdf
+    Delta_alpha = dpol_pdf_dalpha(
+                    A_pdf,eta_1,eta_2,epsilon,gamma_pdf,
+                    Delta_A_pdf,alpha,gamma_pol, lambda_pol,
+                    j,alpha_p,t
+                    ) * err_alpha
+    Delta_gamma_pol = dpol_pdf_dgamma_pol(
+                    A_pdf,eta_1,eta_2,epsilon,gamma_pdf,
+                    Delta_A_pdf,alpha,gamma_pol, lambda_pol,
+                    j,alpha_p,t
+                    ) * err_gamma_pol
+    Delta_lambda_pol= dpol_pdf_dlambda_pol(
+                    A_pdf,eta_1,eta_2,epsilon,gamma_pdf,
+                    Delta_A_pdf,alpha,gamma_pol, lambda_pol,
+                    j,alpha_p,t
+                    ) * err_lambda_pol
+    
+    sum_squared = Delta_Delta_A_pdf**2+Delta_alpha**2+Delta_gamma_pol**2+Delta_lambda_pol**2
+    result = abs(mp.sqrt(sum_squared))
+    return result
 
 def uv_pdf_regge(j,eta,alpha_p,t, evolution_order = "nlo", error_type="central"):
     """
-    Result of the integral of the Reggeized uv(x) PDF based on the given lo parameters and selected errors.
+    Result of the integral of the Reggeized uv(x) PDF using the given parameters and selected error type.
+
+    Parameters
+    ----------
+    j : float
+        Conformal spin.
+    eta : float
+        Skewness parameter (currently a placeholder, not used).
+    alpha_p : float
+        Regge slope.
+    t : float or array_like
+        Mandelstam t.
+    evolution_order : str, optional
+        "lo", "nlo",... Default is "nlo"
+    error_type : str, optional
+        Whether to use 'central', 'plus', or 'minus' input parameters. Default is "central".
+
+    Returns
+    -------
+    float
+        The value of the Reggeized integral of the uv PDF based on the selected parameters and error type.
     
-    Arguments:
-    - j (float) conformal spin,
-    - eta (float): skewness (scalar or array)(placeholder for now),
-    - alpha_p (float): Regge slope,
-    - t (float): Mandelstam t (scalar or array),
-    - evolution_order (str. optional): lo, nlo, nnlo
-    - error_type: (str. optional) A string indicating whether to use 'central', 'plus', or 'minus' errors. Default is 'central'.
-    
-    Returns:
-    The value of the Reggeized integral together with the error of uv(x) based on the selected parameters and error type.
+    Note
+    ----
+    eta for the non-singlet sector is currently only a placeholder
     """
     # Check type
     hp.check_error_type(error_type)
-
-     # Define a dictionary that maps the error_type to column indices
-    error_mapping = {
-        "central": 0,  # The column with the central value
-        "plus": 1,     # The column with the + error value
-        "minus": 2     # The column with the - error value
-    }
     
     # Get the column index corresponding to the error_type
-    error_col_index = error_mapping.get(error_type) 
+    error_col_index = hp.ERROR_MAP.get(error_type) 
 
     # Extracting parameter values
     A_pdf     = MSTW_PDF["A_u"][evolution_order][0]
@@ -456,31 +597,37 @@ def uv_pdf_regge(j,eta,alpha_p,t, evolution_order = "nlo", error_type="central")
 
 def dv_pdf_regge(j,eta,alpha_p,t, evolution_order = "nlo", error_type="central"):
     """
-    Result of the integral of the Reggeized dv(x) PDF based on the given lo parameters and selected errors.
+    Result of the integral of the Reggeized dv(x) PDF using the given parameters and selected error type.
+
+    Parameters
+    ----------
+    j : float
+        Conformal spin.
+    eta : float
+        Skewness parameter (currently a placeholder, not used).
+    alpha_p : float
+        Regge slope.
+    t : float or array_like
+        Mandelstam t.
+    evolution_order : str, optional
+        "lo", "nlo",... Default is "nlo"
+    error_type : str, optional
+        Whether to use 'central', 'plus', or 'minus' input parameters. Default is "central".
+
+    Returns
+    -------
+    float
+        The value of the Reggeized integral of the dv PDF based on the selected parameters and error type.
     
-    Arguments:
-    - j (float) conformal spin,
-    - eta (float): skewness (scalar or array)(placeholder for now),
-    - alpha_p (float): Regge slope,
-    - t (float): Mandelstam t (scalar or array),
-    - evolution_order (str. optional): lo, nlo, nnlo
-    - error_type: (str. optional) A string indicating whether to use 'central', 'plus', or 'minus' errors. Default is 'central'.
-    
-    Returns:
-    The value of the Reggeized integral together with the error of dv(x) based on the selected parameters and error type.
+    Note
+    ----
+    eta for the non-singlet sector is currently only a placeholder
     """
     # Check type
     hp.check_error_type(error_type)
-
-     # Define a dictionary that maps the error_type to column indices
-    error_mapping = {
-        "central": 0,  # The column with the central value
-        "plus": 1,     # The column with the + error value
-        "minus": 2     # The column with the - error value
-    }
     
     # Get the column index corresponding to the error_type
-    error_col_index = error_mapping.get(error_type)
+    error_col_index = hp.ERROR_MAP.get(error_type)
 
     A_pdf     = MSTW_PDF["A_d"][evolution_order][0]
     eta_1     = MSTW_PDF["eta_3"][evolution_order][0]
@@ -506,18 +653,31 @@ def dv_pdf_regge(j,eta,alpha_p,t, evolution_order = "nlo", error_type="central")
 
 def sv_pdf_regge(j,eta,alpha_p,t, evolution_order = "nlo", error_type="central"):
     """
-    Result of the integral of the Reggeized sv(x) PDF based on the given lo parameters and selected errors.
+    Result of the integral of the Reggeized sv(x) PDF using the given parameters and selected error type.
+
+    Parameters
+    ----------
+    j : float
+        Conformal spin.
+    eta : float
+        Skewness parameter (currently a placeholder, not used).
+    alpha_p : float
+        Regge slope.
+    t : float or array_like
+        Mandelstam t.
+    evolution_order : str, optional
+        "lo", "nlo",... Default is "nlo"
+    error_type : str, optional
+        Whether to use 'central', 'plus', or 'minus' input parameters. Default is "central".
+
+    Returns
+    -------
+    float
+        The value of the Reggeized integral of the sv PDF based on the selected parameters and error type.
     
-    Arguments:
-    - j (float) conformal spin,
-    - eta (float): skewness (scalar or array)(placeholder for now),
-    - alpha_p (float): Regge slope,
-    - t (float): Mandelstam t (scalar or array),
-    - evolution_order (str. optional): lo, nlo, nnlo
-    - error_type: (str. optional) A string indicating whether to use 'central', 'plus', or 'minus' errors. Default is 'central'.
-    
-    Returns:
-    The value of the Reggeized integral together with the error of sv(x) based on the selected parameters and error type.
+    Note
+    ----
+    eta dependence is treated separately and currently only a placeholder.
     """
     # eta_1 = delta_minus, eta_2 = eta_minus, epsilon = 0, gamma = 0
     def sv_pdf_regge(A_m,delta_m,eta_m,x_0,j,alpha_p,t):
@@ -595,14 +755,8 @@ def sv_pdf_regge(j,eta,alpha_p,t, evolution_order = "nlo", error_type="central")
         
     # Check type
     hp.check_error_type(error_type)
-
-    error_mapping = {
-        "central": 0,
-        "plus": 1,
-        "minus": 2
-    }
     
-    error_col_index = error_mapping.get(error_type)
+    error_col_index = hp.ERROR_MAP.get(error_type)
 
     # Extracting parameter values
     A_m = MSTW_PDF["A_-"][evolution_order][0]
@@ -626,29 +780,36 @@ def sv_pdf_regge(j,eta,alpha_p,t, evolution_order = "nlo", error_type="central")
 
 def S_pdf_regge(j,eta,alpha_p,t, evolution_order = "nlo", error_type="central"):
     """
-    Result of the integral of the Reggeized Sv(x) PDF based on the given lo parameters and selected errors.
+    Result of the integral of the Reggeized S(x) = 2 (ubar(x) + dbar(x)) + s(x) + sbar(x)  PDF using the given parameters and selected error type.
+
+    Parameters
+    ----------
+    j : float
+        Conformal spin.
+    eta : float
+        Skewness parameter (currently a placeholder, not used).
+    alpha_p : float
+        Regge slope.
+    t : float or array_like
+        Mandelstam t.
+    evolution_order : str, optional
+        "lo", "nlo",... Default is "nlo"
+    error_type : str, optional
+        Whether to use 'central', 'plus', or 'minus' input parameters. Default is "central".
+
+    Returns
+    -------
+    float
+        The value of the Reggeized integral of the S PDF based on the selected parameters and error type.
     
-    Arguments:
-    - j (float) conformal spin,
-    - eta (float): skewness (scalar or array)(placeholder for now),
-    - alpha_p (float): Regge slope,
-    - t (float): Mandelstam t (scalar or array),
-    - evolution_order (str. optional): lo, nlo, nnlo
-    - error_type: (str. optional) A string indicating whether to use 'central', 'plus', or 'minus' errors. Default is 'central'.
-    
-    Returns:
-    The value of the Reggeized integral together with the error of Sv(x) based on the selected parameters and error type.
+    Note
+    ----
+    eta dependence is treated separately and currently only a placeholder.
     """
     # Check type
     hp.check_error_type(error_type)
     
-    error_mapping = {
-        "central": 0,
-        "plus": 1,
-        "minus": 2
-    }
-    
-    error_col_index = error_mapping.get(error_type)
+    error_col_index = hp.ERROR_MAP.get(error_type)
 
     A_pdf      = MSTW_PDF["A_S"][evolution_order][0]
     eta_1      = MSTW_PDF["delta_S"][evolution_order][0]
@@ -673,29 +834,36 @@ def S_pdf_regge(j,eta,alpha_p,t, evolution_order = "nlo", error_type="central"):
 
 def s_plus_pdf_regge(j,eta,alpha_p,t, evolution_order = "nlo", error_type="central"):
     """
-    Result of the integral of the Reggeized s_+(x) PDF based on the given lo parameters and selected errors.
+    Result of the integral of the Reggeized s_+(x) PDF using the given parameters and selected error type.
 
-    Arguments:
-    - j (float) conformal spin,
-    - eta (float): skewness (scalar or array)(placeholder for now),
-    - alpha_p (float): Regge slope,
-    - t (float): Mandelstam t (scalar or array),
-    - evolution_order (str. optional): lo, nlo, nnlo
-    - error_type: (str. optional) A string indicating whether to use 'central', 'plus', or 'minus' errors. Default is 'central'.
+    Parameters
+    ----------
+    j : float
+        Conformal spin.
+    eta : float
+        Skewness parameter (currently a placeholder, not used).
+    alpha_p : float
+        Regge slope.
+    t : float or array_like
+        Mandelstam t.
+    evolution_order : str, optional
+        "lo", "nlo",... Default is "nlo"
+    error_type : str, optional
+        Whether to use 'central', 'plus', or 'minus' input parameters. Default is "central".
+
+    Returns
+    -------
+    float
+        The value of the Reggeized integral of the s_+ PDF based on the selected parameters and error type.
     
-    Returns:
-    The value of the Reggeized integral together with the error of s_+(x) based on the selected parameters and error type.
+    Note
+    ----
+    eta dependence is treated separately and currently only a placeholder.
     """
     # Check type
     hp.check_error_type(error_type)
-    
-    error_mapping = {
-        "central": 0,
-        "plus": 1,
-        "minus": 2
-    }
-    
-    error_col_index = error_mapping.get(error_type)
+
+    error_col_index = hp.ERROR_MAP.get(error_type)
 
     A_pdf      = MSTW_PDF["A_+"][evolution_order][0]
     eta_1      = MSTW_PDF["delta_S"][evolution_order][0]
@@ -720,18 +888,31 @@ def s_plus_pdf_regge(j,eta,alpha_p,t, evolution_order = "nlo", error_type="centr
 
 def Delta_pdf_regge(j,eta,alpha_p,t, evolution_order = "nlo", error_type="central"):
     """
-    Result of the integral of the Reggeized uv(x) PDF based on the given lo parameters and selected errors.
+    Result of the integral of the Reggeized Delta(x) = ubar(x) - dbar(x) PDF using the given parameters and selected error type.
+
+    Parameters
+    ----------
+    j : float
+        Conformal spin.
+    eta : float
+        Skewness parameter (currently a placeholder, not used).
+    alpha_p : float
+        Regge slope.
+    t : float or array_like
+        Mandelstam t.
+    evolution_order : str, optional
+        "lo", "nlo",... Default is "nlo"
+    error_type : str, optional
+        Whether to use 'central', 'plus', or 'minus' input parameters. Default is "central".
+
+    Returns
+    -------
+    float
+        The value of the Reggeized integral of the Delta PDF based on the selected parameters and error type.
     
-    Arguments:
-    - j (float) conformal spin,
-    - eta (float): skewness (scalar or array)(placeholder for now),
-    - alpha_p (float): Regge slope,
-    - t (float): Mandelstam t (scalar or array),
-    - evolution_order (str. optional): lo, nlo, nnlo
-    - error_type: (str. optional) A string indicating whether to use 'central', 'plus', or 'minus' errors. Default is 'central'.
-    
-    Returns:
-    The value of the Reggeized integral together with the error of uv(x) based on the selected parameters and error type.
+    Note
+    ----
+    eta dependence is treated separately and currently only a placeholder.
     """
     def Delta_pdf_regge(A_Delta,eta_Delta,eta_S,gamma_Delta,delta_Delta,j,alpha_p,t):
         frac_1 = (2+eta_Delta+eta_S+j-alpha_p*t)*(3+eta_Delta+eta_S+j-alpha_p*t)
@@ -929,16 +1110,9 @@ def Delta_pdf_regge(j,eta,alpha_p,t, evolution_order = "nlo", error_type="centra
         return result
     
     hp.check_error_type(error_type)
-
-     # Define a dictionary that maps the error_type to column indices
-    error_mapping = {
-        "central": 0,  # The column with the central value
-        "plus": 1,     # The column with the + error value
-        "minus": 2     # The column with the - error value
-    }
     
     # Get the column index corresponding to the error_type
-    error_col_index = error_mapping.get(error_type) 
+    error_col_index = hp.ERROR_MAP.get(error_type) 
 
     A_Delta     = MSTW_PDF["A_Delta"][evolution_order][0]
     eta_Delta   = MSTW_PDF["eta_Delta"][evolution_order][0]
@@ -964,31 +1138,37 @@ def Delta_pdf_regge(j,eta,alpha_p,t, evolution_order = "nlo", error_type="centra
 
 def gluon_pdf_regge(j,eta,alpha_p,t, evolution_order = "nlo", error_type="central"):
     """
-    Result of the integral of the Reggeized g(x) PDF based on the given lo parameters and selected errors.
+    Result of the integral of the Reggeized g(x) PDF using the given parameters and selected error type.
 
-    Arguments:
-    - j (float) conformal spin,
-    - eta (float): skewness (scalar or array)(placeholder for now),
-    - alpha_p (float): Regge slope,
-    - t (float): Mandelstam t (scalar or array),
-    - evolution_order (str. optional): lo, nlo, nnlo
-    - error_type: (str. optional) A string indicating whether to use 'central', 'plus', or 'minus' errors. Default is 'central'.
+    Parameters
+    ----------
+    j : float
+        Conformal spin.
+    eta : float
+        Skewness parameter (currently a placeholder, not used).
+    alpha_p : float
+        Regge slope.
+    t : float or array_like
+        Mandelstam t.
+    evolution_order : str, optional
+        "lo", "nlo",... Default is "nlo"
+    error_type : str, optional
+        Whether to use 'central', 'plus', or 'minus' input parameters. Default is "central".
+
+    Returns
+    -------
+    float
+        The value of the Reggeized integral of the g PDF based on the selected parameters and error type.
     
-    Returns:
-    The value of the Reggeized integral together with the error of g(x) based on the selected parameters and error type.
+    Note
+    ----
+    eta dependence is treated separately and currently only a placeholder.
     """
     # Check type
     hp.check_error_type(error_type)
     
-     # Define a dictionary that maps the error_type to column indices
-    error_mapping = {
-        "central": 0,  # The column with the central value
-        "plus": 1,     # The column with the + error value
-        "minus": 2     # The column with the - error value
-    }
-    
     # Get the column index corresponding to the error_type
-    error_col_index = error_mapping.get(error_type) 
+    error_col_index = hp.ERROR_MAP.get(error_type) 
 
     A_pdf     = MSTW_PDF["A_g"][evolution_order][0]
     eta_1     = MSTW_PDF["delta_g"][evolution_order][0]
@@ -1073,287 +1253,310 @@ def u_plus_d_pdf_regge(j,eta,t, evolution_order = "nlo", error_type="central"):
                     + Delta_pdf_regge(j,alpha_prime,t,evolution_order,error_type))
 
 def polarized_uv_pdf_regge(j,eta,alpha_p,t, evolution_order = "nlo", error_type="central"):
-        """
-        Result of the integral of the Reggeized uv(x) PDF based on the given lo parameters and selected errors.
+    """
+    Result of the integral of the Reggeized polarized uv(x) PDF using the given parameters and selected error type.
 
-        Arguments:
-        - j (float) conformal spin,
-        - eta (float): skewness (scalar or array)(placeholder for now),
-        - alpha_p (float): Regge slope,
-        - t (float): Mandelstam t (scalar or array),
-        - evolution_order (str. optional): lo, nlo, nnlo
-        - error_type: (str. optional) A string indicating whether to use 'central', 'plus', or 'minus' errors. Default is 'central'.
+    Parameters
+    ----------
+    j : float
+        Conformal spin.
+    eta : float
+        Skewness parameter (currently a placeholder, not used).
+    alpha_p : float
+        Regge slope.
+    t : float or array_like
+        Mandelstam t.
+    evolution_order : str, optional
+        "lo", "nlo",... Default is "nlo"
+    error_type : str, optional
+        Whether to use 'central', 'plus', or 'minus' input parameters. Default is "central".
 
-        Returns:
-        The value of the Reggeized integral together with the error of uv(x) based on the selected parameters and error type.
-        """
-        # Check type
-        hp.check_error_type(error_type)
+    Returns
+    -------
+    float
+        The value of the Reggeized integral of the polarized uv PDF based on the selected parameters and error type.
+    
+    Note
+    ----
+    eta dependence is treated separately and currently only a placeholder.
+    """
+    # Check type
+    hp.check_error_type(error_type)
 
-        # Define a dictionary that maps the error_type to column indices
-        error_mapping = {
-        "central": 0,  # The column with the central value
-        "plus": 1,     # The column with the + error value
-        "minus": 2     # The column with the - error value
-        }
+    # Get the column index corresponding to the error_type
+    error_col_index = hp.ERROR_MAP.get(error_type, 0)  # Default to 'central' if error_type is invalid
 
-        # Get the column index corresponding to the error_type
-        error_col_index = error_mapping.get(error_type, 0)  # Default to 'central' if error_type is invalid
+    A_pdf     = MSTW_PDF["A_u"][evolution_order][0]
+    eta_1     = MSTW_PDF["eta_1"][evolution_order][0]
+    eta_2     = MSTW_PDF["eta_2"][evolution_order][0]
+    epsilon   = MSTW_PDF["epsilon_u"][evolution_order][0]
+    gamma_pdf = MSTW_PDF["gamma_u"][evolution_order][0]
 
-        A_pdf     = MSTW_PDF["A_u"][evolution_order][0]
-        eta_1     = MSTW_PDF["eta_1"][evolution_order][0]
-        eta_2     = MSTW_PDF["eta_2"][evolution_order][0]
-        epsilon   = MSTW_PDF["epsilon_u"][evolution_order][0]
-        gamma_pdf = MSTW_PDF["gamma_u"][evolution_order][0]
+    delta_A_pdf = AAC_PDF["Delta_A_u"][evolution_order][0]
+    alpha       = AAC_PDF["alpha_u"][evolution_order][0]
+    gamma_pol   = AAC_PDF["Delta_gamma_u"][evolution_order][0]
+    lambda_pol  = AAC_PDF["Delta_lambda_u"][evolution_order][0]
 
-        delta_A_pdf = AAC_PDF["Delta_A_u"][evolution_order][0]
-        alpha       = AAC_PDF["alpha_u"][evolution_order][0]
-        gamma_pol   = AAC_PDF["Delta_gamma_u"][evolution_order][0]
-        lambda_pol  = AAC_PDF["Delta_lambda_u"][evolution_order][0]
+    pdf = polarized_pdf_regge(A_pdf,eta_1,eta_2,epsilon,gamma_pdf,
+                                        delta_A_pdf,alpha,gamma_pol,lambda_pol,
+                                        j,alpha_p,t,evolution_order)
+    if error_type != "central":
+        err_delta_A_pdf = AAC_PDF["Delta_A_u"][evolution_order][error_col_index]
+        err_alpha       = AAC_PDF["alpha_u"][evolution_order][error_col_index]
+        err_gamma_pol   = AAC_PDF["Delta_gamma_u"][evolution_order][error_col_index]
+        err_lambda_pol  = AAC_PDF["Delta_lambda_u"][evolution_order][error_col_index]
 
-        pdf = polarized_pdf_regge(A_pdf,eta_1,eta_2,epsilon,gamma_pdf,
-                                           delta_A_pdf,alpha,gamma_pol,lambda_pol,
-                                           j,alpha_p,t,evolution_order)
-        if error_type != "central":
-            err_delta_A_pdf = AAC_PDF["Delta_A_u"][evolution_order][error_col_index]
-            err_alpha       = AAC_PDF["alpha_u"][evolution_order][error_col_index]
-            err_gamma_pol   = AAC_PDF["Delta_gamma_u"][evolution_order][error_col_index]
-            err_lambda_pol  = AAC_PDF["Delta_lambda_u"][evolution_order][error_col_index]
-
-            pdf_error = polarized_pdf_regge_error(A_pdf,eta_1,eta_2,epsilon,gamma_pdf,
-                                            delta_A_pdf,err_delta_A_pdf,alpha,err_alpha,gamma_pol,err_gamma_pol,lambda_pol,err_lambda_pol,
-                                            j,alpha_p,t,evolution_order,error_type)
-            return pdf, pdf_error
-        else:
-            return pdf, 0
+        pdf_error = polarized_pdf_regge_error(A_pdf,eta_1,eta_2,epsilon,gamma_pdf,
+                                        delta_A_pdf,err_delta_A_pdf,alpha,err_alpha,gamma_pol,err_gamma_pol,lambda_pol,err_lambda_pol,
+                                        j,alpha_p,t,evolution_order,error_type)
+        return pdf, pdf_error
+    else:
+        return pdf, 0
 
 def polarized_dv_pdf_regge(j,eta,alpha_p,t, evolution_order = "nlo", error_type="central"):
-        """
-        Result of the integral of the Reggeized dv(x) PDF based on the given lo parameters and selected errors.
+    """
+    Result of the integral of the Reggeized polarized dv(x) PDF using the given parameters and selected error type.
 
-        Arguments:
-        - j (float) conformal spin,
-        - eta (float): skewness (scalar or array)(placeholder for now),
-        - alpha_p (float): Regge slope,
-        - t (float): Mandelstam t (scalar or array),
-        - evolution_order (str. optional): lo, nlo, nnlo
-        - error_type: (str. optional) A string indicating whether to use 'central', 'plus', or 'minus' errors. Default is 'central'.
+    Parameters
+    ----------
+    j : float
+        Conformal spin.
+    eta : float
+        Skewness parameter (currently a placeholder, not used).
+    alpha_p : float
+        Regge slope.
+    t : float or array_like
+        Mandelstam t.
+    evolution_order : str, optional
+        "lo", "nlo",... Default is "nlo"
+    error_type : str, optional
+        Whether to use 'central', 'plus', or 'minus' input parameters. Default is "central".
 
-        Returns:
-        The value of the Reggeized integral together with the error of dv(x) based on the selected parameters and error type.
-        """
-        # Check type
-        hp.check_error_type(error_type)
+    Returns
+    -------
+    float
+        The value of the Reggeized integral of the polarized dv PDF based on the selected parameters and error type.
+    
+    Note
+    ----
+    eta dependence is treated separately and currently only a placeholder.
+    """
+    # Check type
+    hp.check_error_type(error_type)
 
-        # Define a dictionary that maps the error_type to column indices
-        error_mapping = {
-        "central": 0,  # The column with the central value
-        "plus": 1,     # The column with the + error value
-        "minus": 2     # The column with the - error value
-        }
+    # Get the column index corresponding to the error_type
+    error_col_index = hp.ERROR_MAP.get(error_type, 0)  # Default to 'central' if error_type is invalid
 
-        # Get the column index corresponding to the error_type
-        error_col_index = error_mapping.get(error_type, 0)  # Default to 'central' if error_type is invalid
+    A_pdf     = MSTW_PDF["A_d"][evolution_order][0]
+    eta_1     = MSTW_PDF["eta_3"][evolution_order][0]
+    eta_2     = MSTW_PDF["eta_2"][evolution_order][0] + MSTW_PDF["eta_4-eta_2"][evolution_order][0]  # eta_4 ≡ eta_2 + (eta_4 - eta_2)
+    epsilon   = MSTW_PDF["epsilon_d"][evolution_order][0]
+    gamma_pdf = MSTW_PDF["gamma_d"][evolution_order][0]
 
-        A_pdf     = MSTW_PDF["A_d"][evolution_order][0]
-        eta_1     = MSTW_PDF["eta_3"][evolution_order][0]
-        eta_2     = MSTW_PDF["eta_2"][evolution_order][0] + MSTW_PDF["eta_4-eta_2"][evolution_order][0]  # eta_4 ≡ eta_2 + (eta_4 - eta_2)
-        epsilon   = MSTW_PDF["epsilon_d"][evolution_order][0]
-        gamma_pdf = MSTW_PDF["gamma_d"][evolution_order][0]
+    Delta_A_pdf = AAC_PDF["Delta_A_d"][evolution_order][0]
+    alpha       = AAC_PDF["alpha_d"][evolution_order][0]
+    gamma_pol   = AAC_PDF["Delta_gamma_d"][evolution_order][0]
+    lambda_pol  = AAC_PDF["Delta_lambda_d"][evolution_order][0]
 
-        Delta_A_pdf = AAC_PDF["Delta_A_d"][evolution_order][0]
-        alpha       = AAC_PDF["alpha_d"][evolution_order][0]
-        gamma_pol   = AAC_PDF["Delta_gamma_d"][evolution_order][0]
-        lambda_pol  = AAC_PDF["Delta_lambda_d"][evolution_order][0]
+    pdf = polarized_pdf_regge(A_pdf,eta_1,eta_2,epsilon,gamma_pdf,
+                                        Delta_A_pdf,alpha,gamma_pol,lambda_pol,
+                                        j,alpha_p,t,evolution_order)
+    if error_type != "central":
+        err_delta_A_pdf = AAC_PDF["Delta_A_d"][evolution_order][error_col_index]
+        err_alpha       = AAC_PDF["alpha_d"][evolution_order][error_col_index]
+        err_gamma_pol   = AAC_PDF["Delta_gamma_d"][evolution_order][error_col_index]
+        err_lambda_pol  = AAC_PDF["Delta_lambda_d"][evolution_order][error_col_index]
 
-        pdf = polarized_pdf_regge(A_pdf,eta_1,eta_2,epsilon,gamma_pdf,
-                                           Delta_A_pdf,alpha,gamma_pol,lambda_pol,
-                                           j,alpha_p,t,evolution_order)
-        if error_type != "central":
-            err_delta_A_pdf = AAC_PDF["Delta_A_d"][evolution_order][error_col_index]
-            err_alpha       = AAC_PDF["alpha_d"][evolution_order][error_col_index]
-            err_gamma_pol   = AAC_PDF["Delta_gamma_d"][evolution_order][error_col_index]
-            err_lambda_pol  = AAC_PDF["Delta_lambda_d"][evolution_order][error_col_index]
-
-            pdf_error = polarized_pdf_regge_error(A_pdf,eta_1,eta_2,epsilon,gamma_pdf,
-                                            Delta_A_pdf,err_delta_A_pdf,alpha,err_alpha,gamma_pol,err_gamma_pol,lambda_pol,err_lambda_pol,
-                                            j,alpha_p,t,evolution_order,error_type)
-            return pdf, pdf_error
-        else:
-            return pdf, 0
+        pdf_error = polarized_pdf_regge_error(A_pdf,eta_1,eta_2,epsilon,gamma_pdf,
+                                        Delta_A_pdf,err_delta_A_pdf,alpha,err_alpha,gamma_pol,err_gamma_pol,lambda_pol,err_lambda_pol,
+                                        j,alpha_p,t,evolution_order,error_type)
+        return pdf, pdf_error
+    else:
+        return pdf, 0
 
 def polarized_S_pdf_regge(j,eta,alpha_p,t, evolution_order = "nlo", error_type="central"):
-        """
-        Result of the integral of the Reggeized S(x) PDF based on the given lo parameters and selected errors. 
-        We are assuming \Delta u = \Delta d = \Delta s = s
-        
-        Arguments:
-        - j (float) conformal spin,
-        - eta (float): skewness (scalar or array)(placeholder for now),
-        - alpha_p (float): Regge slope,
-        - t (float): Mandelstam t (scalar or array),
-        - evolution_order (str. optional): lo, nlo, nnlo
-        - error_type: (str. optional) A string indicating whether to use 'central', 'plus', or 'minus' errors. Default is 'central'.
-        
-        Returns:
-        The value of the Reggeized integral together with the error of S(x) based on the selected parameters and error type.
-        """
-        # Check type
-        hp.check_error_type(error_type)
+    """
+    Result of the integral of the Reggeized polarized S(x) = 2 (ubar(x) + dbar(x)) + s(x) + sbar(x)  PDF using the given parameters and selected error type.
 
-        # Define a dictionary that maps the error_type to column indices
-        error_mapping = {
-                "central": 0,  # The column with the central value
-                "plus": 1,     # The column with the + error value
-                "minus": 2     # The column with the - error value
-        }
-        
-        # Get the column index corresponding to the error_type
-        error_col_index = error_mapping.get(error_type, 0)  # Default to 'central' if error_type is invalid
+    Parameters
+    ----------
+    j : float
+        Conformal spin.
+    eta : float
+        Skewness parameter (currently a placeholder, not used).
+    alpha_p : float
+        Regge slope.
+    t : float or array_like
+        Mandelstam t.
+    evolution_order : str, optional
+        "lo", "nlo",... Default is "nlo"
+    error_type : str, optional
+        Whether to use 'central', 'plus', or 'minus' input parameters. Default is "central".
 
-        A_pdf     = MSTW_PDF["A_S"][evolution_order][0]
-        eta_1     = MSTW_PDF["delta_S"][evolution_order][0]
-        eta_2     = MSTW_PDF["eta_S"][evolution_order][0]
-        epsilon   = MSTW_PDF["epsilon_S"][evolution_order][0]
-        gamma_pdf = MSTW_PDF["gamma_S"][evolution_order][0]
+    Returns
+    -------
+    float
+        The value of the Reggeized integral of the polarized S PDF based on the selected parameters and error type.
+    
+    Note
+    ----
+    eta dependence is treated separately and currently only a placeholder.
+    """
+    # Check type
+    hp.check_error_type(error_type)
+    
+    # Get the column index corresponding to the error_type
+    error_col_index = hp.ERROR_MAP.get(error_type, 0)  # Default to 'central' if error_type is invalid
 
-        delta_A_pdf = AAC_PDF["Delta_A_S"][evolution_order][0]
-        alpha       = AAC_PDF["alpha_S"][evolution_order][0]
-        gamma_pol   = AAC_PDF["Delta_gamma_S"][evolution_order][0]
-        lambda_pol  = AAC_PDF["Delta_lambda_S"][evolution_order][0]
+    A_pdf     = MSTW_PDF["A_S"][evolution_order][0]
+    eta_1     = MSTW_PDF["delta_S"][evolution_order][0]
+    eta_2     = MSTW_PDF["eta_S"][evolution_order][0]
+    epsilon   = MSTW_PDF["epsilon_S"][evolution_order][0]
+    gamma_pdf = MSTW_PDF["gamma_S"][evolution_order][0]
 
-        pdf = polarized_pdf_regge(A_pdf,eta_1,eta_2,epsilon,gamma_pdf,
-                                            delta_A_pdf,alpha,gamma_pol,lambda_pol,
-                                           j,alpha_p,t,evolution_order)
-        if error_type != "central":
-            err_delta_A_pdf = AAC_PDF["Delta_A_S"][evolution_order][error_col_index]
-            err_alpha       = AAC_PDF["alpha_S"][evolution_order][error_col_index]
-            err_gamma_pol   = AAC_PDF["Delta_gamma_S"][evolution_order][error_col_index]
-            err_lambda_pol  = AAC_PDF["Delta_lambda_S"][evolution_order][error_col_index]
-            pdf_error = polarized_pdf_regge_error(A_pdf,eta_1,eta_2,epsilon,gamma_pdf,
-                                           delta_A_pdf,err_delta_A_pdf,alpha,err_alpha,gamma_pol,err_gamma_pol,lambda_pol,err_lambda_pol,
-                                           j,alpha_p,t,evolution_order,error_type)
-            # Polarized sea quark pdf extremely sensitive to parametrization
+    delta_A_pdf = AAC_PDF["Delta_A_S"][evolution_order][0]
+    alpha       = AAC_PDF["alpha_S"][evolution_order][0]
+    gamma_pol   = AAC_PDF["Delta_gamma_S"][evolution_order][0]
+    lambda_pol  = AAC_PDF["Delta_lambda_S"][evolution_order][0]
+
+    pdf = polarized_pdf_regge(A_pdf,eta_1,eta_2,epsilon,gamma_pdf,
+                                        delta_A_pdf,alpha,gamma_pol,lambda_pol,
+                                        j,alpha_p,t,evolution_order)
+    if error_type != "central":
+        err_delta_A_pdf = AAC_PDF["Delta_A_S"][evolution_order][error_col_index]
+        err_alpha       = AAC_PDF["alpha_S"][evolution_order][error_col_index]
+        err_gamma_pol   = AAC_PDF["Delta_gamma_S"][evolution_order][error_col_index]
+        err_lambda_pol  = AAC_PDF["Delta_lambda_S"][evolution_order][error_col_index]
+        pdf_error = polarized_pdf_regge_error(A_pdf,eta_1,eta_2,epsilon,gamma_pdf,
+                                        delta_A_pdf,err_delta_A_pdf,alpha,err_alpha,gamma_pol,err_gamma_pol,lambda_pol,err_lambda_pol,
+                                        j,alpha_p,t,evolution_order,error_type)
+        # Polarized sea quark pdf extremely sensitive to parametrization
+        # Enforcing standard form combined with Gaussian error propagation
+        # gives a huge error that is not compatible with the results by AAC
+        # so we enforce the same scale for now
+        pdf_error /= 5.20
+        return pdf, pdf_error
+    else:
+        return pdf, 0
+
+def polarized_gluon_pdf_regge(j,eta,alpha_p,t, evolution_order = "nlo", error_type="central"):
+    """
+    Result of the integral of the Reggeized polarized g(x) PDF using the given parameters and selected error type.
+
+    Parameters
+    ----------
+    j : float
+        Conformal spin.
+    eta : float
+        Skewness parameter (currently a placeholder, not used).
+    alpha_p : float
+        Regge slope.
+    t : float or array_like
+        Mandelstam t.
+    evolution_order : str, optional
+        "lo", "nlo",... Default is "nlo"
+    error_type : str, optional
+        Whether to use 'central', 'plus', or 'minus' input parameters. Default is "central".
+
+    Returns
+    -------
+    float
+        The value of the Reggeized integral of the polarized g PDF based on the selected parameters and error type.
+    
+    Note
+    ----
+    eta dependence is treated separately and currently only a placeholder.
+    """
+    # Check type
+    hp.check_error_type(error_type)
+    
+    # Get the column index corresponding to the error_type
+    error_col_index = hp.ERROR_MAP.get(error_type, 0)  # Default to 'central' if error_type is invalid
+
+    # Extracting central parameter values
+    A_pdf = MSTW_PDF["A_g"][evolution_order][0]
+    eta_1 = MSTW_PDF["delta_g"][evolution_order][0]
+    eta_2 = MSTW_PDF["eta_g"][evolution_order][0]
+    epsilon = MSTW_PDF["epsilon_g"][evolution_order][0]
+    gamma_pdf = MSTW_PDF["gamma_g"][evolution_order][0]
+    # Extracting parameter values based on error type
+    delta_A_pdf = AAC_PDF["Delta_A_g"][evolution_order][0]
+    alpha = AAC_PDF["alpha_g"][evolution_order][0]
+    gamma_pol = AAC_PDF["Delta_gamma_g"][evolution_order][0]
+    lambda_pol = AAC_PDF["Delta_lambda_g"][evolution_order][0]
+
+    pdf = polarized_pdf_regge(A_pdf,eta_1,eta_2,epsilon,gamma_pdf,
+                                        delta_A_pdf,alpha,gamma_pol,lambda_pol,
+                                        j,alpha_p,t,evolution_order)
+    if evolution_order != "lo":
+        # Additional gluon contribution at nlo and nnlo that is not of the lo form
+        A_pdf_prime   = MSTW_PDF["A_g'"][evolution_order][0]
+        eta_1_prime   = MSTW_PDF["delta_g'"][evolution_order][0]
+        eta_2_prime   = MSTW_PDF["eta_g'"][evolution_order][0]
+
+
+        pdf += A_pdf_prime * delta_A_pdf *mp.gamma(1+eta_2_prime) * (
+                (1-gamma_pol)*mp.gamma(eta_1_prime + j + alpha - alpha_p * t - 1)/
+                mp.gamma(eta_1_prime + eta_2_prime + j + alpha - alpha_p * t) +
+                gamma_pol * mp.gamma(eta_1_prime + j + alpha - alpha_p * t + lambda_pol- 1)/
+                mp.gamma(eta_1_prime + eta_2_prime + j + alpha - alpha_p * t + lambda_pol)
+        )
+
+    if error_type != "central":
+        err_delta_A_pdf = AAC_PDF["Delta_A_g"][evolution_order][error_col_index]
+        err_alpha = AAC_PDF["alpha_g"][evolution_order][error_col_index]
+        err_gamma_pol = AAC_PDF["Delta_gamma_g"][evolution_order][error_col_index]
+        err_lambda_pol = AAC_PDF["Delta_lambda_g"][evolution_order][error_col_index]
+
+        pdf_error = polarized_pdf_regge_error(A_pdf,eta_1,eta_2,epsilon,gamma_pdf,
+                                        delta_A_pdf,err_delta_A_pdf,alpha,err_alpha,gamma_pol,err_gamma_pol,lambda_pol,err_lambda_pol,
+                                        j,alpha_p,t,evolution_order,error_type)
+        if evolution_order != "lo":
+            dpdf_dA = A_pdf_prime *mp.gamma(1+eta_2_prime) * (
+                (1-gamma_pol)*mp.gamma(eta_1_prime + j + alpha - alpha_p * t - 1)/
+                mp.gamma(eta_1_prime + eta_2_prime + j + alpha - alpha_p * t) +
+                gamma_pol * mp.gamma(eta_1_prime + j + alpha - alpha_p * t + lambda_pol- 1)/
+                mp.gamma(eta_1_prime + eta_2_prime + j + alpha - alpha_p * t + lambda_pol)
+                        )
+            dpdf_dalpha = A_pdf_prime * delta_A_pdf * mp.gamma(eta_2_prime + 1) * (
+                        (
+                            gamma_pol * mp.gamma(eta_1_prime + j + alpha - alpha_p * t + lambda_pol - 1) *
+                            (mp.digamma(eta_1_prime + j + alpha - alpha_p * t + lambda_pol - 1) -
+                            mp.digamma(eta_1_prime + eta_2_prime + j + alpha - alpha_p * t + lambda_pol))
+                        )/\
+                        mp.gamma(eta_1_prime + eta_2_prime + j + alpha - alpha_p * t + lambda_pol) + \
+                        (
+                        (gamma_pol - 1) * mp.gamma(eta_1_prime + j + alpha - alpha_p * t - 1) *
+                        (mp.digamma(eta_1_prime + eta_2_prime + j + alpha - alpha_p * t) -
+                        mp.digamma(eta_1_prime + j + alpha - alpha_p * t - 1))
+                        ) /\
+                        mp.gamma(eta_1_prime + eta_2_prime + j + alpha - alpha_p * t)
+                        )
+            dpdf_dgamma_pol = A_pdf_prime * delta_A_pdf * mp.gamma(eta_2_prime + 1) * (
+                            mp.gamma(eta_1_prime + j + alpha - alpha_p * t + lambda_pol - 1) / \
+                            mp.gamma(eta_1_prime + eta_2_prime + j + alpha - alpha_p * t + lambda_pol) - \
+                            mp.gamma(eta_1_prime + j + alpha - alpha_p * t - 1) / \
+                            mp.gamma(eta_1_prime + eta_2_prime + j + alpha - alpha_p * t)
+                            )
+            dpdf_dlambda_pol = A_pdf_prime * delta_A_pdf * gamma_pol * mp.gamma(eta_2_prime + 1) * (
+                            mp.gamma(eta_1_prime + j + alpha - alpha_p * t + lambda_pol - 1) *
+                            (mp.digamma(eta_1_prime + j + alpha - alpha_p * t + lambda_pol - 1) -
+                            mp.digamma(eta_1_prime + eta_2_prime + j + alpha - alpha_p * t + lambda_pol))
+                            )/mp.gamma(eta_1_prime + eta_2_prime + j + alpha - alpha_p * t + lambda_pol)
+            Delta_A_pdf = dpdf_dA * err_delta_A_pdf
+            Delta_alpha = dpdf_dalpha * err_alpha
+            Delta_gamma_pol = dpdf_dgamma_pol * err_gamma_pol
+            Delta_lambda_pol = dpdf_dlambda_pol * err_lambda_pol
+
+            sum_squared = Delta_A_pdf**2 + Delta_alpha**2 + Delta_gamma_pol**2 +Delta_lambda_pol**2
+            result = abs(mp.sqrt(sum_squared))
+            pdf_error += result
+            # pdf_error += abs(mp.sqrt(Delta_A_pdf**2 + Delta_alpha**2 + Delta_gamma_pol**2 +Delta_lambda_pol**2))
+            # Polarized gluon pdf extremely sensitive to parametrization
             # Enforcing standard form combined with Gaussian error propagation
             # gives a huge error that is not compatible with the results by AAC
             # so we enforce the same scale for now
             pdf_error /= 5.20
-            return pdf, pdf_error
-        else:
-            return pdf, 0
-
-def polarized_gluon_pdf_regge(j,eta,alpha_p,t, evolution_order = "nlo", error_type="central"):
-        """
-        Result of the integral of the Reggeized gluon(x) PDF based on the given lo parameters and selected errors.
-        
-        Arguments:
-        - j (float) conformal spin,
-        - eta (float): skewness (scalar or array)(placeholder for now),
-        - alpha_p (float): Regge slope,
-        - t (float): Mandelstam t (scalar or array),
-        - evolution_order (str. optional): lo, nlo, nnlo
-        - error_type: (str. optional) A string indicating whether to use 'central', 'plus', or 'minus' errors. Default is 'central'.
-        
-        Returns:
-        The value of the Reggeized integral together with the error of gluon(x) based on the selected parameters and error type.
-        """
-        # Check type
-        hp.check_error_type(error_type)
-
-        # Define a dictionary that maps the error_type to column indices
-        error_mapping = {
-                "central": 0,  # The column with the central value
-                "plus": 1,     # The column with the + error value
-                "minus": 2     # The column with the - error value
-        }
-        
-        # Get the column index corresponding to the error_type
-        error_col_index = error_mapping.get(error_type, 0)  # Default to 'central' if error_type is invalid
-
-        # Extracting central parameter values
-        A_pdf = MSTW_PDF["A_g"][evolution_order][0]
-        eta_1 = MSTW_PDF["delta_g"][evolution_order][0]
-        eta_2 = MSTW_PDF["eta_g"][evolution_order][0]
-        epsilon = MSTW_PDF["epsilon_g"][evolution_order][0]
-        gamma_pdf = MSTW_PDF["gamma_g"][evolution_order][0]
-        # Extracting parameter values based on error type
-        delta_A_pdf = AAC_PDF["Delta_A_g"][evolution_order][0]
-        alpha = AAC_PDF["alpha_g"][evolution_order][0]
-        gamma_pol = AAC_PDF["Delta_gamma_g"][evolution_order][0]
-        lambda_pol = AAC_PDF["Delta_lambda_g"][evolution_order][0]
-
-        pdf = polarized_pdf_regge(A_pdf,eta_1,eta_2,epsilon,gamma_pdf,
-                                           delta_A_pdf,alpha,gamma_pol,lambda_pol,
-                                           j,alpha_p,t,evolution_order)
-        if evolution_order != "lo":
-            # Additional gluon contribution at nlo and nnlo that is not of the lo form
-            A_pdf_prime   = MSTW_PDF["A_g'"][evolution_order][0]
-            eta_1_prime   = MSTW_PDF["delta_g'"][evolution_order][0]
-            eta_2_prime   = MSTW_PDF["eta_g'"][evolution_order][0]
-
-
-            pdf += A_pdf_prime * delta_A_pdf *mp.gamma(1+eta_2_prime) * (
-                    (1-gamma_pol)*mp.gamma(eta_1_prime + j + alpha - alpha_p * t - 1)/
-                    mp.gamma(eta_1_prime + eta_2_prime + j + alpha - alpha_p * t) +
-                    gamma_pol * mp.gamma(eta_1_prime + j + alpha - alpha_p * t + lambda_pol- 1)/
-                    mp.gamma(eta_1_prime + eta_2_prime + j + alpha - alpha_p * t + lambda_pol)
-            )
-
-        if error_type != "central":
-            err_delta_A_pdf = AAC_PDF["Delta_A_g"][evolution_order][error_col_index]
-            err_alpha = AAC_PDF["alpha_g"][evolution_order][error_col_index]
-            err_gamma_pol = AAC_PDF["Delta_gamma_g"][evolution_order][error_col_index]
-            err_lambda_pol = AAC_PDF["Delta_lambda_g"][evolution_order][error_col_index]
-
-            pdf_error = polarized_pdf_regge_error(A_pdf,eta_1,eta_2,epsilon,gamma_pdf,
-                                           delta_A_pdf,err_delta_A_pdf,alpha,err_alpha,gamma_pol,err_gamma_pol,lambda_pol,err_lambda_pol,
-                                           j,alpha_p,t,evolution_order,error_type)
-            if evolution_order != "lo":
-                dpdf_dA = A_pdf_prime *mp.gamma(1+eta_2_prime) * (
-                    (1-gamma_pol)*mp.gamma(eta_1_prime + j + alpha - alpha_p * t - 1)/
-                    mp.gamma(eta_1_prime + eta_2_prime + j + alpha - alpha_p * t) +
-                    gamma_pol * mp.gamma(eta_1_prime + j + alpha - alpha_p * t + lambda_pol- 1)/
-                    mp.gamma(eta_1_prime + eta_2_prime + j + alpha - alpha_p * t + lambda_pol)
-                            )
-                dpdf_dalpha = A_pdf_prime * delta_A_pdf * mp.gamma(eta_2_prime + 1) * (
-                            (
-                                gamma_pol * mp.gamma(eta_1_prime + j + alpha - alpha_p * t + lambda_pol - 1) *
-                                (mp.digamma(eta_1_prime + j + alpha - alpha_p * t + lambda_pol - 1) -
-                                mp.digamma(eta_1_prime + eta_2_prime + j + alpha - alpha_p * t + lambda_pol))
-                            )/\
-                            mp.gamma(eta_1_prime + eta_2_prime + j + alpha - alpha_p * t + lambda_pol) + \
-                            (
-                            (gamma_pol - 1) * mp.gamma(eta_1_prime + j + alpha - alpha_p * t - 1) *
-                            (mp.digamma(eta_1_prime + eta_2_prime + j + alpha - alpha_p * t) -
-                            mp.digamma(eta_1_prime + j + alpha - alpha_p * t - 1))
-                            ) /\
-                            mp.gamma(eta_1_prime + eta_2_prime + j + alpha - alpha_p * t)
-                            )
-                dpdf_dgamma_pol = A_pdf_prime * delta_A_pdf * mp.gamma(eta_2_prime + 1) * (
-                                mp.gamma(eta_1_prime + j + alpha - alpha_p * t + lambda_pol - 1) / \
-                                mp.gamma(eta_1_prime + eta_2_prime + j + alpha - alpha_p * t + lambda_pol) - \
-                                mp.gamma(eta_1_prime + j + alpha - alpha_p * t - 1) / \
-                                mp.gamma(eta_1_prime + eta_2_prime + j + alpha - alpha_p * t)
-                                )
-                dpdf_dlambda_pol = A_pdf_prime * delta_A_pdf * gamma_pol * mp.gamma(eta_2_prime + 1) * (
-                                mp.gamma(eta_1_prime + j + alpha - alpha_p * t + lambda_pol - 1) *
-                                (mp.digamma(eta_1_prime + j + alpha - alpha_p * t + lambda_pol - 1) -
-                                mp.digamma(eta_1_prime + eta_2_prime + j + alpha - alpha_p * t + lambda_pol))
-                                )/mp.gamma(eta_1_prime + eta_2_prime + j + alpha - alpha_p * t + lambda_pol)
-                Delta_A_pdf = dpdf_dA * err_delta_A_pdf
-                Delta_alpha = dpdf_dalpha * err_alpha
-                Delta_gamma_pol = dpdf_dgamma_pol * err_gamma_pol
-                Delta_lambda_pol = dpdf_dlambda_pol * err_lambda_pol
-
-                sum_squared = Delta_A_pdf**2 + Delta_alpha**2 + Delta_gamma_pol**2 +Delta_lambda_pol**2
-                result = abs(mp.sqrt(sum_squared))
-                pdf_error += result
-                # pdf_error += abs(mp.sqrt(Delta_A_pdf**2 + Delta_alpha**2 + Delta_gamma_pol**2 +Delta_lambda_pol**2))
-                # Polarized gluon pdf extremely sensitive to parametrization
-                # Enforcing standard form combined with Gaussian error propagation
-                # gives a huge error that is not compatible with the results by AAC
-                # so we enforce the same scale for now
-                pdf_error /= 5.20
-            return pdf, pdf_error
-        else:
-            return pdf, 0
+        return pdf, pdf_error
+    else:
+        return pdf, 0

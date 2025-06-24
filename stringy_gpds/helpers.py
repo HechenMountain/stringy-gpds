@@ -34,6 +34,12 @@ def mpmath_vectorize(fn):
             return fn(*args, **kwargs)
     return wrapper
 
+ERROR_MAP = {
+"central": 0,  # central value
+"plus": 1,     # upper bound
+"minus": 2     # lower bound
+}
+
 ####################
 ####   Checks   ####
 ####################

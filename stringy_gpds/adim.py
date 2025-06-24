@@ -940,27 +940,19 @@ def gamma_pm(j,  evolve_type = "vector",solution="+",interpolation=True):
 
     Returns
     -------
-    float, complex
-        The (+) or (-) eigenvalue
+    Tuple of float or complex
+        Corresponding to the (+) and (-) eigenvalues
     Note
     ----
     Only uses lo anomalous dimensions, which are not interpolated.
     """
-
-    # Check evolve_type
-    hp.check_evolve_type(evolve_type)
-
     base = gamma_qq(j,evolution_order="lo",interpolation=interpolation)+gamma_gg(j,evolve_type,evolution_order="lo",interpolation=interpolation)
     root = mp.sqrt((gamma_qq(j,evolution_order="lo",interpolation=interpolation)-gamma_gg(j,evolve_type,evolution_order="lo",interpolation=interpolation))**2
                    +4*gamma_gq(j,evolve_type,evolution_order="lo",interpolation=interpolation)*gamma_qg(j,evolve_type,evolution_order="lo",interpolation=interpolation))
 
-    if solution == "+":
-        result = (base + root)/2
-    elif solution == "-":
-        result = (base - root)/2
-    else:
-        raise ValueError("Invalid solution evolve_type. Use '+' or '-'.")
-    return result
+    result_p = (base + root)/2
+    result_m = (base - root)/2
+    return result_p, result_m
 
 def R_qq(j,evolve_type="vector",interpolation=True):
     """

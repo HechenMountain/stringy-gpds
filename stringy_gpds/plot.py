@@ -17,24 +17,46 @@ from scipy.interpolate import RectBivariateSpline, interp1d
 ####### Plot Moments #######
 ############################
 
-def plot_moment(n,eta,y_label,mu_in=2,t_max=3,A0=1,particle="quark",moment_type="non_singlet_isovector", moment_label="A",evolution_order="nlo", n_t=50):
+def plot_moment(n, eta, y_label, mu_in=2, t_max=3, A0=1, particle="quark",
+                moment_type="non_singlet_isovector", moment_label="A",
+                evolution_order="nlo", n_t=50):
     """
-    Generates plots of lattice data and RGE-evolved functions for a given moment type and label. Unless there is a different scale
-    defined in PUBLICATION_MAPPING, the default is mu = 2 GeV.
-    
-    Parameters:
-    - n (int): conformal spin
-    - eta (float): skewness parameter
-    - y_label (str.): the label of the y axis
-    - mu_in (float, optional): The resolution scale. (default is 2 GeV).
-    - t_max (float, optional): Maximum t value for the x-axis (default is 3).
-    - A0 (float, optional): Overall scale
-    - particle (str., optional): Either quark or gluon
-    - moment_type (str): The type of moment (e.g., "non_singlet_isovector").
-    - moment_label (str): The label of the moment (e.g., "A").
-    - n_t (int, optional): Number of points for T_Fine (default is 50).
-    - num_columns (int, optional): Number of columns for the grid layout (default is 3).
+    Generate a plot comparing lattice data with RGE-evolved results for a given moment type and label.
+
+    Parameters
+    ----------
+    n : int
+        Conformal spin.
+    eta : float
+        Skewness parameter.
+    y_label : str
+        Label for the y-axis of the plot.
+    mu_in : float, optional
+        Resolution scale.
+    t_max : float, optional
+        Maximum value of -t shown on the x-axis. Default is 3.
+    A0 : float, optional
+        Normalization factor (default A0 = 1).
+    particle : str, optional
+        "quark" or "gluon". Default is "quark".
+    moment_type : str, optional
+        "non_singlet_isovector", "non_singlet_isoscalar", or "singlet".
+    moment_label : str, optional
+        A(tilde), B(tilde) depending on H(tilde) or E(tilde) GPD etc.
+    evolution_order : str, optional
+        "lo", "nlo",... . Default is "nlo".
+    n_t : int, optional
+        Number of sampling points in t-space. Default is 50.
+
+    Returns
+    -------
+    None
+
+    Notes
+    -----
+    This function is intended for visualization in a jupyter notebook.
     """
+
     hp.check_particle_type(particle)
     hp.check_moment_type_label(moment_type,moment_label)
     # Accessor functions for -t, values, and errors
@@ -126,22 +148,52 @@ def plot_moment(n,eta,y_label,mu_in=2,t_max=3,A0=1,particle="quark",moment_type=
 
 def plot_moments_on_grid(eta, y_label, t_max=3, A0=1, particle="quark", moment_type="non_singlet_isovector", moment_label="A",evolution_order="nlo", n_t=50, num_columns=3,D_term = False,set_y_lim=False,y_0 = -1, y_1 =1):
     """
-    Plots conformal moments vs. available lattice data.
+    Generate a plot comparing lattice data with RGE-evolved results for a given moment type and label.
 
-    Parameters:
-    - eta (float): Skewness parameter
-    - y_label (str.): Label on y-axis
-    - t_max (float, optional): Maximum value of -t
-    - A0 (float, optional): Overall scale, default is 1
-    - particle (str. optional): quark or gluon
-    - moment_type (str. optional): non_singlet_isovector, singlet...
-    - moment_label (str. optional): A, B, Atilde,...
-    - n_t (int. optional): Number of points for plot generation
-    - num_columns (int. optional): Number of points for plot generation
-    - D_term (bool, optional): Whether to plot the D term separately, which is computetd from the difference between skewless and skewness dependent moment
-    - set_y_lim (bool, optional): Whether to manually set the limits on the y_axis
-    - y_0 (float, optional): lower limit on y_axis
-    - y_1 (float, optional): upper limit on y_axis
+    Parameters
+    ----------
+    n : int
+        Conformal spin.
+    eta : float
+        Skewness parameter.
+    y_label : str
+        Label for the y-axis of the plot.
+    mu_in : float, optional
+        Resolution scale.
+    t_max : float, optional
+        Maximum value of -t shown on the x-axis. Default is 3.
+    A0 : float, optional
+        Normalization factor (default A0 = 1).
+    particle : str, optional
+        "quark" or "gluon". Default is "quark".
+    moment_type : str, optional
+        "non_singlet_isovector", "non_singlet_isoscalar", or "singlet".
+    moment_label : str, optional
+        A(tilde), B(tilde) depending on H(tilde) or E(tilde) GPD etc.
+    evolution_order : str, optional
+        "lo", "nlo",... . Default is "nlo".
+    n_t : int, optional
+        Number of sampling points in t-space. Default is 50.
+    num_columns : int, optional
+        Number of columns. Default is 3
+    D_term : bool, optional
+        Extract the D-term from the evolved moment
+    set_y_lim : bool, optional
+        Manually control y-axis limits. Default is False.
+    y_0 : float, optional
+        Lower bound on y-axis. Only has effect when set_y_lim = True. Default is -1
+    y_1 : float, optional
+        Upper bound on y-axis. Only has effect when set_y_lim = True. Default is 1
+
+    Returns
+    -------
+    None
+
+    Notes
+    -----
+    This function is intended for visualization in a jupyter notebook. The plots are saved to 
+    cfg.PLOT_PATH / f"{moment_type}_{particle}_{data_moment_label}_n_{n}.pdf"
+    Where PLOT_PATH is defined in config.py
     """
     hp.check_particle_type(particle)
     hp.check_moment_type_label(moment_type, moment_label)
@@ -266,13 +318,13 @@ def plot_moments_on_grid(eta, y_label, t_max=3, A0=1, particle="quark", moment_t
         if set_y_lim:
             ax.set_ylim([y_0,y_1])
 
-        # Save each plot as a separate PDF (including publication data)
+        # Save each plot as a separate PDF
         pdf_path = cfg.PLOT_PATH / f"{moment_type}_{particle}_{data_moment_label}_n_{n}.pdf"
         
-        # Create a new figure to save the current plot as a PDF
+        # Create a new figure to save the current plot as individual PDFs
         fig_single, ax_single = plt.subplots(figsize=(7, 5))  # New figure for saving each plot
         
-        # Plot the RGE functions
+        # Plot the functions
         ax_single.plot(-T_Fine, evolve_moment_central, color="blue", linewidth=2)
         ax_single.fill_between(-T_Fine, evolve_moment_minus, evolve_moment_plus, color="blue", alpha=0.2)
 
@@ -319,17 +371,39 @@ def plot_moments_on_grid(eta, y_label, t_max=3, A0=1, particle="quark", moment_t
     # Close the figure
     plt.close(fig)
 
-############################
-####   Plots in impact  ####
-####   parameter space  ####
-############################
+################################
+#### RGE evolved Quantities ####
+################################
 
 def plot_spin_orbit_correlation(eta,mu,particle="quark",evolution_order="nlo",n_t = 50):
     """
-    Generates plots of lattice data and spin orbit correlation
-    
-    Parameters:
-    - n_t (int, optional): Number of points for T_Fine (default is 50).
+    Generate a plot of the spin-orbit correlation over mu for given parameters and compares to lattice data.
+
+    Parameters
+    ----------
+    eta : float
+        Skewness parameter.
+    mu : float
+        Resolution scale in GeV.
+    particle : str, optional
+        "quark" or "gluon". Default is "quark".
+    evolution_order : str, optional
+        "lo", "nlo". Default is "nlo".
+    n_t : int, optional
+        Number of sampling points for the t-grid. Default is 50.
+
+    Returns
+    -------
+    None
+
+    Notes
+    -----
+    This function plots the spin-orbit correlation extracted from the 
+    corresponding GPD moments and compares to available lattice data. 
+
+    Lattice publication IDs are hard-coded in this function. Modify, if necessary.
+
+    Saves the plot as cfg.PLOT_PATH / "Cz_over_t.pdf" where PLOT_PATH is set in config.py
     """
     def compute_result(t_vals,moment_type):
         parallel_results = Parallel(n_jobs=-1)(
@@ -396,10 +470,33 @@ def plot_spin_orbit_correlation(eta,mu,particle="quark",evolution_order="nlo",n_
 
 def plot_orbital_angular_momentum(eta,mu,particle="quark",evolution_order="nlo",n_t = 50):
     """
-    Generates plots of lattice data and orbital angular momentum
-    
-    Parameters:
-    - n_t (int, optional): Number of points for T_Fine (default is 50).
+    Generate a plot of the orbital angular momentum over mu for given parameters and compares to lattice data.
+
+    Parameters
+    ----------
+    eta : float
+        Skewness parameter.
+    mu : float
+        Resolution scale in GeV.
+    particle : str, optional
+        "quark" or "gluon". Default is "quark".
+    evolution_order : str, optional
+        "lo", "nlo". Default is "nlo".
+    n_t : int, optional
+        Number of sampling points for the t-grid. Default is 50.
+
+    Returns
+    -------
+    None
+
+    Notes
+    -----
+    This function plots the orbital angular momentum extracted from the 
+    corresponding GPD moments and compares to available lattice data. 
+
+    Lattice publication IDs are hard-coded in this function. Modify, if necessary.
+
+    Saves the plot as cfg.PLOT_PATH / "Lz_over_t.pdf" where PLOT_PATH is set in config.py
     """
     def compute_result(t_vals,moment_type):
         parallel_results = Parallel(n_jobs=-1)(
@@ -464,23 +561,55 @@ def plot_orbital_angular_momentum(eta,mu,particle="quark",evolution_order="nlo",
 
     plt.show()
 
-def plot_fourier_transform_moments(n,eta,mu,plot_title="",particle="quark",moment_type="non_singlet_isovector", moment_label="A",evolution_order="nlo", b_max = 2,Delta_max = 5,num_points=100,error_type="central"):
+############################
+####   Plots in impact  ####
+####   parameter space  ####
+############################
+
+def plot_fourier_transform_moments(n, eta, mu, plot_title="", particle="quark",
+                                   moment_type="non_singlet_isovector", moment_label="A",
+                                   evolution_order="nlo", b_max=2, Delta_max=5,
+                                   num_points=100, error_type="central"):
     """
-    Generates a density plot of the 2D Fourier transfrom of RGE-evolved 
-    conformal moments for a given moment type and label.
-    
-    Parameters:
-    - j (float): Conformal spin
-    - eta (float): Skewness parameter
-    - mu (float): RGE scale
-    - plot_title (str.): Title of the plot
-    - particle (str. optional): "quark" or "gluon". Default is quark.
-    - moment_type (str. optional): singlet, non_singlet_isovector or non_singlet_isoscalar. Default is non_singlet_isovector.
-    - moment_label (str. optiona): Label of conformal moment, e.g. A
-    - b_max (float, optional): Maximum b value for the vector b_vec=[b_x,b_y] (default is 2).
-    - Delta_max (float, optional): Maximum value for Delta integration (default is 11).
-    - num_points (float, optional): Number of intervals to split [-Delta_max, Delta_max] interval (default is 100).
-    - error_type (str. optional): Whether to use central, plus or minus value of input PDF. Default is central.
+    Generate a 2D density plot of the Fourier transform of RGE-evolved conformal moments
+    for a given moment type and label in impact parameter space..
+
+    Parameters
+    ----------
+    n : int
+        Conformal spin.
+    eta : float
+        Skewness parameter.
+    mu : float
+        Resolution scale in GeV.
+    plot_title : str, optional
+        Title of the plot.
+    particle : str, optional
+        "quark" or "gluon". Default is "quark".
+    moment_type : str, optional
+        "non_singlet_isovector", "non_singlet_isoscalar", or "singlet".
+    moment_label : str, optional
+        A(tilde), B(tilde) depending on H(tilde) or E(tilde) GPD etc.
+    evolution_order : str, optional
+        "lo", "nlo",... . Default is "nlo".
+    b_max : float, optional
+        Maximum value of impact parameter in Gev^-1 used for the plot.
+    Delta_max : float, optional
+        Upper bound for the momentum magnitude in the integration. Default is 5 GeV.
+    num_points : int, optional
+        Number of points used in trapezoidal integration. Default is 100.
+    error_type : str, optional
+        "central", "plus", or "minus". Default is "central".
+
+    Returns
+    -------
+    None
+
+    Notes
+    -----
+    This function creates a 2D density plot of the Fourier-transformed conformal moments and displays
+    the resulting distribution as a density plot. Intended for use in a jupyter notebook.
+    Does not save a plot.
     """
     hp.check_particle_type(particle)
     hp.check_moment_type_label(moment_type,moment_label)
@@ -514,30 +643,69 @@ def plot_fourier_transform_moments(n,eta,mu,plot_title="",particle="quark",momen
     plt.title(f"{plot_title}$(j={n}, \\eta=0, t, \\mu={mu}\, \\mathrm{{GeV}})$", fontsize=14)
     plt.show()
 
-def plot_fourier_transform_transverse_moments(n,eta,mu,particle="quark",moment_type="non_singlet_isovector",evolution_order="nlo",
-                                            b_max = 4.5,Delta_max = 7,num_points=100, n_b=100, interpolation=True, n_int=300,
-                                            vmin = 0 , vmax = 1 , write_to_file = False, read_from_file = True):
+def plot_fourier_transform_transverse_moments(n, eta, mu, particle="quark",
+                                              moment_type="non_singlet_isovector", evolution_order="nlo",
+                                              b_max=4.5, Delta_max=7, num_points=100, n_b=100,
+                                              interpolation=True, n_int=300,
+                                              vmin=0, vmax=1,
+                                              write_to_file=False, read_from_file=True):
     """
-    Generates a density plot of the 2D Fourier transfrom of RGE-evolved 
-    conformal moments for a given moment type and a transversely polarzied target.
-    Automatically uses A and B moments.
-    Parameters:
-    - j (float): Conformal spin
-    - eta (float): Skewness parameter
-    - mu (float): RGE scale
-    - particle (str. optional): "quark" or "gluon". Default is quark.
-    - moment_type (str. optional): singlet, non_singlet_isovector or non_singlet_isoscalar. Default is non_singlet_isovector.
-    - moment_label (str. optiona): Label of conformal moment, e.g. A
-    - b_max (float, optional): Maximum b value for the vector b_vec=[b_x,b_y] (default is 2).
-    - Delta_max (float, optional): Maximum value for Delta integration (default is 11).
-    - num_points (float, optional): Number of intervals to split [-Delta_max, Delta_max] interval (default is 100).
-    - n_b (int, optional): Number of points the interval [-b_max, b_max] is split into (default is 100).
-    - interpolation (bool, optional): Interpolate data points on finer grid
-    - n_int (int, optional): Number of points used for interpolation
-    - vmin (float ,optioanl): Sets minimum value of colorbar
-    - vmax (float, optional): Sets maximum value of colorbar
-    - read_from_file (bool): Whether to load data from file system
-    - write_to_file (bool): Whether to write data to file system
+    Generate a 2D density plot of the RGE-evolved conformal moments
+    for a transversely polarized target in impact parameter space..
+
+    Parameters
+    ----------
+    n : int
+        Conformal spin.
+    eta : float
+        Skewness parameter.
+    mu : float
+        Resolution scale in GeV.
+    particle : str, optional
+        "quark" or "gluon". Default is "quark".
+    moment_type : str, optional
+        "non_singlet_isovector", "non_singlet_isoscalar", or "singlet".
+    evolution_order : str, optional
+        "lo", "nlo",... . Default is "nlo".
+    b_max : float, optional
+        Maximum value of impact parameter in Gev^-1 used for the plot.
+    Delta_max : float, optional
+        Upper bound for the momentum magnitude in the integration. Default is 5 GeV.
+    num_points : int, optional
+        Number of points used in trapezoidal integration. Default is 100.
+    n_b : int, optional
+        Number of points for discretizing the transverse position plane. Default is 100.
+    interpolation : bool, optional
+        Whether to interpolate data to plot on a finer grid. Default is True.
+    n_int : int, optional
+        Number of interpolation points. Default is 300.
+    vmin : float, optional
+        Minimum value of the colorbar. Default is 0.
+    vmax : float, optional
+        Maximum value of the colorbar. Default is 1.
+    write_to_file : bool, optional
+        Whether to save the computed data to the file system. Default is False.
+    read_from_file : bool, optional
+        Whether to load data from file system if available. Default is True.
+
+    Returns
+    -------
+    None
+
+    Notes
+    -----
+    This function creates a 2D density plot of the Fourier-transformed conformal
+    moments for a transversely polarized target. 
+    
+    The plot is saved under
+    cfg.PLOT_PATH / f"imp_param_transv_pol_moment_j_{n}_{moment_type}.pdf" where 
+    PLOT_PATH is defined in config.py
+
+    If write_to_file is set to true the data is saved under 
+    cfg.IMPACT_PARAMETER_MOMENTS_PATH / f"imp_param_transv_pol_moment_j_{n}_{mom_type}.csv"
+    where IMPACT_PARAMETER_MOMENTS_PATH is defined in config.py
+
+    If both `write_to_file` and `read_from_file` are True, a ValueError is raised.
     """
     def ft_transverse_moment(b_vec):
         return core.fourier_transform_transverse_moment(n=n,eta=eta, mu=mu, b_vec=b_vec,  A0=1,
@@ -684,31 +852,248 @@ def plot_fourier_transform_transverse_moments(n,eta,mu,particle="quark",moment_t
     plt.show()
     plt.close()
 
+
+def plot_fourier_transform_transverse_moments_grid(n_max, eta, mu,
+                                                   particle="quark", interpolation=True,
+                                                   n_int=300, vmin=0, vmax=1):
+    """
+    Generate a grid of 2D density plots showing the Fourier transforms of 
+    RGE-evolved conformal moments for a transversely polarized proton.
+
+    The A and B moments are used automatically. All precomputed data tables 
+    must have the same `b_max` and be present on the file system. Use 
+    `plot_fourier_transform_transverse_moments` to generate them.
+
+    Parameters
+    ----------
+    n_max : int
+        Maximum conformal spin to include in the grid (plots for all n = 1, ..., n_max).
+    eta : float
+        Skewness parameter.
+    mu : float
+        Resolution scale in GeV.
+    particle : str, optional
+        "quark" or "gluon". Default is "quark".
+    interpolation : bool, optional
+        Whether to interpolate data onto a finer grid for smoother plots. Default is True.
+    n_int : int, optional
+        Number of points used in each interpolation dimension. Default is 300.
+    vmin : float, optional
+        Minimum value for the colormap (colorbar scale). Default is 0.
+    vmax : float, optional
+        Maximum value for the colormap (colorbar scale). Default is 1.
+
+    Returns
+    -------
+    None
+
+    Notes
+    -----
+    This function creates a 2D density plot of the Fourier-transformed conformal
+    moments for a transversely polarized target. The plot is saved under
+    cfg.PLOT_PATH / "imp_param_transv_pol_moments.pdf"
+    where PLOT_PATH is defined in config.py
+    """
+
+    def get_subplot_positions_and_heights(n_rows,n_cols):
+        """
+        Returns the positions and heights of each subplot in the grid.
+        
+        Returns:
+        - A list of row heights and positions for each subplot.
+        """
+        row_positions_and_heights = []
+        
+        # Step 1: Create a hidden figure to determine subplot heights without labels/ticks
+        fig_hidden, axs_hidden = plt.subplots(n_rows, n_cols, figsize=(n_cols * 4, n_rows*4))
+        fig_hidden.subplots_adjust(wspace=0, hspace=0)  # Remove extra spacing
+        
+        for row in range(n_rows):
+            # Get the bounding box (position and height) of the last column in each row
+            bbox = axs_hidden[row,-1].get_position()
+            row_positions_and_heights.append((bbox.x0, bbox.y0, bbox.width, bbox.height))  # Position (x0, y0), width, and height
+        
+        plt.close(fig_hidden)  # Close the hidden figure
+        
+        return row_positions_and_heights
+
+            
+    hp.check_particle_type(particle)
+
+    if len(vmin)<n_max or len(vmax)<n_max:
+        raise ValueError("Supply vmin and vmax as arrays of length n_max")
+
+    FILE_PATH = cfg.PLOT_PATH / "imp_param_transv_pol_moments.pdf"
+
+    moment_types = ["non_singlet_isovector", "non_singlet_isoscalar", "u", "d"]
+
+    # Initialize cache to store Fourier transforms for "non_singlet_isovector" and "non_singlet_isoscalar"
+    #cache = {}
+    cache = {j: {mom_type: None for mom_type in moment_types} for j in range(1, n_max + 1)}
+
+    # Determine figure layout
+    fig, axs = plt.subplots(n_max, len(moment_types), figsize=(len(moment_types) * 4, n_max*4))
+    row_positions_and_heights = get_subplot_positions_and_heights(n_max,len(moment_types))
+
+    title_map = {
+        "non_singlet_isovector": "u-d",
+        "non_singlet_isoscalar": "u+d",
+        "u": "u",
+        "d": "d"
+    }
+    hbarc = 0.1975
+
+    for j in range(1, n_max + 1):
+        for i, mom_type in enumerate(moment_types):
+            READ_WRITE_PATH = cfg.IMPACT_PARAMETER_MOMENTS_PATH /  f"imp_param_transv_pol_moment_j_{j}_{mom_type}"
+            row, col = j-1, i
+            ax = axs[row, col]
+
+            title = title_map[mom_type]
+
+            # Compute Fourier transform and cache the results for non_singlet_isovector and non_singlet_isoscalar
+            if mom_type in ["non_singlet_isovector", "non_singlet_isoscalar"]:
+                if cache[j][mom_type] is None:
+                    file_name = hp.generate_filename(eta,0,mu,READ_WRITE_PATH,"central")
+                    b_x_fm, b_y_fm, fourier_transform_moment_values_flat = hp.read_ft_from_csv(file_name)
+                    b_max = max(b_x_fm)/hbarc
+                    n_b = len(fourier_transform_moment_values_flat)
+                    b_x = np.linspace(-b_max, b_max, n_b)
+                    b_y = np.linspace(-b_max, b_max, n_b)
+                    cache[j][mom_type] = fourier_transform_moment_values_flat
+
+            if mom_type in ["u","d"]:
+                file_name = hp.generate_filename(eta,0,mu,READ_WRITE_PATH,"central")
+                b_x_fm, b_y_fm, _ = hp.read_ft_from_csv(file_name)
+
+                if mom_type == "u":
+                    prf = 1
+                if mom_type == "d":
+                    prf = -1 
+                fourier_transform_moment_values_flat = (cache[j]["non_singlet_isoscalar"] + prf * cache[j]["non_singlet_isovector"]) / 2
+
+            if interpolation:
+                ft_interpolation = RectBivariateSpline(b_x_fm, b_y_fm, fourier_transform_moment_values_flat)
+
+                # Call the interpolation on a finer grid
+                b_x = np.linspace(-b_max, b_max, n_int)
+                b_y = np.linspace(-b_max, b_max, n_int)
+                b_x_fm = b_x * hbarc
+                b_y_fm = b_y * hbarc
+
+                fourier_transform_moment_values_flat = ft_interpolation(b_x_fm, b_y_fm)
+
+            # Generate 2D density plot
+            im = ax.pcolormesh(b_x_fm, b_y_fm, fourier_transform_moment_values_flat, 
+                                shading='auto', cmap='jet',vmin=vmin[j-1], vmax=vmax[j-1],rasterized=True)
+            ax.set_xlabel(r'$b_x\,[\mathrm{fm}]$', fontsize=14)
+            if i == 0:
+                ax.set_ylabel(r'$b_y\,[\mathrm{fm}]$', fontsize=14)
+            if j == 1:
+                ax.set_title(rf"$\rho_{{n,\perp}}^{{{title}}}$", fontsize=14)
+
+            ax.set_xlim([-b_max * hbarc, b_max * hbarc])
+            ax.set_ylim([-b_max * hbarc, b_max * hbarc])
+            
+            if col == len(moment_types)-1:
+                # print(ax.get_position().x1, ax.get_position().y0,ax.get_position().height)
+                # Get positions without labels
+                x0, y0, width, height = row_positions_and_heights[row]
+                # We shift the x position by the width of the plot
+                # such that it attaches to the right
+                x0 += width
+                cbar_ax = fig.add_axes([x0, y0, 0.01, height])
+                fig.colorbar(im, cax=cbar_ax)
+            if col == 0:
+                ax.text(
+                    0.05, 0.95,  
+                    rf"$n={j}$",  
+                    transform=ax.transAxes, 
+                    ha='left', va='top', 
+                    fontsize=14, color='black', fontweight='bold',
+                    bbox=dict(facecolor='white', alpha=0.6, edgecolor='none', boxstyle='round,pad=0.3')  # Adds a semi-transparent background
+                )
+
+            # Remove ticks and labels
+            if i != 0:
+                ax.set_yticks([])
+                ax.set_yticklabels([])
+                ax.set_ylabel(None)
+            if j != n_max:
+                ax.set_xticks([])
+                ax.set_xticklabels([])
+                ax.set_xlabel(None)
+
+    plt.subplots_adjust(wspace=0, hspace=0)
+
+
+    # File export
+    plt.savefig(FILE_PATH,format="pdf",bbox_inches="tight",dpi=600)
+
+    # Adjust layout and show the plot
+    plt.show()
+    plt.close()
+
 def plot_fourier_transform_quark_spin_orbit_correlation(eta, mu,  moment_type="non_singlet_isovector",evolution_order="nlo", 
                                           b_max=4.5, Delta_max=10, num_points=100, n_b=50, interpolation = True,n_int=300,
                                           vmin = -1.8 , vmax = 1, ymin = -2, ymax = .3,
                                           plot_option="both",write_to_file = False, read_from_file = True):
     """
-    Generates a density plot of the 2D Fourier transform of the quark spin-orbit correlation
-    It also includes a 1D slice at b_y = 0.
+    Generate a 2D density plot of the quark spin-orbit correlation in impact parameter space.
 
-    Parameters:
-    - eta (float): Skewness parameter
-    - mu (float): RGE scale
-    - moment_type (str, optional): "non_singlet_isovector", "non_singlet_isoscalar", "u", "d" or "all" (default is "non_singlet_isovector").
-    - b_max (float, optional): Maximum b value for the vector b_vec=[b_x,b_y] (default is 6 GeV = 1.185 fm ).
-    - Delta_max (float, optional): Maximum value for Delta integration (default is 10).
-    - num_points (int, optional): Number of intervals to split [-Delta_max, Delta_max] interval for trapezoid (default is 100).
-    - n_b (int, optional): Number of points the interval [-b_max, b_max] is split into (default is 50).
-    - interpolation (bool, optional): Interpolate data points on finer grid
-    - n_int (int, optional): Number of points used for interpolation
-    - vmin (float ,optioanl): Sets minimum value of colorbar
-    - vmax (float, optional): Sets maximum value of colorbar
-    - ymin (float, optional): Sets minimum value for lower plot of b_y = 0 slice
-    - ymax (float, optional): Sets maximum value for lower plot of b_y = 0 slice
-    - plot_option (str, optional): "upper", "lower", or "both" to control which plots are shown (default is "both").
-    - read_from_file (bool): Whether to load data from file system
-    - write_to_file (bool): Whether to write data to file system
+    Parameters
+    ----------
+    eta : float
+        Skewness parameter.
+    mu : float
+        Resolution scale in GeV.
+    moment_type : str, optional
+        "non_singlet_isovector", "non_singlet_isoscalar", or "singlet".
+    evolution_order : str, optional
+        "lo", "nlo",... . Default is "nlo".
+    b_max : float, optional
+        Maximum value of impact parameter in Gev^-1 used for the plot.
+    Delta_max : float, optional
+        Upper bound for the momentum magnitude in the integration. Default is 5 GeV.
+    num_points : int, optional
+        Number of points used in trapezoidal integration. Default is 100.
+    n_b : int, optional
+        Number of points for discretizing the transverse position plane. Default is 100.
+    interpolation : bool, optional
+        Whether to interpolate data to plot on a finer grid. Default is True.
+    n_int : int, optional
+        Number of interpolation points. Default is 300.
+    vmin : float, optional
+        Minimum value of the colorbar. Default is 0.
+    vmax : float, optional
+        Maximum value of the colorbar. Default is 1.
+    ymin : float, optional
+        Minimum value on y-axis used in by = 0 slice of lower plot.
+    ymax : float, optional
+        Maximum value on y-axis used in by = 0 slice of lower plot.   
+    plot_option : str, optional
+        Either "lower" (only by = 0 slice) or "both" (Density plot and by = 0 slice)
+    write_to_file : bool, optional
+        Whether to save the computed data to the file system. Default is False.
+    read_from_file : bool, optional
+        Whether to load data from file system if available. Default is True.
+
+    Returns
+    -------
+    None
+
+    Notes
+    -----
+    This function creates a 2D density plot of the Fourier-transformed quark spin-orbit correlation.
+    The plot is saved under
+    cfg.PLOT_PATH / f"imp_param_spin_orbit_{moment_type}.pdf" where 
+    PLOT_PATH is defined in config.py
+
+    If write_to_file is set to true the data is saved under 
+    cfg.IMPACT_PARAMETER_MOMENTS_PATH / f"imp_param_spin_orbit_{mom_type}.csv"
+    where IMPACT_PARAMETER_MOMENTS_PATH is defined in config.py
+
+    If both `write_to_file` and `read_from_file` are True, a ValueError is raised.
     """
     def ft_spin_orbit(b_vec,moment_type,error_type):
         return core.fourier_transform_spin_orbit_correlation(eta=eta, mu=mu, b_vec=b_vec,  
@@ -928,27 +1313,63 @@ def plot_fourier_transform_quark_helicity(eta, mu,  moment_type="non_singlet_iso
                                           vmin = -1.1 , vmax = 2.5, ymin = -0.5, ymax = 2.5,
                                           plot_option="both", read_from_file=True, write_to_file = False):
     """
-    Generates a density plot of the 2D Fourier transform of RGE-evolved conformal moments.
-    It also includes a 1D slice at b_y = 0.
+    Generate a 2D density plot of the quark helicity in impact parameter space.
 
-    Parameters:
-    - eta (float): Skewness parameter
-    - mu (float): RGE scale
-    - moment_type (str, optional): "non_singlet_isovector", "non_singlet_isoscalar", "u", "d" or "all" (default is "non_singlet_isovector").
-    - b_max (float, optional): Maximum b value for the vector b_vec=[b_x,b_y] (default is 6 GeV = 1.185 fm ).
-    - Delta_max (float, optional): Maximum value for Delta integration (default is 8).
-    - num_points (int, optional): Number of intervals to split [-Delta_max, Delta_max] interval for trapezoid (default is 100).
-    - n_b (int, optional): Number of points the interval [-b_max, b_max] is split into (default is 50).
-    - interpolation (bool, optional): Interpolate data points on finer grid
-    - n_int (int, optional): Number of points used for interpolation
-    - vmin (float ,optioanl): Sets minimum value of colorbar
-    - vmax (float, optional): Sets maximum value of colorbar
-    - ymin (float, optional): Sets minimum value for lower plot of b_y = 0 slice
-    - ymax (float, optional): Sets maximum value for lower plot of b_y = 0 slice
-    - plot_option (str, optional): "upper", "lower", or "both" to control which plots are shown (default is "both").
-    - read_from_file (bool): Whether to load data from file system
-    - write_to_file (bool): Whether to write data to file system
-    """   
+    Parameters
+    ----------
+    eta : float
+        Skewness parameter.
+    mu : float
+        Resolution scale in GeV.
+    moment_type : str, optional
+        "non_singlet_isovector", "non_singlet_isoscalar", or "singlet".
+    evolution_order : str, optional
+        "lo", "nlo",... . Default is "nlo".
+    b_max : float, optional
+        Maximum value of impact parameter in Gev^-1 used for the plot.
+    Delta_max : float, optional
+        Upper bound for the momentum magnitude in the integration. Default is 5 GeV.
+    num_points : int, optional
+        Number of points used in trapezoidal integration. Default is 100.
+    n_b : int, optional
+        Number of points for discretizing the transverse position plane. Default is 100.
+    interpolation : bool, optional
+        Whether to interpolate data to plot on a finer grid. Default is True.
+    n_int : int, optional
+        Number of interpolation points. Default is 300.
+    vmin : float, optional
+        Minimum value of the colorbar. Default is 0.
+    vmax : float, optional
+        Maximum value of the colorbar. Default is 1.
+    ymin : float, optional
+        Minimum value on y-axis used in by = 0 slice of lower plot.
+    ymax : float, optional
+        Maximum value on y-axis used in by = 0 slice of lower plot.   
+    plot_option : str, optional
+        Either "lower" (only by = 0 slice) or "both" (Density plot and by = 0 slice)
+    write_to_file : bool, optional
+        Whether to save the computed data to the file system. Default is False.
+    read_from_file : bool, optional
+        Whether to load data from file system if available. Default is True.
+
+    Returns
+    -------
+    None
+
+    Notes
+    -----
+    This function creates a 2D density plot of the Fourier-transformed quark helicity.
+
+    The plot is saved under
+    cfg.PLOT_PATH / f"imp_param_helicity_{moment_type}.pdf" where 
+    PLOT_PATH is defined in config.py
+
+    If write_to_file is set to true the data is saved under 
+    cfg.IMPACT_PARAMETER_MOMENTS_PATH / f"imp_param_helicity_{mom_type}.csv"
+    where IMPACT_PARAMETER_MOMENTS_PATH is defined in config.py
+
+    If both `write_to_file` and `read_from_file` are True, a ValueError is raised.
+    """ 
     def ft_quark_helicity(b_vec,moment_type,error_type):
         return core.fourier_transform_quark_helicity(eta=eta, mu=mu, b_vec=b_vec,  
                                                 moment_type=moment_type, evolution_order=evolution_order,
@@ -1159,28 +1580,63 @@ def plot_fourier_transform_singlet_helicity(eta, mu,  particle = "gluon",evoluti
                                           vmin = -2.05 , vmax = 3.08, ymin= -2.05, ymax = 3.08,
                                           plot_option="both", read_from_file=True, write_to_file = False):
     """
-    Generates a density plot of the 2D Fourier transform of RGE-evolved conformal moments.
-    It also includes a 1D slice at b_y = 0.
+    Generate a 2D density plot of the quark helicity in impact parameter space.
 
-    Parameters:
-    - eta (float): Skewness parameter
-    - mu (float): RGE scale
-    - particle (str. optional): quark or gluon
-    - moment_type (str, optional): "non_singlet_isovector", "non_singlet_isoscalar", "u", "d" or "all" (default is "non_singlet_isovector").
-    - b_max (float, optional): Maximum b value for the vector b_vec=[b_x,b_y] (default is 6 GeV = 1.185 fm ).
-    - Delta_max (float, optional): Maximum value for Delta integration (default is 8).
-    - num_points (int, optional): Number of intervals to split [-Delta_max, Delta_max] interval for trapezoid (default is 100).
-    - n_b (int, optional): Number of points the interval [-b_max, b_max] is split into (default is 50).
-    - interpolation (bool, optional): Interpolate data points on finer grid
-    - n_int (int, optional): Number of points for interpolation
-    - vmin (float ,optional): Sets minimum value of colorbar
-    - vmax (float, optional): Sets maximum value of colorbar
-    - ymin (float, optional): Sets minimum value for lower plot of b_y = 0 slice
-    - ymax (float, optional): Sets maximum value for lower plot of b_y = 0 slice
-    - plot_option (str, optional): "upper", "lower", or "both" to control which plots are shown (default is "both").
-    - read_from_file (bool): Whether to load data from file system
-    - write_to_file (bool): Whether to write data to file system
-    """   
+    Parameters
+    ----------
+    eta : float
+        Skewness parameter.
+    mu : float
+        Resolution scale in GeV.
+    moment_type : str, optional
+        "non_singlet_isovector", "non_singlet_isoscalar", or "singlet".
+    evolution_order : str, optional
+        "lo", "nlo",... . Default is "nlo".
+    b_max : float, optional
+        Maximum value of impact parameter in Gev^-1 used for the plot.
+    Delta_max : float, optional
+        Upper bound for the momentum magnitude in the integration. Default is 5 GeV.
+    num_points : int, optional
+        Number of points used in trapezoidal integration. Default is 100.
+    n_b : int, optional
+        Number of points for discretizing the transverse position plane. Default is 100.
+    interpolation : bool, optional
+        Whether to interpolate data to plot on a finer grid. Default is True.
+    n_int : int, optional
+        Number of interpolation points. Default is 300.
+    vmin : float, optional
+        Minimum value of the colorbar. Default is 0.
+    vmax : float, optional
+        Maximum value of the colorbar. Default is 1.
+    ymin : float, optional
+        Minimum value on y-axis used in by = 0 slice of lower plot.
+    ymax : float, optional
+        Maximum value on y-axis used in by = 0 slice of lower plot.   
+    plot_option : str, optional
+        Either "lower" (only by = 0 slice) or "both" (Density plot and by = 0 slice)
+    write_to_file : bool, optional
+        Whether to save the computed data to the file system. Default is False.
+    read_from_file : bool, optional
+        Whether to load data from file system if available. Default is True.
+
+    Returns
+    -------
+    None
+
+    Notes
+    -----
+    This function creates a 2D density plot of the Fourier-transformed quark helicity.
+
+    The plot is saved under
+    cfg.PLOT_PATH / f"imp_param_helicity_singlet_{particle}.pdf" where 
+    PLOT_PATH is defined in config.py.
+
+    If write_to_file is set to true the data is saved under 
+    cfg.IMPACT_PARAMETER_MOMENTS_PATH / f"imp_param_helicity_singlet_{particle}.csv"
+    where IMPACT_PARAMETER_MOMENTS_PATH is defined in config.py
+
+    If both `write_to_file` and `read_from_file` are True, a ValueError is raised.
+    """ 
     def ft_singlet_helicity(b_vec,error_type):
         return core.fourier_transform_quark_gluon_helicity(eta=eta, mu=mu, b_vec=b_vec, 
                                                       particle=particle,moment_type="singlet", evolution_order=evolution_order,
@@ -1320,27 +1776,63 @@ def plot_fourier_transform_singlet_spin_orbit_correlation(eta, mu,  particle = "
                                           vmin = -2.05 , vmax = 3.08, ymin= -2.05, ymax = 3.08,
                                           plot_option="both", read_from_file=True, write_to_file = False):
     """
-    Generates a density plot of the 2D Fourier transform of RGE-evolved conformal moments.
-    It also includes a 1D slice at b_y = 0.
+    Generate a 2D density plot of the singlet spin-orbit correlation in impact parameter space.
 
-    Parameters:
-    - eta (float): Skewness parameter
-    - mu (float): RGE scale
-    - particle (str. optional): quark or gluon
-    - b_max (float, optional): Maximum b value for the vector b_vec=[b_x,b_y] (default is 6 GeV = 1.185 fm ).
-    - Delta_max (float, optional): Maximum value for Delta integration (default is 8).
-    - num_points (int, optional): Number of intervals to split [-Delta_max, Delta_max] interval for trapezoid (default is 100).
-    - n_b (int, optional): Number of points the interval [-b_max, b_max] is split into (default is 50).
-    - interpolation (bool, optional): Interpolate data points on finer grid
-    - n_int (int, optional): Number of points for interpolation
-    - vmin (float ,optional): Sets minimum value of colorbar
-    - vmax (float, optional): Sets maximum value of colorbar
-    - ymin (float, optional): Sets minimum value for lower plot of b_y = 0 slice
-    - ymax (float, optional): Sets maximum value for lower plot of b_y = 0 slice
-    - plot_option (str, optional): "upper", "lower", or "both" to control which plots are shown (default is "both").
-    - read_from_file (bool): Whether to load data from file system
-    - write_to_file (bool): Whether to write data to file system
-    """   
+    Parameters
+    ----------
+    eta : float
+        Skewness parameter.
+    mu : float
+        Resolution scale in GeV.
+    moment_type : str, optional
+        "non_singlet_isovector", "non_singlet_isoscalar", or "singlet".
+    evolution_order : str, optional
+        "lo", "nlo",... . Default is "nlo".
+    b_max : float, optional
+        Maximum value of impact parameter in Gev^-1 used for the plot.
+    Delta_max : float, optional
+        Upper bound for the momentum magnitude in the integration. Default is 5 GeV.
+    num_points : int, optional
+        Number of points used in trapezoidal integration. Default is 100.
+    n_b : int, optional
+        Number of points for discretizing the transverse position plane. Default is 100.
+    interpolation : bool, optional
+        Whether to interpolate data to plot on a finer grid. Default is True.
+    n_int : int, optional
+        Number of interpolation points. Default is 300.
+    vmin : float, optional
+        Minimum value of the colorbar. Default is 0.
+    vmax : float, optional
+        Maximum value of the colorbar. Default is 1.
+    ymin : float, optional
+        Minimum value on y-axis used in by = 0 slice of lower plot.
+    ymax : float, optional
+        Maximum value on y-axis used in by = 0 slice of lower plot.   
+    plot_option : str, optional
+        Either "lower" (only by = 0 slice) or "both" (Density plot and by = 0 slice)
+    write_to_file : bool, optional
+        Whether to save the computed data to the file system. Default is False.
+    read_from_file : bool, optional
+        Whether to load data from file system if available. Default is True.
+
+    Returns
+    -------
+    None
+
+    Notes
+    -----
+    This function creates a 2D density plot of the Fourier-transformed quark helicity.
+
+    The plot is saved under
+    cfg.PLOT_PATH / f"imp_param_spin_orbit_singlet_{particle}.pdf" where 
+    PLOT_PATH is defined in config.py.
+
+    If write_to_file is set to true the data is saved under 
+    cfg.IMPACT_PARAMETER_MOMENTS_PATH / f"imp_param_spin_orbit_singlet_{particle}.csv"
+    where IMPACT_PARAMETER_MOMENTS_PATH is defined in config.py
+
+    If both `write_to_file` and `read_from_file` are True, a ValueError is raised.
+    """  
     def ft_singlet_spin_orbit(b_vec,error_type):
         return core.fourier_transform_spin_orbit_correlation(eta=eta, mu=mu, b_vec=b_vec, 
                                                       particle=particle,moment_type="singlet", evolution_order=evolution_order,
@@ -1473,27 +1965,63 @@ def plot_fourier_transform_quark_orbital_angular_momentum(eta, mu,  moment_type=
                                           vmin = -2 , vmax = 2, ymin = -2, ymax = .3,
                                           plot_option="both", read_from_file=True, write_to_file = False):
     """
-    Generates a density plot of the 2D Fourier transform of RGE-evolved conformal moments.
-    It also includes a 1D slice at b_y = 0.
+    Generate a 2D density plot of the quark orbital angular momentum in impact parameter space.
 
-    Parameters:
-    - eta (float): Skewness parameter
-    - mu (float): RGE scale
-    - moment_type (str, optional): "non_singlet_isovector", "non_singlet_isoscalar", "u", "d" or "all" (default is "non_singlet_isovector").
-    - b_max (float, optional): Maximum b value for the vector b_vec=[b_x,b_y] (default is 6 GeV = 1.185 fm ).
-    - Delta_max (float, optional): Maximum value for Delta integration (default is 7).
-    - num_points (int, optional): Number of intervals to split [-Delta_max, Delta_max] interval for trapezoid (default is 100).
-    - n_b (int, optional): Number of points the interval [-b_max, b_max] is split into (default is 50).
-    - interpolation (bool, optional): Interpolate data points on finer grid
-    - n_int (int, optional): Number of points used for interpolation
-    - vmin (float ,optioanl): Sets minimum value of colorbar
-    - vmax (float, optional): Sets maximum value of colorbar
-    - ymin (float, optional): Sets minimum value for lower plot of b_y = 0 slice
-    - ymax (float, optional): Sets maximum value for lower plot of b_y = 0 slice
-    - plot_option (str, optional): "upper", "lower", or "both" to control which plots are shown (default is "both").
-    - read_from_file (bool): Whether to load data from file system
-    - write_to_file (bool): Whether to write data to file system
-    """   
+    Parameters
+    ----------
+    eta : float
+        Skewness parameter.
+    mu : float
+        Resolution scale in GeV.
+    moment_type : str, optional
+        "non_singlet_isovector", "non_singlet_isoscalar", or "singlet".
+    evolution_order : str, optional
+        "lo", "nlo",... . Default is "nlo".
+    b_max : float, optional
+        Maximum value of impact parameter in Gev^-1 used for the plot.
+    Delta_max : float, optional
+        Upper bound for the momentum magnitude in the integration. Default is 5 GeV.
+    num_points : int, optional
+        Number of points used in trapezoidal integration. Default is 100.
+    n_b : int, optional
+        Number of points for discretizing the transverse position plane. Default is 100.
+    interpolation : bool, optional
+        Whether to interpolate data to plot on a finer grid. Default is True.
+    n_int : int, optional
+        Number of interpolation points. Default is 300.
+    vmin : float, optional
+        Minimum value of the colorbar. Default is 0.
+    vmax : float, optional
+        Maximum value of the colorbar. Default is 1.
+    ymin : float, optional
+        Minimum value on y-axis used in by = 0 slice of lower plot.
+    ymax : float, optional
+        Maximum value on y-axis used in by = 0 slice of lower plot.   
+    plot_option : str, optional
+        Either "lower" (only by = 0 slice) or "both" (Density plot and by = 0 slice)
+    write_to_file : bool, optional
+        Whether to save the computed data to the file system. Default is False.
+    read_from_file : bool, optional
+        Whether to load data from file system if available. Default is True.
+
+    Returns
+    -------
+    None
+
+    Notes
+    -----
+    This function creates a 2D density plot of the Fourier-transformed quark orbital angular momentum.
+
+    The plot is saved under
+    cfg.PLOT_PATH / f"imp_param_oam_{moment_type}.pdf" where 
+    PLOT_PATH is defined in config.py.
+
+    If write_to_file is set to true the data is saved under 
+    cfg.IMPACT_PARAMETER_MOMENTS_PATH / f"imp_param_oam_{mom_type}.csv" 
+    where IMPACT_PARAMETER_MOMENTS_PATH is defined in config.py
+
+    If both `write_to_file` and `read_from_file` are True, a ValueError is raised.
+    """     
     def ft_oam(b_vec,moment_type,error_type):
         return core.fourier_transform_quark_orbital_angular_momentum(eta=eta, mu=mu, b_vec=b_vec, 
                                                       moment_type=moment_type, evolution_order=evolution_order,
@@ -1705,27 +2233,63 @@ def plot_fourier_transform_singlet_orbital_angular_momentum(eta, mu,  particle =
                                           vmin = -2.05 , vmax = 3.08, ymin= -2.05, ymax = 3.08,
                                           plot_option="both", read_from_file=True, write_to_file = False):
     """
-    Generates a density plot of the 2D Fourier transform of RGE-evolved conformal moments.
-    It also includes a 1D slice at b_y = 0.
+    Generate a 2D density plot of the singlet orbital angular momentum in impact parameter space.
 
-    Parameters:
-    - eta (float): Skewness parameter
-    - mu (float): RGE scale
-    - particle (str. optional): quark or gluon
-    - b_max (float, optional): Maximum b value for the vector b_vec=[b_x,b_y] (default is 6 GeV = 1.185 fm ).
-    - Delta_max (float, optional): Maximum value for Delta integration (default is 8).
-    - num_points (int, optional): Number of intervals to split [-Delta_max, Delta_max] interval for trapezoid (default is 100).
-    - n_b (int, optional): Number of points the interval [-b_max, b_max] is split into (default is 50).
-    - interpolation (bool, optional): Interpolate data points on finer grid
-    - n_int (int, optional): Number of points for interpolation
-    - vmin (float ,optional): Sets minimum value of colorbar
-    - vmax (float, optional): Sets maximum value of colorbar
-    - ymin (float, optional): Sets minimum value for lower plot of b_y = 0 slice
-    - ymax (float, optional): Sets maximum value for lower plot of b_y = 0 slice
-    - plot_option (str, optional): "upper", "lower", or "both" to control which plots are shown (default is "both").
-    - read_from_file (bool): Whether to load data from file system
-    - write_to_file (bool): Whether to write data to file system
-    """   
+    Parameters
+    ----------
+    eta : float
+        Skewness parameter.
+    mu : float
+        Resolution scale in GeV.
+    moment_type : str, optional
+        "non_singlet_isovector", "non_singlet_isoscalar", or "singlet".
+    evolution_order : str, optional
+        "lo", "nlo",... . Default is "nlo".
+    b_max : float, optional
+        Maximum value of impact parameter in Gev^-1 used for the plot.
+    Delta_max : float, optional
+        Upper bound for the momentum magnitude in the integration. Default is 5 GeV.
+    num_points : int, optional
+        Number of points used in trapezoidal integration. Default is 100.
+    n_b : int, optional
+        Number of points for discretizing the transverse position plane. Default is 100.
+    interpolation : bool, optional
+        Whether to interpolate data to plot on a finer grid. Default is True.
+    n_int : int, optional
+        Number of interpolation points. Default is 300.
+    vmin : float, optional
+        Minimum value of the colorbar. Default is 0.
+    vmax : float, optional
+        Maximum value of the colorbar. Default is 1.
+    ymin : float, optional
+        Minimum value on y-axis used in by = 0 slice of lower plot.
+    ymax : float, optional
+        Maximum value on y-axis used in by = 0 slice of lower plot.   
+    plot_option : str, optional
+        Either "lower" (only by = 0 slice) or "both" (Density plot and by = 0 slice)
+    write_to_file : bool, optional
+        Whether to save the computed data to the file system. Default is False.
+    read_from_file : bool, optional
+        Whether to load data from file system if available. Default is True.
+
+    Returns
+    -------
+    None
+
+    Notes
+    -----
+    This function creates a 2D density plot of the Fourier-transformed singlet orbital angular momentum.
+
+    The plot is saved under
+    cfg.PLOT_PATH / f"imp_param_oam_singlet_{particle}.pdf" where 
+    PLOT_PATH is defined in config.py.
+
+    If write_to_file is set to true the data is saved under 
+    cfg.IMPACT_PARAMETER_MOMENTS_PATH / f"imp_param_oam_singlet_{particle}.csv"
+    where IMPACT_PARAMETER_MOMENTS_PATH is defined in config.py
+
+    If both `write_to_file` and `read_from_file` are True, a ValueError is raised.
+    """  
     def ft_oam(b_vec,error_type):
             return core.fourier_transform_quark_orbital_angular_momentum(eta=eta, mu=mu, b_vec=b_vec, 
                                                                     moment_type="singlet", evolution_order=evolution_order,
@@ -1852,69 +2416,76 @@ def plot_fourier_transform_singlet_orbital_angular_momentum(eta, mu,  particle =
     plt.close()
 
 
-def plot_conformal_partial_wave(j,eta,particle="quark",parity="none"):
-    """Plots the conformal partial wave over conformal spin-j for given eta, particle and parity.
+#################
+### Plot GPDs ###
+#################
 
-    Parameters:
-    - j (float): conformal spin
-    - eta (float): skewness
-    - particle (str., optiona): quark or gluon. Default is quark
-    - parity (str., optional): even, odd, or none. Default is none
+def plot_gpd_data(particle="quark", gpd_type="non_singlet_isovector", gpd_label="Htilde", evolution_order="nlo",
+                  n_int=300, n_gpd=50, sampling=True, n_init=os.cpu_count(),
+                  plot_gpd=True, error_bars=True, write_to_file=False, read_from_file=True,
+                  plot_legend=True, y_0=-1e-1, y_1=3):
     """
-    hp.check_particle_type(particle)
-    hp.check_parity(parity)
+    Plot the GPD and available lattice data for the specified GPD type and label.
 
-    x_values = np.linspace(-1, 1, 200)
-    y_values = Parallel(n_jobs=-1)(delayed(core.conformal_partial_wave)(j, x, eta , particle, parity) for x in x_values)
+    Currently runs over all data defined in `GPD_PUBLICATION_MAPPING`.
 
-    # Separate real and imaginary parts
-    y_values_real = [float(y.real) for y in y_values]
-    y_values_imag = [float(y.imag) for y in y_values]
+    It is recommended to use plot_gpds to create the data and then use this function with
+    read_from_file = True. Though the data generation using this function is also possible.
 
-    # Create subplots for real and imaginary parts
-    plt.figure(figsize=(10, 6))  # Adjust figure size for better visualization
+    Parameters
+    ----------
+    particle : str, optional
+        "quark" or "gluon". Default is "quark".
+    gpd_type : str, optional
+        Type of GPD, e.g. "non_singlet_isovector", "singlet". Default is "non_singlet_isovector".
+    gpd_label : str, optional
+        GPD label, e.g. "H", "E", "Htilde". Default is "Htilde".
+    evolution_order : str, optional
+        Perturbative order of evolution. Default is "nlo".
+    n_int : int, optional
+        Number of points used for interpolation. Default is 300.
+    n_gpd : int, optional
+        Number of GPD data points to generate. Default is 50.
+    sampling : bool, optional
+        Whether to apply importance sampling in x for the GPD. Default is True.
+    n_init : int, optional
+        Number of initial sampling points. Default is number of CPU cores.
+    plot_gpd : bool, optional
+        Whether to plot the GPD curve. Default is True.
+    error_bars : bool, optional
+        Whether to show error bars for the GPD. Default is True.
+    write_to_file : bool, optional
+        Write generated GPD data to filesystem. Default is False.
+    read_from_file : bool, optional
+        Read GPD data from filesystem. Default is True.
+    plot_legend : bool, optional
+        Display the plot legend. Default is True.
+    y_0 : float, optional
+        Lower limit of the y-axis. Default is -0.1.
+    y_1 : float, optional
+        Upper limit of the y-axis. Default is 3.
 
-    #plt.subplot(2, 1, 1)
-    plt.plot(x_values, y_values_real)
-    plt.xlabel("x")
-    plt.ylabel("Real Part")
-    plt.title(f"Real Part of Conformal Partial Wave for {particle} with Parity {parity}")
+    Returns
+    -------
+    None
 
-    #plt.subplot(2, 1, 2)
-    plt.plot(x_values, y_values_imag)
-    plt.xlabel("x")
-    plt.ylabel("Imaginary Part")
-    plt.title(f"Imaginary Part of Conformal Partial Wave for {particle} with Parity {parity}")
+    Notes
+    -----
+    The function reads from or writes the GPD data to the file system.
 
-    plt.tight_layout()  # Adjust spacing between subplots
-    plt.show()
+    Data is extracted from publications defined in `GPD_PUBLICATION_MAPPING` in config.py .
 
-#####################
-##### Plot GPDs #####
-#####################
+    The lattice data is interpolated such that is evaluated at the same x-value as the 
+    computed GPD.
 
-def plot_gpd_data(particle="quark",gpd_type="non_singlet_isovector",gpd_label="Htilde",evolution_order="nlo",n_int=300,n_gpd=50,sampling=True,n_init=os.cpu_count(), 
-                  plot_gpd =True, error_bars=True,write_to_file = False, read_from_file = True, plot_legend = True, y_0 = -1e-1, y_1 =3):
-    """
-    ADD CORRECT SELECTION OF GPD TYPE: CURRENTLY RUNS OVER ALL DATA
+    May need to adapt `GPD_LABEL_MAP` and `y_label_map` for custom formatting.
 
-    Plots a GPD of gpd_type and gpd_label over x together with the available data on the file system. Adjust GPD_LABEL_MAP and y_label_map as desired.
+    The plot is saved under 
+    cfg.PLOT_PATH / f"{gpd_type}_{particle}_GPD_{gpd_label}_comparison.pdf"
+    where PLOT_PATH is defined in config.py
 
-    Parameters:
-    - particle (str. optional): quark or gluon
-    - gpd_type (str. optional): non_singlet_isovector, singlet,...
-    - gpd_label (str. optional): H, E, Htilde...
-    - n_int (int. optional): Number of points used for interpolation
-    - n_gpd (int. optional): Number of data points generated
-    - sampling (Bool, optional): Whether to sample the GPD an add more points in important areas
-    - n_init (int. optional): Number of points used for sampling
-    - plot_gpd (Bool, optional): Plot GPD or only data
-    - error_bars (Bool, optional): Generate error bars for GPD
-    - write_to_file (Bool, optional): Write the generated data points on the file system
-    - read_from_file (Bool, optional): Read data from file system. Skips GPD data generation
-    - plot_legend (Bool, optional): Show plot legend
-    - y_0 (float, optional): Lower bound on y axis
-    - y_1 (float, optional): Upper bound on y axis
+    If write_to_file is True the data is saved as csv using save_gpd_data
+    in helpers.py
     """
     def compute_result(x, eta,t,mu,error_type="central"):
         return core.mellin_barnes_gpd(x, eta, t, mu, particle,gpd_type,moment_label, evolution_order, real_imag="real", error_type=error_type,n_jobs=1)
@@ -2106,39 +2677,80 @@ def plot_gpd_data(particle="quark",gpd_type="non_singlet_isovector",gpd_label="H
 
     fig.savefig(FILE_PATH,format="pdf",bbox_inches="tight",dpi=600)
 
-def plot_gpds(eta_array, t_array, mu_array, colors,A0=1,  particle="quark",gpd_type="non_singlet_isovector",gpd_label="H",evolution_order="nlo",sampling=True, n_init=os.cpu_count(), n_points=100, x_0=-1, x_1=1, y_0 = -1e-2, y_1 = 3, 
-              error_bars=True,plot_legend = False,write_to_file=True,read_from_file=False):
+def plot_gpds(eta_array, t_array, mu_array, colors, A0=1, particle="quark",
+              gpd_type="non_singlet_isovector", gpd_label="H", evolution_order="nlo",
+              sampling=True, n_init=os.cpu_count(), n_points=100,
+              x_0=-1, x_1=1, y_0=-1e-2, y_1=3,
+              error_bars=True, plot_legend=False,
+              write_to_file=True, read_from_file=False):
     """
-    Generates data for a given GPD using the kinematical parameters contained in eta_array, t_array, mu_array
-    and corresponding colors with dynamically adjusted x intervals, including error bars.
+    Plot GPDs using given kinematical parameters and optional error bands.
 
-    The function supports both positive and negative values of parton x though for singlet it defaults to x > 0.
+    Generates plots of a Generalized Parton Distribution (GPD) based on multiple
+    kinematical configurations defined by `eta_array`, `t_array`, and `mu_array`.
+    The function supports error bands, dynamic x-limits, and reading/writing to disk.
 
-    Options to read/write from/to file system are included.
+    Parameters
+    ----------
+    eta_array : array_like
+        Array of skewness values (η).
+    t_array : array_like
+        Array of momentum transfer squared values (t).
+    mu_array : array_like
+        Array of resolution scales (μ).
+    colors : array_like of str
+        Colors associated with each GPD curve.
+    A0 : float, optional
+        Manual rescaling factor for the GPDs. Default is 1.
+    particle : str, optional
+        "quark" or "gluon". Default is "quark".
+    gpd_type : str, optional
+        Type of GPD, e.g., "non_singlet_isovector", "singlet". Default is "non_singlet_isovector".
+    gpd_label : str, optional
+        Label of the GPD (e.g., "H", "E", "Htilde"). Default is "H".
+    evolution_order : str, optional
+        Evolution order ("lo", "nlo", etc.). Default is "nlo".
+    sampling : bool, optional
+        Whether to apply importance sampling in x. Default is True.
+    n_init : int, optional
+        Number of initial sampling points. Default is number of available CPU cores.
+    n_points : int, optional
+        Number of x-values used for plotting each curve. Default is 100.
+    x_0 : float, optional
+        Lower limit of x-axis. Default is -1.
+    x_1 : float, optional
+        Upper limit of x-axis. Default is 1.
+    y_0 : float, optional
+        Lower limit of y-axis. Default is -1e-2.
+    y_1 : float, optional
+        Upper limit of y-axis. Default is 3.
+    error_bars : bool, optional
+        Whether to compute and display error bands. Default is True.
+    plot_legend : bool, optional
+        Whether to include a plot legend. Default is False.
+    write_to_file : bool, optional
+        Write generated GPD data to filesystem. Default is False.
+    read_from_file : bool, optional
+        Read GPD data from filesystem. Default is True.
 
-    Parameters:
-    - eta_array (array float): Array containing skewness values
-    - t_array (array float): Array containing  t values
-    - mu_array (array float): Array containing mu values
-    - colors (array str.): Array containing colors for associated values
-    - A0 (float, optional): Manually adjust scale
-    - gpd_type (str. optional): non_singlet_isovector,...
-    - gpd_label (str. optional): H, E, ...
-    - sampling (Bool, optional): Choose whether to plot using importance sampling  
-    - n_init (int, optional): Sampling size, default is available number of CPUs
-    - n_points (int, optional): Number of plot points
-    - x_0 (float,optional): Lower bound on parton x
-    - x_1 (float,optional): Upper bound on parton x
-    - y_0 (float, optioanl): LOwer bound on y axis
-    - y_1 (float, optional): Upper bound on y axis
-    - error_bars (bool): Compute error bars as well
-    - plot_legend (bool): Show plot legend
-    - write_to_file (Bool, optional): Write data to file system
-    - read_from_file (Bool, optional): Read data from file system
+    Returns
+    -------
+    None
 
-    Note
-    ----
-    For singlet we cut-off at x0 = 1e-2
+    Notes
+    -----
+    The lengt of the input arrays must be equal.
+
+    For singlet GPDs, the function automatically applies a lower x cutoff of 1e-2.
+
+    The plot is saved under 
+    cfg.PLOT_PATH / f"{gpd_type}_{particle}_GPD_{gpd_label}.pdf"
+    where PLOT_PATH is defined in config.py
+
+    If write_to_file is True the data is saved as csv using save_gpd_data
+    in helpers.py
+
+    If both `write_to_file` and `read_from_file` are True, a ValueError is raised.
     """
     ylabel_map = {
         "non_singlet_isovector": {
@@ -2306,32 +2918,108 @@ def plot_gpds(eta_array, t_array, mu_array, colors,A0=1,  particle="quark",gpd_t
     ax.grid(True)
     # Export
     FILE_PATH = cfg.PLOT_PATH / f"{gpd_type}_{particle}_GPD_{gpd_label}.pdf"
-    # fig.savefig(FILE_PATH,format="pdf",bbox_inches="tight",dpi=600)
-    # print(f"File saved to {FILE_PATH}")
+    fig.savefig(FILE_PATH,format="pdf",bbox_inches="tight",dpi=600)
+    print(f"File saved to {FILE_PATH}")
 
 ############################
 ## Plot Mellin-Barnes     ##
 ## integral related stuff ##
 ############################
-
-def plot_evolved_moment_over_j(eta,t,mu,Nf = 3,j_base = 3,particle="quark",moment_type="non_singlet_isovector",moment_label ="A",evolution_order="nlo", 
-                            error_type = "central", j_max=5, num_points=200):
+def plot_conformal_partial_wave(j,eta,particle="quark",parity="none"):
     """
-    Plot the real and imaginary parts of the evolved conformal moment 
-    over -j_max < k < j_max, with j transformed as j -> z = j_base + 1j * k.
+    Plot the conformal partial wave for a given conformal spin j, skewness eta, 
+    particle type, and parity.
 
-    Arguments:
-    particle -- "quark" or "gluon"
-    moment_label -- Label of the moment (e.g., "A", "B")
-    parity -- Parity information used to compute j_base
-    eta -- Skewness parameter
-    t -- Mandelstam t
-    mu -- Resolution scale
-    Nf -- Number of active flavors (default: 3)
-    moment_type -- Type of moment ("non_singlet_isovector", "non_singlet_isoscalar", or "singlet")
-    error_type -- Choose "central", "upper", or "lower" value for input PDF parameters
-    j_max -- Maximum absolute value of k (default: 5)
-    num_points -- Number of points for plotting (default: 200)
+    Parameters
+    ----------
+    j : float
+        Conformal spin.
+    eta : float
+        Skewness parameter.
+    particle : str, optional
+        "quark" or "gluon". Default is "quark".
+    parity : str, optional
+        Parity of the partial wave: "even", "odd", or "none". Default is "none".
+
+    Returns
+    -------
+    None
+
+    Notes
+    -----
+    This function generates a plot of the complex-valued conformal partial wave.
+    Intended for use in a Jupyter notebook.
+    """
+    hp.check_particle_type(particle)
+    hp.check_parity(parity)
+
+    x_values = np.linspace(-1, 1, 200)
+    y_values = Parallel(n_jobs=-1)(delayed(core.conformal_partial_wave)(j, x, eta , particle, parity) for x in x_values)
+
+    # Separate real and imaginary parts
+    y_values_real = [float(y.real) for y in y_values]
+    y_values_imag = [float(y.imag) for y in y_values]
+
+    # Create subplots for real and imaginary parts
+    plt.figure(figsize=(10, 6))  
+
+    #plt.subplot(2, 1, 1)
+    plt.plot(x_values, y_values_real)
+    plt.xlabel("x")
+    plt.ylabel("Real Part")
+    plt.title(f"Real Part of Conformal Partial Wave for {particle} with Parity {parity}")
+
+    #plt.subplot(2, 1, 2)
+    plt.plot(x_values, y_values_imag)
+    plt.xlabel("x")
+    plt.ylabel("Imaginary Part")
+    plt.title(f"Imaginary Part of Conformal Partial Wave for {particle} with Parity {parity}")
+
+    plt.tight_layout()  # Adjust spacing between subplots
+    plt.show()
+
+def plot_evolved_moment_over_j(eta, t, mu, j_base=3, particle="quark",
+                                moment_type="non_singlet_isovector", moment_label="A",
+                                evolution_order="nlo", error_type="central",
+                                j_max=5, num_points=200):
+    """
+    Plot the real and imaginary parts of the evolved conformal moment as a function of
+    complex conformal spin j = j_base + i * k, with -j_max < k < j_max.
+
+    Parameters
+    ----------
+    eta : float
+        Skewness parameter.
+    t : float
+        Mandelstam t.
+    mu : float
+        Resolution scale.
+    j_base : float, optional
+        Real part of integration contour. E.g. as defined in core.get_j_base
+    particle : str, optional
+        "quark" or "gluon". Default is "quark".
+    moment_type : str, optional
+        "non_singlet_isovector", "non_singlet_isoscalar", or "singlet".
+    moment_label : str, optional
+        A(tilde), B(tilde) depending on H(tilde) or E(tilde) GPD etc.
+    evolution_order : str, optional
+        "lo", "nlo". Default is "nlo".
+    error_type : str, optional
+        Choose central, upper or lower value for input PDF parameters.  
+    j_max : float, optional
+        Maximum value of the imaginary part of j (i.e., k). Default is 5.
+    num_points : int, optional
+        Number of points in the k-range used for plotting. Default is 200.
+
+    Returns
+    -------
+    None
+
+    Notes
+    -----
+    Visualizes the analytically continued evolved moment in the complex-j plane.
+
+    Intended for use in a jupyter Notebook. Does not save a plot.
     """
 
     # Define k values
@@ -2340,11 +3028,9 @@ def plot_evolved_moment_over_j(eta,t,mu,Nf = 3,j_base = 3,particle="quark",momen
 
     # Evaluate the function for each z
     evolved_moment = np.array(
-        Parallel(n_jobs=-1)(delayed(core.core.evolve_conformal_moment)(z, eta, t, mu, Nf, 1,
+        Parallel(n_jobs=-1)(delayed(core.evolve_conformal_moment)(z, eta, t, mu, 1,
                                                         particle, moment_type, moment_label, evolution_order, error_type) for z in z_vals),
                 dtype=complex)
-    # evolved_moment = np.array([core.evolve_conformal_moment(z, eta, t, mu, Nf, 
-    #                                                     particle, moment_type, moment_label, error_type) for z in z_vals])
 
     # Plot real and imaginary parts
     plt.figure(figsize=(8, 5))
@@ -2359,14 +3045,40 @@ def plot_evolved_moment_over_j(eta,t,mu,Nf = 3,j_base = 3,particle="quark",momen
     plt.grid()
     plt.show()
 
-def plot_conformal_partial_wave_over_j(x,eta,particle="quark",moment_type="non_singlet_isovector",moment_label ="A"):
-    """Plots the conformal parftial wave over conformal spin-j for given eta, particle and parity.
-
-    Parameters:
-    - j (float): conformal spin
-    - eta (float): skewness
-    - particle (str., optiona): quark or gluon. Default is quark
+def plot_conformal_partial_wave_over_j(x, eta, particle="quark",
+                                       moment_type="non_singlet_isovector",
+                                       moment_label="A"):
     """
+    Plot the conformal partial wave as a function of complex conformal spin-j for a given x and eta.
+
+    Parameters
+    ----------
+    x : float
+        Parton momentum fraction.
+    eta : float
+        Skewness parameter.
+    particle : str, optional
+        "quark" or "gluon". Default is "quark".
+    moment_type : str, optional
+        "non_singlet_isovector", "non_singlet_isoscalar", or "singlet".
+    moment_label : str, optional
+        A(tilde), B(tilde) depending on H(tilde) or E(tilde) GPD etc.
+
+    Returns
+    -------
+    None
+
+    Notes
+    -----
+    The real part of j as well as the parity of the conformal
+    partial wave is obtained from get_j_base.
+
+    This function evaluates the conformal partial wave in the complex-j plane
+    and plots its real and imaginary parts for fixed parton x.
+
+    Intended for use in a jupyter Notebook. Does not save a plot.
+    """
+
     hp.check_particle_type(particle)
 
     j_base, parity = core.get_j_base(particle,moment_type,moment_label)
@@ -2376,7 +3088,7 @@ def plot_conformal_partial_wave_over_j(x,eta,particle="quark",moment_type="non_s
                         ,dtype=complex)
 
     # Create subplots for real and imaginary parts
-    plt.figure(figsize=(10, 6))  # Adjust figure size for better visualization
+    plt.figure(figsize=(10, 6))  
 
     #plt.subplot(2, 1, 1)
     plt.plot(k_values, y_values.real)
@@ -2393,14 +3105,38 @@ def plot_conformal_partial_wave_over_j(x,eta,particle="quark",moment_type="non_s
     plt.tight_layout()  # Adjust spacing between subplots
     plt.show()
 
-def plot_conformal_partial_wave_over_x(j_b,eta,particle="quark",moment_type="non_singlet_isovector",moment_label ="A"):
-    """Plots the conformal parftial wave over conformal spin-j for given eta, particle and parity.
-
-    Parameters:
-    - j_b (float): conformal spin
-    - eta (float): skewness
-    - particle (str., optiona): quark or gluon. Default is quark
+def plot_conformal_partial_wave_over_x(j_b, eta, particle="quark",
+                                       moment_type="non_singlet_isovector",
+                                       moment_label="A"):
     """
+    Plot the conformal partial wave as a function of parton momentum fraction x 
+    for a given conformal spin j_b and skewness eta.
+
+    Parameters
+    ----------
+    j_b : float
+        Conformal spin-j used as base for evaluation.
+    eta : float
+        Skewness parameter.
+    particle : str, optional
+        "quark" or "gluon". Default is "quark".
+    moment_type : str, optional
+        "non_singlet_isovector", "non_singlet_isoscalar", or "singlet".
+    moment_label : str, optional
+        A(tilde), B(tilde) depending on H(tilde) or E(tilde) GPD etc.
+
+    Returns
+    -------
+    None
+
+    Notes
+    -----
+    This function evaluates the conformal partial wave for fixed conformal spin-j as a function of parton x, 
+    and plots its real and imaginary components.
+
+    Intended for use in a jupyter Notebook. Does not save a plot.
+    """
+
     hp.check_particle_type(particle)
     
     _, parity = core.get_j_base(particle,moment_type,moment_label)
@@ -2409,7 +3145,7 @@ def plot_conformal_partial_wave_over_x(j_b,eta,particle="quark",moment_type="non
                         ,dtype=complex)
 
     # Create subplots for real and imaginary parts
-    plt.figure(figsize=(10, 6))  # Adjust figure size for better visualization
+    plt.figure(figsize=(10, 6))  
 
     #plt.subplot(2, 1, 1)
     plt.plot(x_values, y_values.real)
@@ -2426,19 +3162,53 @@ def plot_conformal_partial_wave_over_x(j_b,eta,particle="quark",moment_type="non
     plt.tight_layout()  # Adjust spacing between subplots
     plt.show()
 
-def plot_mellin_barnes_gpd_integrand(x, eta, t, mu, Nf=3, particle="quark", moment_type="singlet", moment_label="A",evolution_order="nlo", parity = "none", error_type="central", j_max=7.5,n_j=150):
+def plot_mellin_barnes_gpd_integrand(x, eta, t, mu,
+                                     particle="quark", moment_type="singlet",
+                                     moment_label="A", evolution_order="nlo",
+                                     parity="none", error_type="central",
+                                     j_max=7.5, n_j=150):
     """
-    Plot the real and imaginary parts of the integrand of the Mellin-Barnes integral over k with j = j_base + i*k.
+    Plot the real and imaginary parts of the integrand of the Mellin-Barnes integral 
+    over complex conformal spin j = j_base + i * k.
 
-    Parameters:
-    - x, eta, t, mu: Physical parameters.
-    - Nf (int): Number of flavors.
-    - particle (str): Particle species ("quark" or "gluon").
-    - moment_type (str. optional): Moment type ("singlet", "non_singlet_isovector", "non_singlet_isoscalar").
-    - moment_label (str. optional): Moment label ("A", "Atilde", "B").
-    - parity (str., optional)
-    - error_type (str. optional): PDF value type ("central", "plus", "minus").
-    - j_max (float. optional): Maximum value of imaginary part k for plotting.
+    Parameters
+    ----------
+    x : float
+        Parton momentum fraction.
+    eta : float
+        Skewness parameter.
+    t : float
+        Mandelstam t.
+    mu : float
+        Renormalization scale in GeV.
+    particle : str, optional
+        "quark" or "gluon". Default is "quark".
+    moment_type : str, optional
+        "non_singlet_isovector", "non_singlet_isoscalar", or "singlet".
+    moment_label : str, optional
+        A(tilde), B(tilde) depending on H(tilde) or E(tilde) GPD etc.
+    evolution_order : str, optional
+        lo, nlo. Default is nlo
+    parity : str, optional
+        "even", "odd", or "none". Default is "none".
+    error_type : str, optional
+        Choose central, upper or lower value for input PDF parameters.
+    j_max : float, optional
+        Maximum value of Im(j) = k used in the plot. The integration contour is along 
+        j = j_base + i * k with -j_max < k < j_max. Default is 7.5.
+    n_j : int, optional
+        Number of points along Im(j). Default is 150.
+
+    Returns
+    -------
+    None
+
+    Notes
+    -----
+    This function evaluates and plots the real and imaginary parts of 
+    the Mellin-Barnes integrand used to reconstruct the GPD. 
+
+    Intended for use in a jupyter Notebook. Does not save a plot.
     """
     hp.check_parity(parity)
     hp.check_error_type(error_type)
@@ -2518,161 +3288,3 @@ def plot_mellin_barnes_gpd_integrand(x, eta, t, mu, Nf=3, particle="quark", mome
     plt.suptitle("Integrand Real and Imaginary Parts")
     plt.tight_layout(rect=[0, 0, 1, 0.96])
     plt.show()
-
-def plot_fourier_transform_transverse_moments_grid(j_max,eta,mu,particle="quark", interpolation=True,n_int=300, vmin = 0 , vmax = 1 ):
-    """
-    Generates a density plot of the 2D Fourier transfrom of RGE-evolved 
-    conformal moments for a given moment type and a transversely polarzied target.
-    Automatically uses A and B moments. Code requires all tables to have same b_max
-    and be available on the file system. To generate the data use the function
-    plot_fourier_transform_transverse_moments.
-    
-    Parameters:
-    - j_max (float): Maximal Conformal spin
-    - eta (float): Skewness parameter
-    - mu (float): RGE scale
-    - particle (str. optional): "quark" or "gluon". Default is quark.
-    - moment_label (str. optiona): Label of conformal moment, e.g. A
-    - interpolation (bool, optional): Interpolate data points on finer grid
-    - n_int (int, optional): Number of points used for interpolation
-    - vmin (float ,optioanl): Sets minimum value of colorbar
-    - vmax (float, optional): Sets maximum value of colorbar
-    """
-    def get_subplot_positions_and_heights(n_rows,n_cols):
-        """
-        Returns the positions and heights of each subplot in the grid.
-        
-        Returns:
-        - A list of row heights and positions for each subplot.
-        """
-        row_positions_and_heights = []
-        
-        # Step 1: Create a hidden figure to determine subplot heights without labels/ticks
-        fig_hidden, axs_hidden = plt.subplots(n_rows, n_cols, figsize=(n_cols * 4, n_rows*4))
-        fig_hidden.subplots_adjust(wspace=0, hspace=0)  # Remove extra spacing
-        
-        for row in range(n_rows):
-            # Get the bounding box (position and height) of the last column in each row
-            bbox = axs_hidden[row,-1].get_position()
-            row_positions_and_heights.append((bbox.x0, bbox.y0, bbox.width, bbox.height))  # Position (x0, y0), width, and height
-        
-        plt.close(fig_hidden)  # Close the hidden figure
-        
-        return row_positions_and_heights
-
-            
-    hp.check_particle_type(particle)
-
-    if len(vmin)<j_max or len(vmax)<j_max:
-        raise ValueError("Supply vmin and vmax as arrays of length j_max")
-
-    FILE_PATH = cfg.PLOT_PATH / "imp_param_transv_pol_moments.pdf"
-
-    moment_types = ["non_singlet_isovector", "non_singlet_isoscalar", "u", "d"]
-
-    # Initialize cache to store Fourier transforms for "non_singlet_isovector" and "non_singlet_isoscalar"
-    #cache = {}
-    cache = {j: {mom_type: None for mom_type in moment_types} for j in range(1, j_max + 1)}
-
-    # Determine figure layout
-    fig, axs = plt.subplots(j_max, len(moment_types), figsize=(len(moment_types) * 4, j_max*4))
-    row_positions_and_heights = get_subplot_positions_and_heights(j_max,len(moment_types))
-
-    title_map = {
-        "non_singlet_isovector": "u-d",
-        "non_singlet_isoscalar": "u+d",
-        "u": "u",
-        "d": "d"
-    }
-    hbarc = 0.1975
-
-    for j in range(1, j_max + 1):
-        for i, mom_type in enumerate(moment_types):
-            READ_WRITE_PATH = cfg.IMPACT_PARAMETER_MOMENTS_PATH /  f"imp_param_transv_pol_moment_j_{j}_{mom_type}"
-            row, col = j-1, i
-            ax = axs[row, col]
-
-            title = title_map[mom_type]
-
-            # Compute Fourier transform and cache the results for non_singlet_isovector and non_singlet_isoscalar
-            if mom_type in ["non_singlet_isovector", "non_singlet_isoscalar"]:
-                if cache[j][mom_type] is None:
-                    file_name = hp.generate_filename(eta,0,mu,READ_WRITE_PATH,"central")
-                    b_x_fm, b_y_fm, fourier_transform_moment_values_flat = hp.read_ft_from_csv(file_name)
-                    b_max = max(b_x_fm)/hbarc
-                    n_b = len(fourier_transform_moment_values_flat)
-                    b_x = np.linspace(-b_max, b_max, n_b)
-                    b_y = np.linspace(-b_max, b_max, n_b)
-                    cache[j][mom_type] = fourier_transform_moment_values_flat
-
-            if mom_type in ["u","d"]:
-                file_name = hp.generate_filename(eta,0,mu,READ_WRITE_PATH,"central")
-                b_x_fm, b_y_fm, _ = hp.read_ft_from_csv(file_name)
-
-                if mom_type == "u":
-                    prf = 1
-                if mom_type == "d":
-                    prf = -1 
-                fourier_transform_moment_values_flat = (cache[j]["non_singlet_isoscalar"] + prf * cache[j]["non_singlet_isovector"]) / 2
-
-            if interpolation:
-                ft_interpolation = RectBivariateSpline(b_x_fm, b_y_fm, fourier_transform_moment_values_flat)
-
-                # Call the interpolation on a finer grid
-                b_x = np.linspace(-b_max, b_max, n_int)
-                b_y = np.linspace(-b_max, b_max, n_int)
-                b_x_fm = b_x * hbarc
-                b_y_fm = b_y * hbarc
-
-                fourier_transform_moment_values_flat = ft_interpolation(b_x_fm, b_y_fm)
-
-            # Generate 2D density plot
-            im = ax.pcolormesh(b_x_fm, b_y_fm, fourier_transform_moment_values_flat, 
-                                shading='auto', cmap='jet',vmin=vmin[j-1], vmax=vmax[j-1],rasterized=True)
-            ax.set_xlabel(r'$b_x\,[\mathrm{fm}]$', fontsize=14)
-            if i == 0:
-                ax.set_ylabel(r'$b_y\,[\mathrm{fm}]$', fontsize=14)
-            if j == 1:
-                ax.set_title(rf"$\rho_{{n,\perp}}^{{{title}}}$", fontsize=14)
-
-            ax.set_xlim([-b_max * hbarc, b_max * hbarc])
-            ax.set_ylim([-b_max * hbarc, b_max * hbarc])
-            
-            if col == len(moment_types)-1:
-                # print(ax.get_position().x1, ax.get_position().y0,ax.get_position().height)
-                # Get positions without labels
-                x0, y0, width, height = row_positions_and_heights[row]
-                # We shift the x position by the width of the plot
-                # such that it attaches to the right
-                x0 += width
-                cbar_ax = fig.add_axes([x0, y0, 0.01, height])
-                fig.colorbar(im, cax=cbar_ax)
-            if col == 0:
-                ax.text(
-                    0.05, 0.95,  
-                    rf"$n={j}$",  
-                    transform=ax.transAxes, 
-                    ha='left', va='top', 
-                    fontsize=14, color='black', fontweight='bold',
-                    bbox=dict(facecolor='white', alpha=0.6, edgecolor='none', boxstyle='round,pad=0.3')  # Adds a semi-transparent background
-                )
-
-            # Remove ticks and labels
-            if i != 0:
-                ax.set_yticks([])
-                ax.set_yticklabels([])
-                ax.set_ylabel(None)
-            if j != j_max:
-                ax.set_xticks([])
-                ax.set_xticklabels([])
-                ax.set_xlabel(None)
-
-    plt.subplots_adjust(wspace=0, hspace=0)
-
-
-    # File export
-    plt.savefig(FILE_PATH,format="pdf",bbox_inches="tight",dpi=600)
-
-    # Adjust layout and show the plot
-    plt.show()
-    plt.close()

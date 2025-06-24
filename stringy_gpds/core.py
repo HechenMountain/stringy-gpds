@@ -593,13 +593,16 @@ def singlet_moment(j,eta,t,moment_label="A",solution="+",evolution_order="nlo",e
         raise ValueError("Invalid solution type. Use '+' or '-'.")
     
     evolve_type = hp.get_evolve_type(moment_label)
+    # Eigenvalue of anomalous dimension matrix
+    index  = 0 if solution == "+" else 1
+    ga_pm = adim.gamma_pm(j-1,evolve_type,solution,interpolation=interpolation)[index]
 
     quark_prf = .5 
     quark_in, quark_in_error = quark_singlet_regge(j,eta,t,moment_label,evolution_order,error_type)
     # Note: j/6 already included in adim.gamma_qg and adim.gamma_qg definitions
     gluon_prf = .5 * (adim.gamma_qg(j-1,evolve_type,"lo",interpolation=interpolation)/
-                    (adim.gamma_qq(j-1,"singlet",evolve_type,"lo",interpolation=interpolation)-adim.gamma_pm(j-1,evolve_type,solution,interpolation=interpolation)))
-    gluon_in, gluon_in_error = gluon_singlet_regge(j,eta,t,moment_label,evolve_type,evolution_order,error_type)
+                    (adim.gamma_qq(j-1,"singlet",evolve_type,"lo",interpolation=interpolation)-ga_pm))
+    gluon_in, gluon_in_error = gluon_singlet_regge(j,eta,t,moment_label,evolution_order,error_type)
     sum_squared = quark_prf**2 * quark_in_error**2 + gluon_prf**2*gluon_in_error**2
     error = abs(mp.sqrt(sum_squared))
     result = quark_prf * quark_in + gluon_prf * gluon_in
@@ -658,7 +661,7 @@ def evolve_conformal_moment(j,eta,t,mu,A0=1,particle="quark",moment_type="non_si
     moment_label : str, optional
         A(tilde), B(tilde) depending on H(tilde) or E(tilde) GPD etc.
     evolution_order : str, optional
-        lo, nlo.
+        lo, nlo. Default is nlo
     error_type : str, optional
         Choose central, upper or lower value for input PDF parameters.
     interpolation : bool, optional
@@ -677,7 +680,7 @@ def evolve_conformal_moment(j,eta,t,mu,A0=1,particle="quark",moment_type="non_si
     if particle == "gluon" and moment_type != "singlet":
         raise ValueError("Gluon is only singlet")
     
-    if cfg.INTERPOLATE_MOMENTS and isinstance(j,(complex,mp.mpc)):
+    if cfg.INTERPOLATE_MOMENTS and j.imag != 0:
         selected_triples = [
             (eta_, t_, mu_)
             for eta_, t_, mu_ in zip(cfg.ETA_ARRAY, cfg.T_ARRAY, cfg.MU_ARRAY)
@@ -703,8 +706,7 @@ def evolve_conformal_moment(j,eta,t,mu,A0=1,particle="quark",moment_type="non_si
         moment_in = non_singlet_isoscalar_moment(j,eta,t,moment_label,evolution_order,error_type) 
     elif moment_type == "singlet":
         # Roots  of lo anomalous dimensions
-        ga_p = adim.gamma_pm(j-1,evolve_type,"+",interpolation=interpolation)
-        ga_m = adim.gamma_pm(j-1,evolve_type,"-",interpolation=interpolation)
+        ga_p, ga_m = adim.gamma_pm(j-1,evolve_type,interpolation=interpolation)
         moment_in_p, error_p = singlet_moment(j,eta,t,  moment_label,"+",evolution_order,error_type,interpolation=interpolation)
         moment_in_m, error_m = singlet_moment(j,eta,t,  moment_label,"-",evolution_order,error_type,interpolation=interpolation)
         ga_gq = adim.gamma_gq(j-1, evolve_type,"lo",interpolation=interpolation)
@@ -807,7 +809,7 @@ def evolve_conformal_moment(j,eta,t,mu,A0=1,particle="quark",moment_type="non_si
 
     def prf_T_nlo(k):
         ga_j_p, ga_j_m = ga_p, ga_m
-        ga_k_p, ga_k_m = adim.gamma_pm(k-1,evolve_type,"+",interpolation=interpolation), adim.gamma_pm(k-1,evolve_type,"-",interpolation=interpolation)
+        ga_k_p, ga_k_m = adim.gamma_pm(k-1,evolve_type,interpolation=interpolation)
         alpha_term = alpha_s_evolved/(2*mp.pi)
         ga_1 = ga_j_p - ga_k_p + cfg.BETA_0
         ga_2 = ga_j_p - ga_k_m + cfg.BETA_0
@@ -826,7 +828,7 @@ def evolve_conformal_moment(j,eta,t,mu,A0=1,particle="quark",moment_type="non_si
         # Note T = 0 for j=k
         ga_j_p, ga_j_m = ga_p, ga_m
     
-        ga_k_p, ga_k_m = adim.gamma_pm(k-1,evolve_type,"+",interpolation=interpolation), adim.gamma_pm(k-1,evolve_type,"-",interpolation=interpolation)
+        ga_k_p, ga_k_m = adim.gamma_pm(k-1,evolve_type,interpolation=interpolation)
         ga_qq_k = adim.gamma_qq(k-1,evolution_order="lo",interpolation=interpolation)
         ga_gq_k = adim.gamma_gq(k-1, evolve_type,"lo",interpolation=interpolation)
         ga_qq_nd = adim.gamma_qq_nd(j-1,k-1,evolve_type,"nlo",interpolation=interpolation)
@@ -869,7 +871,7 @@ def evolve_conformal_moment(j,eta,t,mu,A0=1,particle="quark",moment_type="non_si
     def T_gluon_nlo(k):
         # Note T = 0 for j=k
         ga_j_p, ga_j_m = ga_p, ga_m
-        ga_k_p, ga_k_m = adim.gamma_pm(k-1,evolve_type,"+",interpolation=interpolation), adim.gamma_pm(k-1,evolve_type,"-",interpolation=interpolation)
+        ga_k_p, ga_k_m = adim.gamma_pm(k-1,evolve_type,interpolation=interpolation)
         ga_qq_k = adim.gamma_qq(k-1,evolution_order="lo",interpolation=interpolation)
         ga_gq_k = adim.gamma_gq(k-1, evolve_type,"lo",interpolation=interpolation)
         ga_qq_nd = adim.gamma_qq_nd(j-1,k-1,evolve_type,"nlo",interpolation=interpolation)
@@ -1259,14 +1261,12 @@ def inverse_fourier_transform_moment(n,eta,mu,Delta_vec,particle="quark",moment_
 
 def fourier_transform_transverse_moment(n,eta,mu,b_vec,A0=1,particle="quark",moment_type="non_singlet_isovector",evolution_order="nlo", Delta_max = 5,num_points=100, error_type="central",dipole_form=True):
     """
-    Compute Fourier transformed transverse moments using trapezoidal rule.
+    Compute Fourier transformed transverse moments using trapezoidal rule. Currently only supports unpolarized moments.
 
     Parameters
     ----------
     n : int
         Conformal spin.
-    eta : float
-        Skewness parameter.
     eta : float
         Skewness parameter.
     t : float
@@ -1279,8 +1279,6 @@ def fourier_transform_transverse_moment(n,eta,mu,b_vec,A0=1,particle="quark",mom
         "quark" or "gluon". Default is "quark".
     moment_type : str, optional
         non_singlet_isovector, non_singlet_isoscalar, or singlet.
-    moment_label : str, optional
-        A(tilde), B(tilde) depending on H(tilde) or E(tilde) GPD etc.
     evolution_order : str, optional
         lo, nlo.
     Delta_max : float, optional
