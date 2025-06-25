@@ -1,6 +1,6 @@
 # stringy_gpds
 
-**String-based parametrization of Generalized Parton Distribution functions (GPDs)** 
+**A string-based parametrization of Generalized Parton Distribution functions (GPDs)** 
 ## About
 A Python package that utilizes a string-based parametrization of quark and gluon conformal moments to reconstruct Generalized Parton Distribution functions (GPDs). It leverages an expansion in conformal partial waves and conformal moments to compute GPDs via Mellin-Barnes integrals, accessible over the whole physical region in parton x, skewness eta and Mandelstam t.
 
@@ -21,7 +21,7 @@ A Python package that utilizes a string-based parametrization of quark and gluon
 ```bash
 pip install git+https://github.com/HechenMountain/stringy-gpds.git
 ```
-## 🧾 Example Usage
+## 🚀 Example Usage
 
 ```python
 from stringy_gpds import evolve_conformal_moment, mellin_barnes_gpd
@@ -78,26 +78,33 @@ plot_fourier_transform_singlet_helicity(n=0,mu=2,particle="quark",vmin=0,vmax=0.
 # This will additionaly save the data as csv to the filesystem such that it can be read from the filesystem using 
 # read_from_file=True and write_to_file=False
 
-# Additional examples can be found in 
+# Additional examples as well as the code used to 
+# generate the plots in the publication can be found in 
 # StringBasedGPD.ipynb
 ```
 
-## Additional comments
-Read config.py, it should be self-explanatory. 
-
+## 💬 Additional Comments
+Carefully read config.py, it should be self-explanatory. 
 All functions in the source code are equipped with docstrings.
+If there is still something unclear after reading the docstrings and config.py, do not hesitate to contact me!
 
 All dimensionful quantities are given in units of GeV with conversion to fm only for the plots.
 
-For the GPD reconstruction, the non-diagonal part of the evolution equations can be discarded by using ND_EVOLVED_COMPLEX_MOMENT = False (recommended) since the contribution is < 5%
+For the GPD reconstruction, the non-diagonal part of the evolution equations can be discarded by using ND_EVOLVED_COMPLEX_MOMENT = False (recommended) 
+since the contribution is < 5%.
 
-For the data handling. Include ArXiv IDs in PUBLICATION_MAPPING for the moments and GPD_PUBLICATION_MAPPING for GPDs.
+For the data handling include ArXiv IDs in PUBLICATION_MAPPING for the moments and GPD_PUBLICATION_MAPPING for GPDs.
 
 Initial tables for interpolation are supplied for harmonic numbers, anomalous dimensions and some moments.
 
-If there is still something unclear after reading the docstrings and config.py, do not hesitate to contact me!
+## 📁 Data Access
 
-## Lattice data is from:
+The full dataset (CSV tables for interpolation, extracted lattice data and data used for plot generation) 
+is available at [Zenodo](https://doi.org/10.5281/zenodo.15738460).
+
+## 📊 Lattice data
+The `.csv` files under [Zenodo](https://doi.org/10.5281/zenodo.15738460) containing lattice data
+were manually extracted from published results in the following works:
 - JHEP 01 (2025) 146 • e-Print: 2410.03539 [hep-lat]
 - Phys.Rev.D 110 (2024) 3, 3 • e-Print: 2312.10829 [hep-lat]
 - Phys.Rev.Lett. 132 (2024) 25, 251904 • e-Print: 2310.08484 [hep-lat]
@@ -106,3 +113,17 @@ If there is still something unclear after reading the docstrings and config.py, 
 - Phys.Rev.D 101 (2020) 3, 034519 • e-Print: 1908.10706 [hep-lat]
 - Phys.Rev.Lett. 125 (2020) 26, 262001 • e-Print: 2008.10573 [hep-lat]
 - Phys.Rev.D 77 (2008) 094502 • e-Print: 0705.4295 [hep-lat]
+
+Please cite the original authors if you use these data in scientific work.
+
+These files are provided **for reproducibility purposes only**. The maintainers of this package claim **no ownership** of the original data.
+
+## 🐛 Issues & Support
+
+If you encounter any problems, have questions, or want to request a feature, feel free to open an issue on the [GitHub Issue Tracker](https://github.com/HechenMountain/stringy-gpds/issues).
+
+## 📖 How to Cite
+
+If you use this code or data, please cite:
+
+Hechenberger, F. Mamo, K. A., Zahed, I. (2025). String-based Parametrization of Polarized GPDs at any Skewness

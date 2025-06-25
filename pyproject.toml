@@ -10,17 +10,11 @@ authors = [
 ]
 dependencies = [
   "numpy",
-  "mpmath"
+  "mpmath",
   "matplotlib",
   "joblib",
-  "csv",
   "tqdm",
-  "Path",
-  "re",
-  "os",
-  "scipy",
-  "time",
-  "itertools"
+  "scipy"
 ]
 
 [build-system]

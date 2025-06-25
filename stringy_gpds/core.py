@@ -1335,7 +1335,9 @@ def fourier_transform_transverse_moment(n,eta,mu,b_vec,A0=1,particle="quark",mom
 
     return integral_result
 
-def fourier_transform_quark_gluon_helicity(eta,mu,b_vec,particle="quark",moment_type="non_singlet_isovector",evolution_order="nlo", Delta_max = 10,num_points=100, error_type="central"):
+def fourier_transform_quark_gluon_helicity(eta,mu,b_vec,particle="quark",moment_type="non_singlet_isovector",
+                                           evolution_order="nlo", Delta_max = 10,num_points=100,
+                                           error_type="central",dipole_form=True):
     """
     Quark gluon helicity in impact parameter space in GeV^2. For documentation see fourier_transform_moment.
     """
@@ -1343,7 +1345,8 @@ def fourier_transform_quark_gluon_helicity(eta,mu,b_vec,particle="quark",moment_
         return fourier_transform_moment(n=1,eta=eta,mu=mu,b_vec=b_vec,
                                         particle=particle,moment_type=moment_type,
                                         moment_label="Atilde",evolution_order=evolution_order,
-                                        Delta_max=Delta_max,num_points=num_points,error_type=error_type)
+                                        Delta_max=Delta_max,num_points=num_points,
+                                        error_type=error_type,dipole_form=dipole_form)
     hp.check_particle_type(particle)
     if moment_type not in ["singlet","non_singlet_isovector","non_singlet_isoscalar","u","d"]:
         raise ValueError(f"Wrong moment_type {moment_type}")
@@ -1367,21 +1370,30 @@ def fourier_transform_quark_gluon_helicity(eta,mu,b_vec,particle="quark",moment_
 
     return result
 
-def fourier_transform_quark_helicity(eta,mu,b_vec,moment_type="non_singlet_isovector",evolution_order="nlo", Delta_max = 10,num_points=100, error_type="central"):
+def fourier_transform_quark_helicity(eta,mu,b_vec,moment_type="non_singlet_isovector",
+                                     evolution_order="nlo", Delta_max = 10,num_points=100,
+                                     error_type="central",dipole_form=True):
     """
     Helper function to get Fourier transformed quark helicity. For documentation see fourier_transform_moment.
     """
-    result = fourier_transform_quark_gluon_helicity(eta,mu,b_vec,particle="quark",moment_type=moment_type,evolution_order=evolution_order,Delta_max=Delta_max,num_points=num_points,error_type=error_type)
+    result = fourier_transform_quark_gluon_helicity(eta,mu,b_vec,particle="quark",moment_type=moment_type,
+                                                    evolution_order=evolution_order,Delta_max=Delta_max,num_points=num_points,
+                                                    error_type=error_type,dipole_form=dipole_form)
     return result
 
-def fourier_transform_gluon_helicity(eta,mu,b_vec,evolution_order="nlo",Delta_max = 10,num_points=100, error_type="central"):
+def fourier_transform_gluon_helicity(eta,mu,b_vec,evolution_order="nlo",Delta_max = 10,num_points=100, error_type="central",dipole_form=True):
     """
     Helper function to get Fourier transformed gluon helicity. For documentation see fourier_transform_moment.
     """
-    result = fourier_transform_quark_gluon_helicity(eta,mu,b_vec,particle="gluon",moment_type="singlet",evolution_order=evolution_order,Delta_max=Delta_max,num_points=num_points,error_type=error_type)
+    result = fourier_transform_quark_gluon_helicity(eta,mu,b_vec,particle="gluon",moment_type="singlet",evolution_order=evolution_order,
+                                                    Delta_max=Delta_max,num_points=num_points,
+                                                    error_type=error_type,dipole_form=dipole_form)
     return result
 
-def fourier_transform_spin_orbit_correlation(eta,mu,b_vec,evolution_order="nlo",particle="quark",moment_type="non_singlet_isovector", Delta_max = 8,num_points=100, error_type="central"):
+def fourier_transform_spin_orbit_correlation(eta,mu,b_vec,evolution_order="nlo",
+                                             particle="quark",moment_type="non_singlet_isovector",
+                                             Delta_max = 8,num_points=100, 
+                                             error_type="central",dipole_form=True):
     """
     Spin-orbit correlation in impact parameter space in GeV^2. For documentation see fourier_transform_moment.
     """
@@ -1389,7 +1401,8 @@ def fourier_transform_spin_orbit_correlation(eta,mu,b_vec,evolution_order="nlo",
         return fourier_transform_moment(n=n,eta=eta,mu=mu,b_vec=b_vec,
                                         particle=particle,moment_type=moment_type,
                                         moment_label=moment_label,evolution_order=evolution_order,
-                                        Delta_max=Delta_max,num_points=num_points,error_type=error_type)
+                                        Delta_max=Delta_max,num_points=num_points,
+                                        error_type=error_type,dipole_form=dipole_form)
     hp.check_particle_type(particle)
     if moment_type not in ["singlet","non_singlet_isovector","non_singlet_isoscalar","u","d"]:
         raise ValueError(f"Wrong moment_type {moment_type}")
@@ -1440,7 +1453,9 @@ def fourier_transform_spin_orbit_correlation(eta,mu,b_vec,evolution_order="nlo",
             result = moment
             return result
         
-def fourier_transform_orbital_angular_momentum(eta,mu,b_vec,particle="quark",moment_type="non_singlet_isovector",evolution_order="nlo", Delta_max = 7,num_points=100, error_type="central"):
+def fourier_transform_orbital_angular_momentum(eta,mu,b_vec,particle="quark",moment_type="non_singlet_isovector",
+                                               evolution_order="nlo", Delta_max = 7,num_points=100,
+                                               error_type="central",dipole_form=True):
     """
     Orbital angular momentum in impact parameter space in GeV^2. For documentation see fourier_transform_moment.
     """
@@ -1448,7 +1463,8 @@ def fourier_transform_orbital_angular_momentum(eta,mu,b_vec,particle="quark",mom
         return fourier_transform_moment(n=n,eta=eta,mu=mu,b_vec=b_vec,
                                         particle=particle,moment_type=moment_type,
                                         moment_label=moment_label,evolution_order=evolution_order,
-                                        Delta_max=Delta_max,num_points=num_points,error_type=error_type)
+                                        Delta_max=Delta_max,num_points=num_points,
+                                        error_type=error_type,dipole_form=dipole_form)
     hp.check_particle_type(particle)
     if moment_type not in ["singlet","non_singlet_isovector","non_singlet_isoscalar","u","d"]:
         raise ValueError(f"Wrong moment_type {moment_type}")
@@ -1498,11 +1514,16 @@ def fourier_transform_orbital_angular_momentum(eta,mu,b_vec,particle="quark",mom
             result = moment
             return result
 
-def fourier_transform_quark_orbital_angular_momentum(eta,mu,b_vec,moment_type="non_singlet_isovector",evolution_order="nlo", Delta_max = 7,num_points=100, error_type="central"):
+def fourier_transform_quark_orbital_angular_momentum(eta,mu,b_vec,moment_type="non_singlet_isovector",
+                                                     evolution_order="nlo", Delta_max = 7,num_points=100,
+                                                     error_type="central",dipole_form=True):
     """
     Helper function to get quark orbital angular momentum. For documentation see fourier_transform_moment.
     """
-    result = fourier_transform_orbital_angular_momentum(eta,mu,b_vec,particle="quark",moment_type=moment_type,evolution_order=evolution_order, Delta_max=Delta_max,num_points=num_points, error_type=error_type)
+    result = fourier_transform_orbital_angular_momentum(eta,mu,b_vec,particle="quark",
+                                                        moment_type=moment_type,evolution_order=evolution_order,
+                                                        Delta_max=Delta_max,num_points=num_points,
+                                                        error_type=error_type,dipole_form=dipole_form)
     return result
 
 ################################
