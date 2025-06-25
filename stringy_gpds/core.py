@@ -42,21 +42,21 @@ from . import adim
 
 def evolve_alpha_s(mu, evolution_order="nlo"):
     """
-    Evolve the strong coupling constant αₛ = g² / (4π) from an input scale μ_in to another scale μ.
+    Evolve the strong coupling constant alpha_s = g**2 / (4 pi) from an input scale μ_in to another scale μ.
 
-    Note that the MSTW best fit determines αₛ(μ² = 1 GeV²) ≈ 0.68183, which differs from the current world average.
+    Note that the MSTW lo best fit determines alpha_s(mu**2 = 1 GeV**2) \approx 0.68183, which differs from the current world average.
 
     Parameters
     ----------
     mu : float
-        The momentum scale μ (in GeV) at which to evaluate αₛ(μ²).
+        The resolution scale in GeV
     evolution_order : str, optional
-        The perturbative order used for the evolution (e.g., 'lo', 'nlo', etc.).
+        "lo", "nlo",... . Default is "nlo"
 
     Returns
     -------
     float
-        The value of the strong coupling constant αₛ(μ²) at the given scale.
+        The value of the strong coupling constant alpha_s at the given scale.
     """
     # Set parameters
     mu_R = 1 # 1 GeV from MSTW and AAC PDFs
@@ -112,11 +112,11 @@ def non_singlet_isovector_moment(j,eta,t, moment_label="A", evolution_order="nlo
     t : float
         Mandelstam variable t 
     moment_label : str, optional
-        Label identifying the moment (e.g., "A", "Atilde"). Default is "A".
+        A(tilde), B(tilde) depending on H(tilde) or E(tilde) GPD etc. Default is "A".
     evolution_order : str, optional
-        Perturbative order of the evolution (e.g., "lo", "nlo"). Default is "nlo".
+        "lo", "nlo",... . Default is "nlo"
     error_type : str, optional
-        Type of error treatment (e.g., "central", "plus", "minus"). Default is "central".
+        Choose "central", upper ("plus") or lower ("minus") value for input PDF parameters. Default is "central"
 
     Returns
     -------
@@ -158,11 +158,11 @@ def non_singlet_isoscalar_moment(j,eta,t, moment_label="A", evolution_order = "n
     t : float
         Mandelstam variable t 
     moment_label : str, optional
-        Label identifying the moment (e.g., "A", "Atilde"). Default is "A".
+        A(tilde), B(tilde) depending on H(tilde) or E(tilde) GPD etc. Default is "A".
     evolution_order : str, optional
-        Perturbative order of the evolution (e.g., "lo", "nlo"). Default is "nlo".
+        "lo", "nlo",... . Default is "nlo"
     error_type : str, optional
-        Type of error treatment (e.g., "central", "plus", "minus"). Default is "central".
+        Choose "central", upper ("plus") or lower ("minus") value for input PDF parameters. Default is "central"
 
     Returns
     -------
@@ -246,11 +246,11 @@ def quark_singlet_regge_A(j,eta,t, alpha_prime_ud=0.891, moment_label="A", evolu
     alpha_prime_ud : float
         Regge slope
     moment_label : str, optional
-        Label identifying the moment (e.g., "A", "Atilde"). Default is "A".
+        A(tilde), B(tilde) depending on H(tilde) or E(tilde) GPD etc. Default is "A".
     evolution_order : str, optional
-        Perturbative order of the evolution (e.g., "lo", "nlo"). Default is "nlo".
+        "lo", "nlo",... . Default is "nlo"
     error_type : str, optional
-        Type of error treatment (e.g., "central", "plus", "minus"). Default is "central".
+        Choose "central", upper ("plus") or lower ("minus") value for input PDF parameters. Default is "central"
 
     Returns
     -------
@@ -305,11 +305,11 @@ def quark_singlet_regge_D(j,eta,t,  alpha_prime_ud=0.891,alpha_prime_s=1.828, mo
     alpha_prime_s : float
         D-term Regge slope
     moment_label : str, optional
-        Label identifying the moment (e.g., "A", "Atilde"). Default is "A".
+        A(tilde), B(tilde) depending on H(tilde) or E(tilde) GPD etc. Default is "A".
     evolution_order : str, optional
-        Perturbative order of the evolution (e.g., "lo", "nlo"). Default is "nlo".
+        "lo", "nlo",... . Default is "nlo"
     error_type : str, optional
-        Type of error treatment (e.g., "central", "plus", "minus"). Default is "central".
+        Choose "central", upper ("plus") or lower ("minus") value for input PDF parameters. Default is "central"
 
     Returns
     -------
@@ -385,11 +385,11 @@ def quark_singlet_regge(j,eta,t,moment_label="A",evolution_order="nlo",error_typ
     t : float
         Mandelstam variable t 
     moment_label : str, optional
-        Label identifying the moment (e.g., "A", "Atilde"). Default is "A".
+        A(tilde), B(tilde) depending on H(tilde) or E(tilde) GPD etc. Default is "A".
     evolution_order : str, optional
-        Perturbative order of the evolution (e.g., "lo", "nlo"). Default is "nlo".
+        "lo", "nlo",... . Default is "nlo"
     error_type : str, optional
-        Type of error treatment (e.g., "central", "plus", "minus"). Default is "central".
+        Choose "central", upper ("plus") or lower ("minus") value for input PDF parameters. Default is "central"
 
     Returns
     -------
@@ -435,11 +435,11 @@ def gluon_singlet_regge_A(j,eta,t, alpha_prime_T = 0.627,moment_label="A", evolu
     alpha_prime_T : float
         Regge slope
     moment_label : str, optional
-        Label identifying the moment (e.g., "A", "Atilde"). Default is "A".
+        A(tilde), B(tilde) depending on H(tilde) or E(tilde) GPD etc. Default is "A".
     evolution_order : str, optional
-        Perturbative order of the evolution (e.g., "lo", "nlo"). Default is "nlo".
+        "lo", "nlo",... . Default is "nlo"
     error_type : str, optional
-        Type of error treatment (e.g., "central", "plus", "minus"). Default is "central".
+        Choose "central", upper ("plus") or lower ("minus") value for input PDF parameters. Default is "central"
 
     Returns
     -------
@@ -471,11 +471,11 @@ def gluon_singlet_regge_D(j,eta,t, alpha_prime_T = 0.627, alpha_prime_S = 4.277,
     alpha_prime_S : float
         D-term Regge slope
     moment_label : str, optional
-        Label identifying the moment (e.g., "A", "Atilde"). Default is "A".
+        A(tilde), B(tilde) depending on H(tilde) or E(tilde) GPD etc. Default is "A".
     evolution_order : str, optional
-        Perturbative order of the evolution (e.g., "lo", "nlo"). Default is "nlo".
+        "lo", "nlo",... . Default is "nlo"
     error_type : str, optional
-        Type of error treatment (e.g., "central", "plus", "minus"). Default is "central".
+        Choose "central", upper ("plus") or lower ("minus") value for input PDF parameters. Default is "central"
 
     Returns
     -------
@@ -515,11 +515,11 @@ def gluon_singlet_regge(j,eta,t,moment_label="A",evolution_order="nlo",error_typ
     t : float
         Mandelstam variable t 
     moment_label : str, optional
-        Label identifying the moment (e.g., "A", "Atilde"). Default is "A".
+        A(tilde), B(tilde) depending on H(tilde) or E(tilde) GPD etc. Default is "A".
     evolution_order : str, optional
-        Perturbative order of the evolution (e.g., "lo", "nlo"). Default is "nlo".
+        "lo", "nlo",... . Default is "nlo"
     error_type : str, optional
-        Type of error treatment (e.g., "central", "plus", "minus"). Default is "central".
+        Choose "central", upper ("plus") or lower ("minus") value for input PDF parameters. Default is "central"
 
     Returns
     -------
@@ -566,13 +566,13 @@ def singlet_moment(j,eta,t,moment_label="A",solution="+",evolution_order="nlo",e
     t : float
         Mandelstam variable t.
     moment_label : str, optional
-        Label identifying the moment (e.g., "A", "Atilde"). Default is "A".
+        A(tilde), B(tilde) depending on H(tilde) or E(tilde) GPD etc. Default is "A".
     solution : string
         + or - depending on which solution to pick
     evolution_order : str, optional
-        Perturbative order of the evolution (e.g., "lo", "nlo"). Default is "nlo".
+        "lo", "nlo",... . Default is "nlo"
     error_type : str, optional
-        Type of error treatment (e.g., "central", "plus", "minus"). Default is "central".
+        Choose "central", upper ("plus") or lower ("minus") value for input PDF parameters. Default is "central"
 
     Returns
     -------
@@ -659,18 +659,22 @@ def evolve_conformal_moment(j,eta,t,mu,A0=1,particle="quark",moment_type="non_si
     moment_type : str, optional
         "non_singlet_isovector", "non_singlet_isoscalar", or "singlet".
     moment_label : str, optional
-        A(tilde), B(tilde) depending on H(tilde) or E(tilde) GPD etc.
+        A(tilde), B(tilde) depending on H(tilde) or E(tilde) GPD etc. Default is "A".
     evolution_order : str, optional
-        lo, nlo. Default is nlo
+        "lo", "nlo",... . Default is "nlo"
     error_type : str, optional
-        Choose central, upper or lower value for input PDF parameters.
+        Choose "central", upper ("plus") or lower ("minus") value for input PDF parameters. Default is "central"
     interpolation : bool, optional
         Use interpolated values for anomalous dimensions.
 
     Returns
     -------
-    float or complex
+    float or mpc
         The value of the evolved conformal moment at scale mu.
+
+    Note
+    ----
+    Decorated using mpmath_vectorize from helpers.py for vectorized calls
     """
 
     hp.check_particle_type(particle)
@@ -998,7 +1002,7 @@ def evolve_conformal_moment(j,eta,t,mu,A0=1,particle="quark",moment_type="non_si
     # Need to keep separated for mellin_barnes_gpd
     return result, non_diagonal_terms_alt
 
-def dipole_moment(n,eta,t,mu,particle="quark",moment_type="non_singlet_isovector",moment_label="Atilde",evolution_order="nlo",error_type="central",lattice=False):
+def dipole_moment(n,eta,t,mu,particle="quark",moment_type="non_singlet_isovector",moment_label="A",evolution_order="nlo",error_type="central",lattice=False):
     """
     Get the dipole form for the evolved conformal moment F_{n}^{+-} obtained by fit.dipole_fit_moment
 
@@ -1017,11 +1021,11 @@ def dipole_moment(n,eta,t,mu,particle="quark",moment_type="non_singlet_isovector
     moment_type : str, optional
         non_singlet_isovector, non_singlet_isoscalar, or singlet.
     moment_label : str, optional
-        A(tilde), B(tilde) depending on H(tilde) or E(tilde) GPD etc.
+        A(tilde), B(tilde) depending on H(tilde) or E(tilde) GPD etc. Default is "A".
     evolution_order : str, optional
-        lo, nlo.
+        "lo", "nlo",... . Default is "nlo"
     error_type : str, optional
-        Choose central, upper or lower value for input PDF parameters.
+        Choose "central", upper ("plus") or lower ("minus") value for input PDF parameters. Default is "central"
     lattice : bool, optional
         Can also be used to get the dipole form of lattice moments
 
@@ -1140,15 +1144,15 @@ def fourier_transform_moment(n,eta,mu,b_vec,A0=1,particle="quark",moment_type="n
     moment_type : str, optional
         non_singlet_isovector, non_singlet_isoscalar, or singlet.
     moment_label : str, optional
-        A(tilde), B(tilde) depending on H(tilde) or E(tilde) GPD etc.
+        A(tilde), B(tilde) depending on H(tilde) or E(tilde) GPD etc. Default is "A".
     evolution_order : str, optional
-        lo, nlo.
+        "lo", "nlo",... . Default is "nlo"
     Delta_max : float, optional
         Maximal momentum transfer to cut off integration
     num_points : int, optional
         Number of grid points used for trapezoidal rule is num_points**2
     error_type : str, optional
-        Choose central, upper or lower value for input PDF parameters.
+        Choose "central", upper ("plus") or lower ("minus") value for input PDF parameters. Default is "central"
     dipole_form : bool, optional
         Use dipole fit for faster integration.
 
@@ -1213,15 +1217,15 @@ def inverse_fourier_transform_moment(n,eta,mu,Delta_vec,particle="quark",moment_
     moment_type : str, optional
         non_singlet_isovector, non_singlet_isoscalar, or singlet.
     moment_label : str, optional
-        A(tilde), B(tilde) depending on H(tilde) or E(tilde) GPD etc.
+        A(tilde), B(tilde) depending on H(tilde) or E(tilde) GPD etc. Default is "A".
     evolution_order : str, optional
-        lo, nlo.
+        "lo", "nlo",... . Default is "nlo"
     b_max : float, optional
         Maximal impact parameter to cut off integration
     num_points : int, optional
         Number of grid points used for trapezoidal rule is num_points**2
     error_type : str, optional
-        Choose central, upper or lower value for input PDF parameters.
+        Choose "central", upper ("plus") or lower ("minus") value for input PDF parameters. Default is "central"
     dipole_form : bool, optional
         Use dipole fit for faster integration.
 
@@ -1280,13 +1284,13 @@ def fourier_transform_transverse_moment(n,eta,mu,b_vec,A0=1,particle="quark",mom
     moment_type : str, optional
         non_singlet_isovector, non_singlet_isoscalar, or singlet.
     evolution_order : str, optional
-        lo, nlo.
+        "lo", "nlo",... . Default is "nlo"
     Delta_max : float, optional
         Maximal momentum transfer to cut off integration
     num_points : int, optional
         Number of grid points used for trapezoidal rule is num_points**2
     error_type : str, optional
-        Choose central, upper or lower value for input PDF parameters.
+        Choose "central", upper ("plus") or lower ("minus") value for input PDF parameters. Default is "central"
     dipole_form : bool, optional
         Use dipole fit for faster integration.
 
@@ -1539,7 +1543,7 @@ def conformal_partial_wave(j, x, eta, particle = "quark", parity="none"):
 
     Notes
     -----
-    Decorated using @hp.mpmath_vectorize for vectorized calls
+    Decorated using mpmath_vectorize from helpers.py for vectorized calls
     """
     hp.check_particle_type(particle)
     hp.check_parity(parity)
@@ -1605,7 +1609,7 @@ def get_j_base(particle="quark",moment_type="non_singlet_isovector", moment_labe
     moment_type : str, optional
         non_singlet_isovector, non_singlet_isoscalar, or singlet.
     moment_label : str, optional
-        A(tilde), B(tilde) depending on H(tilde) or E(tilde) GPD etc.
+        A(tilde), B(tilde) depending on H(tilde) or E(tilde) GPD etc. Default is "A".
 
     Returns
     -------
@@ -1619,9 +1623,6 @@ def get_j_base(particle="quark",moment_type="non_singlet_isovector", moment_labe
     ValueError
         If the `parity` argument is not "even", "odd", or "none".
 
-    Notes
-    -----
-    Decorated using @hp.mpmath_vectorize for vectorized calls
     """
     hp.check_particle_type(particle)
     hp.check_moment_type_label(moment_type,moment_label)
@@ -1662,16 +1663,16 @@ def estimate_gpd_error(eta,t,mu,particle,moment_type,moment_label,evolution_orde
         Mandelstam t.
     mu : float
         Resolution scale.
-    particle : str, optional
+    particle : str
         "quark" or "gluon". Default is "quark".
-    moment_type : str, optional
+    moment_type : str
         non_singlet_isovector, non_singlet_isoscalar, or singlet.
-    moment_label : str, optional
+    moment_label : str
         A(tilde), B(tilde) depending on H(tilde) or E(tilde) GPD etc.
     evolution_order : str, optional
-        lo, nlo.
-    error_type : str, optional
-        Choose central, upper or lower value for input PDF parameters.
+        "lo", "nlo",... .
+    error_type : str
+        Choose "central", upper ("plus") or lower ("minus") value for input PDF parameters. Default is "central"
         
     Returns
     -------
@@ -1765,9 +1766,9 @@ def mellin_barnes_gpd(x, eta, t, mu,  A0=1 ,particle = "quark", moment_type="non
     moment_label : str, optional
         A(tilde), B(tilde) depending on H(tilde) or E(tilde) GPD etc.
     evolution_order : str, optional
-        lo, nlo.
+        "lo", "nlo",... . Default is "nlo"
     error_type : str, optional
-        Choose central, upper or lower value for input PDF parameters.
+        Choose "central", upper ("plus") or lower ("minus") value for input PDF parameters. Default is "central"
     real_imag : str, optional
         Choose to compute "real", "imag", or "both" parts of the result.
     j_max : float, optional
@@ -2030,7 +2031,7 @@ def spin_orbit_corelation(eta,t,mu, A0 = 1, particle="quark",moment_type="non_si
     moment_type : str, optional
         non_singlet_isovector, non_singlet_isoscalar, or singlet.
     evolution_order : str, optional
-        lo, nlo.   
+        "lo", "nlo",... . Default is "nlo" 
 
     Returns
     -------
@@ -2077,7 +2078,7 @@ def total_spin(eta,t,mu,A0=1,particle="quark",moment_type="non_singlet_isovector
     moment_type : str, optional
         non_singlet_isovector, non_singlet_isoscalar, or singlet.
     evolution_order : str, optional
-        lo, nlo.   
+        "lo", "nlo",... . Default is "nlo"  
         
     Returns
     -------
@@ -2123,7 +2124,7 @@ def orbital_angular_momentum(eta,t,mu,A0=1, particle="quark",moment_type="non_si
     moment_type : str, optional
         non_singlet_isovector, non_singlet_isoscalar, or singlet.
     evolution_order : str, optional
-        lo, nlo.   
+        "lo", "nlo",... . Default is "nlo"
         
     Returns
     -------
@@ -2175,7 +2176,7 @@ def quark_gluon_helicity(eta,t,mu,A0=1, particle="quark",moment_type="non_single
     moment_type : str, optional
         non_singlet_isovector, non_singlet_isoscalar, or singlet.
     evolution_order : str, optional
-        lo, nlo.   
+        "lo", "nlo",... . Default is "nlo"
         
     Returns
     -------

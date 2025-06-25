@@ -42,9 +42,9 @@ def plot_moment(n, eta, y_label, mu_in=2, t_max=3, A0=1, particle="quark",
     moment_type : str, optional
         "non_singlet_isovector", "non_singlet_isoscalar", or "singlet".
     moment_label : str, optional
-        A(tilde), B(tilde) depending on H(tilde) or E(tilde) GPD etc.
+        A(tilde), B(tilde) depending on H(tilde) or E(tilde) GPD etc. Default is "A".
     evolution_order : str, optional
-        "lo", "nlo",... . Default is "nlo".
+        "lo", "nlo",... . Default is "nlo"
     n_t : int, optional
         Number of sampling points in t-space. Default is 50.
 
@@ -169,7 +169,7 @@ def plot_moments_on_grid(eta, y_label, t_max=3, A0=1, particle="quark", moment_t
     moment_type : str, optional
         "non_singlet_isovector", "non_singlet_isoscalar", or "singlet".
     moment_label : str, optional
-        A(tilde), B(tilde) depending on H(tilde) or E(tilde) GPD etc.
+        A(tilde), B(tilde) depending on H(tilde) or E(tilde) GPD etc. Default is "A".
     evolution_order : str, optional
         "lo", "nlo",... . Default is "nlo".
     n_t : int, optional
@@ -388,7 +388,7 @@ def plot_spin_orbit_correlation(eta,mu,particle="quark",evolution_order="nlo",n_
     particle : str, optional
         "quark" or "gluon". Default is "quark".
     evolution_order : str, optional
-        "lo", "nlo". Default is "nlo".
+        "lo", "nlo",... . Default is "nlo"
     n_t : int, optional
         Number of sampling points for the t-grid. Default is 50.
 
@@ -481,7 +481,7 @@ def plot_orbital_angular_momentum(eta,mu,particle="quark",evolution_order="nlo",
     particle : str, optional
         "quark" or "gluon". Default is "quark".
     evolution_order : str, optional
-        "lo", "nlo". Default is "nlo".
+        "lo", "nlo",... . Default is "nlo"
     n_t : int, optional
         Number of sampling points for the t-grid. Default is 50.
 
@@ -589,9 +589,9 @@ def plot_fourier_transform_moments(n, eta, mu, plot_title="", particle="quark",
     moment_type : str, optional
         "non_singlet_isovector", "non_singlet_isoscalar", or "singlet".
     moment_label : str, optional
-        A(tilde), B(tilde) depending on H(tilde) or E(tilde) GPD etc.
+        A(tilde), B(tilde) depending on H(tilde) or E(tilde) GPD etc. Default is "A".
     evolution_order : str, optional
-        "lo", "nlo",... . Default is "nlo".
+        "lo", "nlo",... . Default is "nlo"
     b_max : float, optional
         Maximum value of impact parameter in Gev^-1 used for the plot.
     Delta_max : float, optional
@@ -599,7 +599,7 @@ def plot_fourier_transform_moments(n, eta, mu, plot_title="", particle="quark",
     num_points : int, optional
         Number of points used in trapezoidal integration. Default is 100.
     error_type : str, optional
-        "central", "plus", or "minus". Default is "central".
+        Choose "central", upper ("plus") or lower ("minus") value for input PDF parameters. Default is "central"
 
     Returns
     -------
@@ -2441,7 +2441,7 @@ def plot_gpd_data(particle="quark", gpd_type="non_singlet_isovector", gpd_label=
     gpd_label : str, optional
         GPD label, e.g. "H", "E", "Htilde". Default is "Htilde".
     evolution_order : str, optional
-        Perturbative order of evolution. Default is "nlo".
+        "lo", "nlo",... . Default is "nlo"
     n_int : int, optional
         Number of points used for interpolation. Default is 300.
     n_gpd : int, optional
@@ -2709,7 +2709,7 @@ def plot_gpds(eta_array, t_array, mu_array, colors, A0=1, particle="quark",
     gpd_label : str, optional
         Label of the GPD (e.g., "H", "E", "Htilde"). Default is "H".
     evolution_order : str, optional
-        Evolution order ("lo", "nlo", etc.). Default is "nlo".
+        "lo", "nlo",... . Default is "nlo"
     sampling : bool, optional
         Whether to apply importance sampling in x. Default is True.
     n_init : int, optional
@@ -3001,11 +3001,11 @@ def plot_evolved_moment_over_j(eta, t, mu, j_base=3, particle="quark",
     moment_type : str, optional
         "non_singlet_isovector", "non_singlet_isoscalar", or "singlet".
     moment_label : str, optional
-        A(tilde), B(tilde) depending on H(tilde) or E(tilde) GPD etc.
+        A(tilde), B(tilde) depending on H(tilde) or E(tilde) GPD etc. Default is "A".
     evolution_order : str, optional
-        "lo", "nlo". Default is "nlo".
+        "lo", "nlo",... . Default is "nlo"
     error_type : str, optional
-        Choose central, upper or lower value for input PDF parameters.  
+        Choose "central", upper ("plus") or lower ("minus") value for input PDF parameters. Default is "central"
     j_max : float, optional
         Maximum value of the imaginary part of j (i.e., k). Default is 5.
     num_points : int, optional
@@ -3062,7 +3062,7 @@ def plot_conformal_partial_wave_over_j(x, eta, particle="quark",
     moment_type : str, optional
         "non_singlet_isovector", "non_singlet_isoscalar", or "singlet".
     moment_label : str, optional
-        A(tilde), B(tilde) depending on H(tilde) or E(tilde) GPD etc.
+        A(tilde), B(tilde) depending on H(tilde) or E(tilde) GPD etc. Default is "A".
 
     Returns
     -------
@@ -3123,7 +3123,7 @@ def plot_conformal_partial_wave_over_x(j_b, eta, particle="quark",
     moment_type : str, optional
         "non_singlet_isovector", "non_singlet_isoscalar", or "singlet".
     moment_label : str, optional
-        A(tilde), B(tilde) depending on H(tilde) or E(tilde) GPD etc.
+        A(tilde), B(tilde) depending on H(tilde) or E(tilde) GPD etc. Default is "A".
 
     Returns
     -------
@@ -3186,13 +3186,13 @@ def plot_mellin_barnes_gpd_integrand(x, eta, t, mu,
     moment_type : str, optional
         "non_singlet_isovector", "non_singlet_isoscalar", or "singlet".
     moment_label : str, optional
-        A(tilde), B(tilde) depending on H(tilde) or E(tilde) GPD etc.
+        A(tilde), B(tilde) depending on H(tilde) or E(tilde) GPD etc. Default is "A".
     evolution_order : str, optional
-        lo, nlo. Default is nlo
+        "lo", "nlo",... . Default is "nlo"
     parity : str, optional
         "even", "odd", or "none". Default is "none".
     error_type : str, optional
-        Choose central, upper or lower value for input PDF parameters.
+        Choose "central", upper ("plus") or lower ("minus") value for input PDF parameters. Default is "central"
     j_max : float, optional
         Maximum value of Im(j) = k used in the plot. The integration contour is along 
         j = j_base + i * k with -j_max < k < j_max. Default is 7.5.

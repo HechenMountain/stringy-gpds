@@ -20,16 +20,16 @@ def dipole_fit_lattice_moments(n,particle,moment_type,moment_label,pub_id,error_
     ----------
     n : int
         Conformal spin.
-    particle : str, optional
+    particle : str
         "quark" or "gluon". Default is "quark".
-    moment_type : str, optional
+    moment_type : str
         non_singlet_isovector, non_singlet_isoscalar, or singlet.
-    moment_label : str, optional
+    moment_label : str
         A(tilde), B(tilde) depending on H(tilde) or E(tilde) GPD etc.
     pub_id: str
         ArXiv identifier
     error_type : str, optional
-        Choose central, upper or lower value for input PDF parameters.
+        Choose "central", upper ("plus") or lower ("minus") value for input PDF parameters. Default is "central"
     plot_fit : bool, optional
         Whether to plot the fit vs the data. Default is False
     write_to_file : bool, optional
@@ -103,7 +103,7 @@ def dipole_fit_lattice_moments(n,particle,moment_type,moment_label,pub_id,error_
             lattice=True
         )
 
-def dipole_fit_moment(n,eta,mu,particle="quark",moment_type="non_singlet_isovector",moment_label="Atilde",evolution_order="nlo",error_type="central",plot_fit=False,write_to_file=True):
+def dipole_fit_moment(n,eta,mu,particle="quark",moment_type="non_singlet_isovector",moment_label="A",evolution_order="nlo",error_type="central",plot_fit=False,write_to_file=True):
     """
     Generates a dipole fit to the first moment of the corresponding singlet GPD.
 
@@ -122,11 +122,11 @@ def dipole_fit_moment(n,eta,mu,particle="quark",moment_type="non_singlet_isovect
     moment_type : str, optional
         non_singlet_isovector, non_singlet_isoscalar, or singlet.
     moment_label : str, optional
-        A(tilde), B(tilde) depending on H(tilde) or E(tilde) GPD etc.
+        A(tilde), B(tilde) depending on H(tilde) or E(tilde) GPD etc. Default is "A".
     evolution_order : str, optional
-        lo, nlo.
+        "lo", "nlo",... . Default is "nlo"
     error_type : str, optional
-        Choose central, upper or lower value for input PDF parameters.
+        Choose "central", upper ("plus") or lower ("minus") value for input PDF parameters. Default is "central"
     plot_fit : bool, optional
         Whether to plot the fit vs the data. Default is False
     write_to_file : bool, optional
@@ -227,11 +227,11 @@ def quark_singlet_regge_fit(n,eta,t,alpha_prime_ud, alpha_prime_s,norm_A, norm_D
     alpha_prime_s : float
         D-term Regge slope
     moment_label : str, optional
-        A(tilde), B(tilde) depending on H(tilde) or E(tilde) GPD etc.
+        A(tilde), B(tilde) depending on H(tilde) or E(tilde) GPD etc. Default is "A".
     evolution_order : str, optional
-        lo, nlo.
+        "lo", "nlo",... . Default is "nlo"
     error_type : str, optional
-        Choose central, upper or lower value for input PDF parameters.
+        Choose "central", upper ("plus") or lower ("minus") value for input PDF parameters. Default is "central"
     Returns
     -------
     float
@@ -273,11 +273,11 @@ def gluon_singlet_regge_fit(n,eta,t,alpha_prime_T, alpha_prime_S,norm_A, norm_D 
     alpha_prime_S : float
         D-term Regge slope
     moment_label : str, optional
-        A(tilde), B(tilde) depending on H(tilde) or E(tilde) GPD etc.
+        A(tilde), B(tilde) depending on H(tilde) or E(tilde) GPD etc. Default is "A".
     evolution_order : str, optional
-        lo, nlo.
+        "lo", "nlo",... . Default is "nlo"
     error_type : str, optional
-        Choose central, upper or lower value for input PDF parameters.
+        Choose "central", upper ("plus") or lower ("minus") value for input PDF parameters. Default is "central"
     Returns
     -------
     float
@@ -334,13 +334,13 @@ def singlet_moment_fit(j,eta,t,alpha_prime_ud, alpha_prime_s,norm_Aq, norm_Dq,al
     norm_Dg : float
         Gluon singlet D-term norm
     moment_label : str, optional
-        A(tilde), B(tilde) depending on H(tilde) or E(tilde) GPD etc.
+        A(tilde), B(tilde) depending on H(tilde) or E(tilde) GPD etc. Default is "A".
     solution : str, optional
         "+" or "-" solution
     evolution_order : str, optional
-        lo, nlo.
+        "lo", "nlo",... . Default is "nlo"
     error_type : str, optional
-        Choose central, upper or lower value for input PDF parameters.
+        Choose "central", upper ("plus") or lower ("minus") value for input PDF parameters. Default is "central"
     interpolation : bool, optional
         Whether to interpolate anomalous dimension
 
@@ -420,11 +420,11 @@ def evolve_singlet_fit(eta,t,mu,alpha_prime_ud, alpha_prime_s,norm_Aq, norm_Dq,a
     particle : str, optional
         "quark" or "gluon"
     moment_label : str, optional
-        A(tilde), B(tilde) depending on H(tilde) or E(tilde) GPD etc.
+        A(tilde), B(tilde) depending on H(tilde) or E(tilde) GPD etc. Default is "A".
     evolution_order : str, optional
-        lo, nlo.
+        "lo", "nlo",... . Default is "nlo"
     error_type : str, optional
-        Choose central, upper or lower value for input PDF parameters.
+        Choose "central", upper ("plus") or lower ("minus") value for input PDF parameters. Default is "central"
     interpolation : bool, optional
         Whether to interpolate anomalous dimension
 
@@ -594,11 +594,11 @@ def evolve_singlet_D_fit(eta,t,mu,alpha_prime_ud, alpha_prime_s,norm_Aq, norm_Dq
     particle : str, optional
         "quark" or "gluon"
     moment_label : str, optional
-        A(tilde), B(tilde) depending on H(tilde) or E(tilde) GPD etc.
+        A(tilde), B(tilde) depending on H(tilde) or E(tilde) GPD etc. Default is "A".
     evolution_order : str, optional
-        lo, nlo.
+        "lo", "nlo",... . Default is "nlo"
     error_type : str, optional
-        Choose central, upper or lower value for input PDF parameters.
+        Choose "central", upper ("plus") or lower ("minus") value for input PDF parameters. Default is "central"
     interpolation : bool, optional
         Whether to interpolate anomalous dimension
 
@@ -625,9 +625,9 @@ def fit_non_singlet_slopes(evolution_order="nlo",error_type="central",plot = Tru
     Parameters
     ----------
     evolution_order : str, optional
-        lo, nlo.
+        "lo", "nlo",... . Default is "nlo"
     error_type : str, optional
-        Choose central, upper or lower value for input PDF parameters.
+        Choose "central", upper ("plus") or lower ("minus") value for input PDF parameters. Default is "central"
     plot : bool, optional
         Show a plot of fit and data
 
@@ -807,9 +807,9 @@ def fit_singlet_slopes_A(evolution_order="nlo",plot=True):
     Parameters
     ----------
     evolution_order : str, optional
-        lo, nlo.
+        "lo", "nlo",... . Default is "nlo"
     error_type : str, optional
-        Choose central, upper or lower value for input PDF parameters.
+        Choose "central", upper ("plus") or lower ("minus") value for input PDF parameters. Default is "central"
     plot : bool, optional
         Show a plot of fit and data
 
@@ -937,9 +937,9 @@ def fit_singlet_slopes_Atilde(evolution_order="nlo",plot=True):
     Parameters
     ----------
     evolution_order : str, optional
-        lo, nlo.
+        "lo", "nlo",... . Default is "nlo"
     error_type : str, optional
-        Choose central, upper or lower value for input PDF parameters.
+        Choose "central", upper ("plus") or lower ("minus") value for input PDF parameters. Default is "central"
     plot : bool, optional
         Show a plot of fit and data
 

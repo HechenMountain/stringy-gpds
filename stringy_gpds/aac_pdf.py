@@ -105,7 +105,7 @@ def polarized_pdf_error(x,delta_A_pdf,delta_delta_A_pdf,alpha_pdf,delta_alpha_pd
     evolution_order : str
         "lo", "nlo",...
     error_type : str
-        "central", "plus", "minus"
+        Choose "central", upper ("plus") or lower ("minus") value for input PDF parameters.
 
     Returns
     -------
@@ -144,9 +144,9 @@ def polarized_uv_pdf(x, evolution_order="nlo",error_type="central"):
     x : float
         The value of parton x.
     evolution_order : str, optional
-        "lo", "nlo",...
+        "lo", "nlo",... . Default is "nlo"
     error_type : str, optional
-        Whether to use 'central', 'plus', or 'minus' errors. Default is 'central'.
+        Choose "central", upper ("plus") or lower ("minus") value for input PDF parameters. Default is "central"
 
     Returns
     -------
@@ -192,9 +192,9 @@ def polarized_dv_pdf(x, evolution_order="nlo",error_type="central"):
     x : float
         The value of parton x.
     evolution_order : str, optional
-        "lo", "nlo",...
+        "lo", "nlo",... . Default is "nlo"
     error_type : str, optional
-        Whether to use 'central', 'plus', or 'minus' errors. Default is 'central'.
+        Choose "central", upper ("plus") or lower ("minus") value for input PDF parameters. Default is "central"
 
     Returns
     -------
@@ -240,9 +240,9 @@ def polarized_gluon_pdf(x, evolution_order="nlo",error_type="central"):
     x : float
         The value of parton x.
     evolution_order : str, optional
-        "lo", "nlo",...
+        "lo", "nlo",... . Default is "nlo"
     error_type : str, optional
-        Whether to use 'central', 'plus', or 'minus' errors. Default is 'central'.
+        Choose "central", upper ("plus") or lower ("minus") value for input PDF parameters. Default is "central"
 
     Returns
     -------
@@ -287,9 +287,9 @@ def polarized_s_pdf(x, evolution_order="nlo",error_type="central"):
     x : float
         The value of parton x.
     evolution_order : str, optional
-        "lo", "nlo",...
+        "lo", "nlo",... . Default is "nlo"
     error_type : str, optional
-        Whether to use 'central', 'plus', or 'minus' errors. Default is 'central'.
+        Choose "central", upper ("plus") or lower ("minus") value for input PDF parameters. Default is "central"
 
     Returns
     -------
@@ -337,9 +337,9 @@ def polarized_sbar_pdf(x, evolution_order="nlo",error_type="central"):
     x : float
         The value of parton x.
     evolution_order : str, optional
-        "lo", "nlo",...
+        "lo", "nlo",... . Default is "nlo"
     error_type : str, optional
-        Whether to use 'central', 'plus', or 'minus' errors. Default is 'central'.
+        Choose "central", upper ("plus") or lower ("minus") value for input PDF parameters. Default is "central"
 
     Returns
     -------
@@ -385,9 +385,9 @@ def polarized_s_plus_pdf(x, evolution_order="nlo",error_type="central"):
     x : float
         The value of parton x.
     evolution_order : str, optional
-        "lo", "nlo",...
+        "lo", "nlo",... . Default is "nlo"
     error_type : str, optional
-        Whether to use 'central', 'plus', or 'minus' errors. Default is 'central'.
+        Choose "central", upper ("plus") or lower ("minus") value for input PDF parameters. Default is "central"
 
     Returns
     -------
@@ -432,9 +432,9 @@ def polarized_ubar_pdf(x, evolution_order="nlo",error_type="central"):
     x : float
         The value of parton x.
     evolution_order : str, optional
-        "lo", "nlo",...
+        "lo", "nlo",... . Default is "nlo"
     error_type : str, optional
-        Whether to use 'central', 'plus', or 'minus' errors. Default is 'central'.
+        Choose "central", upper ("plus") or lower ("minus") value for input PDF parameters. Default is "central"
 
     Returns
     -------
@@ -483,9 +483,9 @@ def polarized_dbar_pdf(x, evolution_order="nlo",error_type="central"):
     x : float
         The value of parton x.
     evolution_order : str, optional
-        "lo", "nlo",...
+        "lo", "nlo",... . Default is "nlo"
     error_type : str, optional
-        Whether to use 'central', 'plus', or 'minus' errors. Default is 'central'.
+        Choose "central", upper ("plus") or lower ("minus") value for input PDF parameters. Default is "central"
 
     Returns
     -------
@@ -531,9 +531,9 @@ def polarized_S_pdf(x, evolution_order="nlo",error_type="central"):
     x : float
         The value of parton x.
     evolution_order : str, optional
-        "lo", "nlo",...
+        "lo", "nlo",... . Default is "nlo"
     error_type : str, optional
-        Whether to use 'central', 'plus', or 'minus' errors. Default is 'central'.
+        Choose "central", upper ("plus") or lower ("minus") value for input PDF parameters. Default is "central"
 
     Returns
     -------
@@ -580,9 +580,9 @@ def polarized_uv_minus_dv_pdf(x, evolution_order="nlo",error_type="central"):
     x : float
         The value of parton x.
     evolution_order : str, optional
-        "lo", "nlo",...
+        "lo", "nlo",... . Default is "nlo"
     error_type : str, optional
-        Whether to use 'central', 'plus', or 'minus' errors. Default is 'central'.
+        Choose "central", upper ("plus") or lower ("minus") value for input PDF parameters. Default is "central"
 
     Returns
     -------
@@ -608,9 +608,9 @@ def polarized_uv_plus_dv_plus_S_pdf(x, evolution_order="nlo",error_type="central
     x : float
         The value of parton x.
     evolution_order : str, optional
-        "lo", "nlo",...
+        "lo", "nlo",... . Default is "nlo"
     error_type : str, optional
-        Whether to use 'central', 'plus', or 'minus' errors. Default is 'central'.
+        Choose "central", upper ("plus") or lower ("minus") value for input PDF parameters. Default is "central"
 
     Returns
     -------
@@ -641,7 +641,7 @@ def plot_polarized_uv_pdf(x_0=1e-2,evolution_order="nlo",logplot = False,error_b
     x_0 : float, optional
         The value of minimum value of parton x. Default is 1e-2
     evolution_order : str, optional
-        "lo", "nlo". Default is "nlo".
+        "lo", "nlo",... . Default is "nlo"
     logplot : bool, optional
         Whether to use a logarithmic scale on the x-axis. Default is False.
     error_bars : bool, optional
@@ -679,7 +679,7 @@ def plot_polarized_dv_pdf(x_0=1e-2,evolution_order="nlo",logplot = False,error_b
     x_0 : float, optional
         The value of minimum value of parton x. Default is 1e-2
     evolution_order : str, optional
-        "lo", "nlo". Default is "nlo".
+        "lo", "nlo",... . Default is "nlo"
     logplot : bool, optional
         Whether to use a logarithmic scale on the x-axis. Default is False.
     error_bars : bool, optional
@@ -718,7 +718,7 @@ def plot_polarized_ubar_pdf(x_0=1e-2,evolution_order="nlo",logplot = False,error
     x_0 : float, optional
         The value of minimum value of parton x. Default is 1e-2
     evolution_order : str, optional
-        "lo", "nlo". Default is "nlo".
+        "lo", "nlo",... . Default is "nlo"
     logplot : bool, optional
         Whether to use a logarithmic scale on the x-axis. Default is False.
     error_bars : bool, optional
@@ -756,7 +756,7 @@ def plot_polarized_uv_minus_dv_pdf(x_0=1e-2,evolution_order="nlo",logplot = Fals
     x_0 : float, optional
         The value of minimum value of parton x. Default is 1e-2
     evolution_order : str, optional
-        "lo", "nlo". Default is "nlo".
+        "lo", "nlo",... . Default is "nlo"
     logplot : bool, optional
         Whether to use a logarithmic scale on the x-axis. Default is False.
     error_bars : bool, optional
@@ -794,7 +794,7 @@ def plot_polarized_uv_plus_dv_plus_S_pdf(x_0=1e-2,evolution_order="nlo",logplot 
     x_0 : float, optional
         The value of minimum value of parton x. Default is 1e-2
     evolution_order : str, optional
-        "lo", "nlo". Default is "nlo".
+        "lo", "nlo",... . Default is "nlo"
     logplot : bool, optional
         Whether to use a logarithmic scale on the x-axis. Default is False.
     error_bars : bool, optional
@@ -832,7 +832,7 @@ def plot_polarized_gluon_pdf(x_0=1e-2,y_0=-1,y_1=1,evolution_order="nlo",logplot
     x_0 : float, optional
         The value of minimum value of parton x. Default is 1e-2
     evolution_order : str, optional
-        "lo", "nlo". Default is "nlo".
+        "lo", "nlo",... . Default is "nlo"
     logplot : bool, optional
         Whether to use a logarithmic scale on the x-axis. Default is False.
     error_bars : bool, optional

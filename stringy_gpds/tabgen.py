@@ -35,11 +35,11 @@ def generate_moment_table(eta,t,mu,solution,particle,moment_type,moment_label, e
     moment_type : str
         "non_singlet_isovector", "non_singlet_isoscalar",  "singlet".
     moment_label : str
-        A(tilde), B(tilde), depending on the GPD type.
+        A(tilde), B(tilde) depending on H(tilde) or E(tilde) GPD etc.
     evolution_order : str
-        "lo", "nlo", etc.
+        "lo", "nlo",... .
     error_type : str
-        "central", "plus", or "minus"
+        Choose "central", upper ("plus") or lower ("minus") value for input PDF parameters. Default is "central"
     im_j_max : float, optional
         Maximum value of the imaginary part of j. Default is 100.
     step : float, optional
@@ -53,8 +53,6 @@ def generate_moment_table(eta,t,mu,solution,particle,moment_type,moment_label, e
     -----
     Writes the generated table to a CSV file specified by INTERPOLATION_TABLES_PATH
     """
-
-    evolve_type = hp.get_evolve_type(moment_label)
 
     def compute_moment(j):
         # For mu != 1 we interpolate the evolved moments
@@ -99,9 +97,9 @@ def generate_moment_table(eta,t,mu,solution,particle,moment_type,moment_label, e
             delayed(compute_wrapper)(ij) for ij in grid_points
         )
 
-    # Add mirrored points: f(j*) = f(j)* for Im(j) < 0
+    # Add conjugated points: f(j*) = f(j)* for Im(j) < 0
     mirrored = []
-    for ij, val in results[1:]:  # skip ij = 0 to avoid duplication
+    for ij, val in results[1:]: 
         if ij > 0:
             conjugate = tuple(np.conj(x) for x in val)
             mirrored.append((-ij, conjugate))
@@ -157,6 +155,8 @@ def generate_harmonic_table(indices,j_re_min=0, j_re_max=10, j_im_min=0, j_im_ma
         else:
             val = sp.nested_harmonic_number(indices, j, interpolation=False)
         row = [[j_re, j_im, val]]
+
+        # Add conjugated values
         if j_im > 0:
             row.append([j_re, -j_im, np.conj(val)])
         return row
@@ -212,7 +212,7 @@ def generate_anomalous_dimension_table(suffix,moment_type,evolve_type,evolution_
     evolve_type : str
         "vector" or "axial"
     evolution_order : str, optional
-        "lo", "nlo".... Default is "nlo".
+        "lo", "nlo",... . Default is "nlo"
     j_re_min : float, optional
         Minimum real part of conformal spin j. Default is 1e-4.
     j_re_max : float, optional
@@ -249,6 +249,7 @@ def generate_anomalous_dimension_table(suffix,moment_type,evolve_type,evolution_
         
         val = complex(val)
         row = [[j_re, j_im, val]]
+        # Add conjugated values
         if j_im > 0:
             row.append([j_re, -j_im, np.conj(val)])
         return row

@@ -834,8 +834,6 @@ def update_dipole_csv(file_path, n, particle, moment_type, moment_label, evoluti
         A(tilde), B(tilde) depending on H(tilde) or E(tilde) GPD etc.
     evolution_order : str
         lo, nlo.
-    error_type : str
-        Choose central, upper or lower value for input PDF parameters.
     A_D : float
         Dipole amplitude parameter.
     m_D2 : float
@@ -982,7 +980,7 @@ def build_harmonic_interpolator(indices):
 
     Notes
     -----
-    This function is cached using joblib to avoid redundant computation.
+    This function is cached using `joblib.Memory` for performance.
     """
     if isinstance(indices,int):
         m1 = indices
@@ -1057,7 +1055,7 @@ def build_gamma_interpolator(suffix,moment_type,evolve_type,evolution_order):
 
     Notes
     -----
-    This function is cached using joblib to avoid redundant computation.
+    This function is cached using `joblib.Memory` for performance.
     """
     check_evolution_order(evolution_order)
     if moment_type != "singlet" and suffix == "qq":
@@ -1128,7 +1126,7 @@ def build_moment_interpolator(eta,t,mu,solution,particle,moment_type,moment_labe
     evolution_order : str
         lo, nlo.
     error_type : str
-        Choose central, upper or lower value for input PDF parameters.
+        Choose "central", upper ("plus") or lower ("minus") value for input PDF parameters.
 
     Returns
     -------
@@ -1136,7 +1134,7 @@ def build_moment_interpolator(eta,t,mu,solution,particle,moment_type,moment_labe
 
     Notes
     -----
-    This function is cached using joblib to avoid redundant computation.
+    This function is cached using `joblib.Memory` for performance.
     """
     check_particle_type(particle)
     check_error_type(error_type)

@@ -140,7 +140,7 @@ def gamma_qq(j,moment_type="non_singlet_isovector",evolve_type="vector",evolutio
     evolve_type : str, optional
         Type of evolution: "vector" or "axial".
     evolution_order : str, optional
-        "lo", "nlo", or "nnlo".
+        "lo", "nlo",... . Default is "nlo"
     interpolation : bool, optional
         Use tabulated values for interpolation (only beyond lo).
 
@@ -309,7 +309,7 @@ def gamma_qg(j,evolve_type="vector",evolution_order="nlo",interpolation=True):
     evolve_type : str, optional
         Type of evolution: "vector" or "axial".
     evolution_order : str, optional
-        "lo", "nlo", or "nnlo".
+        "lo", "nlo",... . Default is "nlo"
     interpolation : bool, optional
         Use tabulated values for interpolation (only beyond lo).
 
@@ -487,7 +487,7 @@ def gamma_gq(j,evolve_type="vector",evolution_order="nlo",interpolation=True):
     evolve_type : str, optional
         Type of evolution: "vector" or "axial".
     evolution_order : str, optional
-        "lo", "nlo", or "nnlo".
+        "lo", "nlo",... . Default is "nlo"
     interpolation : bool, optional
         Use tabulated values for interpolation (only beyond lo).
 
@@ -648,7 +648,7 @@ def gamma_gg(j,evolve_type="vector",evolution_order="nlo",interpolation=True):
     evolve_type : str, optional
         Type of evolution: "vector" or "axial".
     evolution_order : str, optional
-        "lo", "nlo", or "nnlo".
+        "lo", "nlo",... . Default is "nlo"
     interpolation : bool, optional
         Use tabulated values for interpolation (only beyond lo).
 
@@ -761,7 +761,7 @@ def gamma_qq_nd(j,k,  evolve_type = "vector",evolution_order="nlo",interpolation
     evolve_type : str, optional
         Type of evolution: "vector" or "axial".
     evolution_order : str, optional
-        "lo", "nlo", or "nnlo".
+        "lo", "nlo",... . Default is "nlo"
     interpolation : bool, optional
         Use tabulated values for interpolation (only beyond nlo; placeholder).
 
@@ -804,7 +804,7 @@ def gamma_qg_nd(j,k,  evolve_type = "vector",evolution_order="nlo",interpolation
     evolve_type : str, optional
         Type of evolution: "vector" or "axial".
     evolution_order : str, optional
-        "lo", "nlo", or "nnlo".
+        "lo", "nlo",... . Default is "nlo"
     interpolation : bool, optional
         Use tabulated values for interpolation (only beyond nlo; placeholder).
 
@@ -848,7 +848,7 @@ def gamma_gq_nd(j,k,  evolve_type = "vector",evolution_order="nlo",interpolation
     evolve_type : str, optional
         Type of evolution: "vector" or "axial".
     evolution_order : str, optional
-        "lo", "nlo", or "nnlo".
+        "lo", "nlo",... . Default is "nlo"
     interpolation : bool, optional
         Use tabulated values for interpolation (only beyond nlo; placeholder).
 
@@ -894,7 +894,7 @@ def gamma_gg_nd(j,k, evolve_type = "vector",evolution_order="nlo",interpolation=
     evolve_type : str, optional
         Type of evolution: "vector" or "axial".
     evolution_order : str, optional
-        "lo", "nlo", or "nnlo".
+        "lo", "nlo",... . Default is "nlo"
     interpolation : bool, optional
         Use tabulated values for interpolation (only beyond nlo; placeholder).
 

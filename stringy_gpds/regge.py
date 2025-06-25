@@ -97,7 +97,7 @@ def polarized_pdf_regge(
     t : float
         Mandelstam t.
     evolution_order : str, optional
-        "lo", "nlo",...
+        "lo", "nlo",... . Default is "nlo"
 
     Returns
     -------
@@ -338,9 +338,9 @@ def polarized_pdf_regge_error(A_pdf,eta_1,eta_2,epsilon,gamma_pdf,
     t : float
         Mandelstam variable t (typically < 0 in the physical region).
     evolution_order : str, optional
-        "lo", "nlo",...  Default is "nlo"
+        "lo", "nlo",... . Default is "nlo"
     error_type : str, optional
-        "central", "plus", or "minus". Default is "central".
+        Choose "central", upper ("plus") or lower ("minus") value for input PDF parameters. Default is "central" Default is central
 
     Returns
     -------
@@ -553,9 +553,9 @@ def uv_pdf_regge(j,eta,alpha_p,t, evolution_order = "nlo", error_type="central")
     t : float or array_like
         Mandelstam t.
     evolution_order : str, optional
-        "lo", "nlo",... Default is "nlo"
+        "lo", "nlo",... . Default is "nlo"
     error_type : str, optional
-        Whether to use 'central', 'plus', or 'minus' input parameters. Default is "central".
+        Choose "central", upper ("plus") or lower ("minus") value for input PDF parameters. Default is "central"
 
     Returns
     -------
@@ -610,9 +610,9 @@ def dv_pdf_regge(j,eta,alpha_p,t, evolution_order = "nlo", error_type="central")
     t : float or array_like
         Mandelstam t.
     evolution_order : str, optional
-        "lo", "nlo",... Default is "nlo"
+        "lo", "nlo",... . Default is "nlo"
     error_type : str, optional
-        Whether to use 'central', 'plus', or 'minus' input parameters. Default is "central".
+        Choose "central", upper ("plus") or lower ("minus") value for input PDF parameters. Default is "central"
 
     Returns
     -------
@@ -666,9 +666,9 @@ def sv_pdf_regge(j,eta,alpha_p,t, evolution_order = "nlo", error_type="central")
     t : float or array_like
         Mandelstam t.
     evolution_order : str, optional
-        "lo", "nlo",... Default is "nlo"
+        "lo", "nlo",... . Default is "nlo"
     error_type : str, optional
-        Whether to use 'central', 'plus', or 'minus' input parameters. Default is "central".
+        Choose "central", upper ("plus") or lower ("minus") value for input PDF parameters. Default is "central"
 
     Returns
     -------
@@ -793,9 +793,9 @@ def S_pdf_regge(j,eta,alpha_p,t, evolution_order = "nlo", error_type="central"):
     t : float or array_like
         Mandelstam t.
     evolution_order : str, optional
-        "lo", "nlo",... Default is "nlo"
+        "lo", "nlo",... . Default is "nlo"
     error_type : str, optional
-        Whether to use 'central', 'plus', or 'minus' input parameters. Default is "central".
+        Choose "central", upper ("plus") or lower ("minus") value for input PDF parameters. Default is "central"
 
     Returns
     -------
@@ -847,9 +847,9 @@ def s_plus_pdf_regge(j,eta,alpha_p,t, evolution_order = "nlo", error_type="centr
     t : float or array_like
         Mandelstam t.
     evolution_order : str, optional
-        "lo", "nlo",... Default is "nlo"
+        "lo", "nlo",... . Default is "nlo"
     error_type : str, optional
-        Whether to use 'central', 'plus', or 'minus' input parameters. Default is "central".
+        Choose "central", upper ("plus") or lower ("minus") value for input PDF parameters. Default is "central"
 
     Returns
     -------
@@ -901,9 +901,9 @@ def Delta_pdf_regge(j,eta,alpha_p,t, evolution_order = "nlo", error_type="centra
     t : float or array_like
         Mandelstam t.
     evolution_order : str, optional
-        "lo", "nlo",... Default is "nlo"
+        "lo", "nlo",... . Default is "nlo"
     error_type : str, optional
-        Whether to use 'central', 'plus', or 'minus' input parameters. Default is "central".
+        Choose "central", upper ("plus") or lower ("minus") value for input PDF parameters. Default is "central"
 
     Returns
     -------
@@ -1151,9 +1151,9 @@ def gluon_pdf_regge(j,eta,alpha_p,t, evolution_order = "nlo", error_type="centra
     t : float or array_like
         Mandelstam t.
     evolution_order : str, optional
-        "lo", "nlo",... Default is "nlo"
+        "lo", "nlo",... . Default is "nlo"
     error_type : str, optional
-        Whether to use 'central', 'plus', or 'minus' input parameters. Default is "central".
+        Choose "central", upper ("plus") or lower ("minus") value for input PDF parameters. Default is "central"
 
     Returns
     -------
@@ -1267,9 +1267,9 @@ def polarized_uv_pdf_regge(j,eta,alpha_p,t, evolution_order = "nlo", error_type=
     t : float or array_like
         Mandelstam t.
     evolution_order : str, optional
-        "lo", "nlo",... Default is "nlo"
+        "lo", "nlo",... . Default is "nlo"
     error_type : str, optional
-        Whether to use 'central', 'plus', or 'minus' input parameters. Default is "central".
+        Choose "central", upper ("plus") or lower ("minus") value for input PDF parameters. Default is "central"
 
     Returns
     -------
@@ -1328,9 +1328,9 @@ def polarized_dv_pdf_regge(j,eta,alpha_p,t, evolution_order = "nlo", error_type=
     t : float or array_like
         Mandelstam t.
     evolution_order : str, optional
-        "lo", "nlo",... Default is "nlo"
+        "lo", "nlo",... . Default is "nlo"
     error_type : str, optional
-        Whether to use 'central', 'plus', or 'minus' input parameters. Default is "central".
+        Choose "central", upper ("plus") or lower ("minus") value for input PDF parameters. Default is "central"
 
     Returns
     -------
@@ -1389,9 +1389,9 @@ def polarized_S_pdf_regge(j,eta,alpha_p,t, evolution_order = "nlo", error_type="
     t : float or array_like
         Mandelstam t.
     evolution_order : str, optional
-        "lo", "nlo",... Default is "nlo"
+        "lo", "nlo",... . Default is "nlo"
     error_type : str, optional
-        Whether to use 'central', 'plus', or 'minus' input parameters. Default is "central".
+        Choose "central", upper ("plus") or lower ("minus") value for input PDF parameters. Default is "central"
 
     Returns
     -------
@@ -1454,9 +1454,9 @@ def polarized_gluon_pdf_regge(j,eta,alpha_p,t, evolution_order = "nlo", error_ty
     t : float or array_like
         Mandelstam t.
     evolution_order : str, optional
-        "lo", "nlo",... Default is "nlo"
+        "lo", "nlo",... . Default is "nlo"
     error_type : str, optional
-        Whether to use 'central', 'plus', or 'minus' input parameters. Default is "central".
+        Choose "central", upper ("plus") or lower ("minus") value for input PDF parameters. Default is "central"
 
     Returns
     -------
