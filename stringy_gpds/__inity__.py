@@ -1,5 +1,3 @@
-__version__ = "1.0"
-
 from .core import (
     evolve_conformal_moment,
     mellin_barnes_gpd,

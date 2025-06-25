@@ -1,3 +1,6 @@
 __pycache__/
 test.ipynb
 bckp/
+data/
+plots/
+cache/

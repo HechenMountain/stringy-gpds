@@ -12,12 +12,14 @@ mp.dps = 16
 ####    clear data handling     ####
 ####################################
 
+# Project root directory
+PROJECT_ROOT = Path(__file__).resolve().parent.parent
 # Parent directory for data
-BASE_PATH = Path("/mnt/c/Users/flori/Documents/PostDoc/Data/stringy-gpds")
+BASE_PATH = PROJECT_ROOT / "data"
 # Folder for generated plots
-PLOT_PATH = Path("/mnt/c/Users/flori/Documents/PostDoc/Plots/stringy-gpds")
+PLOT_PATH = PROJECT_ROOT / "plots"
 # PDF location
-PDF_PATH = Path("/mnt/c/Users/flori/Documents/PostDoc/Data/PDFs")
+PDF_PATH = PROJECT_ROOT / "pdfs"
 
 # Subdirectories for cleaner file handling
 IMPACT_PARAMETER_MOMENTS_PATH = BASE_PATH / "ImpactParameterMoments"
@@ -34,7 +36,7 @@ AAC_PATH = PDF_PATH / "AAC.csv"
 #### Make sure to clear after ####
 ## parameters have been changed ##
 ##################################
-CACHE_PATH = Path("/mnt/c/Users/flori/Documents/PostDoc/Jupyter/Python/cache")
+CACHE_PATH = PROJECT_ROOT / "cache"
 memory = Memory(CACHE_PATH,verbose=0)
 # Clear after changing parameters
 # below using
