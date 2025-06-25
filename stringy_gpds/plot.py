@@ -6,12 +6,439 @@ import os
 from . import config as cfg
 from . import helpers as hp
 from . import core
+from . import mstw_pdf as mstw
+from . import aac_pdf as aac
+
 # mpmath precision set in config
 from .config import mp
 
 from joblib import Parallel, delayed
 from tqdm import tqdm
 from scipy.interpolate import RectBivariateSpline, interp1d
+
+#########################
+####### Plot PDFs #######
+#########################
+
+def plot_uv_pdf(x_0=1e-2,evolution_order="nlo",logplot=False,error_bars=True):
+    """
+    Plot the uv PDF over x.
+
+    Parameters
+    ----------
+    x_0 : float, optional
+        The value of minimum value of parton x. Default is 1e-2
+    evolution_order : str, optional
+        "lo", "nlo",... . Default is "nlo"
+    logplot : bool, optional
+        Whether to use a logarithmic scale on the x-axis. Default is False.
+    error_bars : bool, optional
+        Whether to display error bars corresponding to PDF uncertainties. Default is True.
+    """
+    hp.check_evolution_order(evolution_order)
+    vectorized_uv_pdf = np.vectorize(mstw.uv_pdf)
+    if logplot:
+        x_vals = np.logspace(np.log10(x_0), np.log10(1 - 1e-4), 100)
+    else:
+        x_vals = np.linspace(x_0,1-1e-4,100)
+    y_vals = x_vals* vectorized_uv_pdf(x_vals,evolution_order)
+    if error_bars:
+        plus_error = x_vals * vectorized_uv_pdf(x_vals,evolution_order,"plus")
+        minus_error = x_vals * vectorized_uv_pdf(x_vals,evolution_order,"minus")
+    else:
+        plus_error = 0 * y_vals
+        minus_error = 0 * y_vals
+
+    plt.errorbar(
+            x_vals, y_vals,
+            yerr=(minus_error, plus_error),
+            fmt='o')
+    if logplot:
+        plt.xscale('log')
+    plt.grid(True)
+    plt.show()
+
+def plot_dv_pdf(x_0=1e-2,evolution_order="nlo",logplot=False,error_bars=True):
+    """
+    Plot the dv PDF over x.
+
+    Parameters
+    ----------
+    x_0 : float, optional
+        The value of minimum value of parton x. Default is 1e-2
+    evolution_order : str, optional
+        "lo", "nlo",... . Default is "nlo"
+    logplot : bool, optional
+        Whether to use a logarithmic scale on the x-axis. Default is False.
+    error_bars : bool, optional
+        Whether to display error bars corresponding to PDF uncertainties. Default is True.
+    """
+    hp.check_evolution_order(evolution_order)
+    vectorized_dv_pdf = np.vectorize(mstw.dv_pdf)
+    if logplot:
+        x_vals = np.logspace(np.log10(x_0), np.log10(1 - 1e-4), 100)
+    else:
+        x_vals = np.linspace(x_0,1-1e-4,100)
+    y_vals = x_vals* vectorized_dv_pdf(x_vals,evolution_order)
+    if error_bars:
+        plus_error = x_vals * vectorized_dv_pdf(x_vals,evolution_order,"plus")
+        minus_error = x_vals * vectorized_dv_pdf(x_vals,evolution_order,"minus")
+    else:
+        plus_error = 0 * y_vals
+        minus_error = 0 * y_vals
+
+    plt.errorbar(
+            x_vals, y_vals,
+            yerr=(minus_error, plus_error),
+            fmt='o')
+    if logplot:
+        plt.xscale('log')
+    plt.grid(True)
+    plt.show()
+
+def plot_uv_minus_dv_pdf(x_0=1e-2,evolution_order="nlo",logplot=False,error_bars=True):
+    """
+    Plot the uv - dv (non_singlet_isovector) PDF over x.
+
+    Parameters
+    ----------
+    x_0 : float, optional
+        The value of minimum value of parton x. Default is 1e-2
+    evolution_order : str, optional
+        "lo", "nlo",... . Default is "nlo"
+    logplot : bool, optional
+        Whether to use a logarithmic scale on the x-axis. Default is False.
+    error_bars : bool, optional
+        Whether to display error bars corresponding to PDF uncertainties. Default is True.
+    """
+    hp.check_evolution_order(evolution_order)
+    vectorized_uv_minus_dv_pdf = np.vectorize(mstw.uv_minus_dv_pdf)
+    if logplot:
+        x_vals = np.logspace(np.log10(x_0), np.log10(1 - 1e-4), 100)
+    else:
+        x_vals = np.linspace(x_0,1-1e-4,100)
+    y_vals = vectorized_uv_minus_dv_pdf(x_vals,evolution_order)
+    if error_bars:
+        plus_error = vectorized_uv_minus_dv_pdf(x_vals,evolution_order,"plus")
+        minus_error = vectorized_uv_minus_dv_pdf(x_vals,evolution_order,"minus")
+    else:
+        plus_error = 0 * y_vals
+        minus_error = 0 * y_vals
+
+    plt.errorbar(
+            x_vals, y_vals,
+            yerr=(minus_error, plus_error),
+            fmt='o')
+    if logplot:
+        plt.xscale('log')
+    plt.grid(True)
+    plt.show()
+
+def plot_uv_plus_dv_plus_S_pdf(x_0=1e-2,evolution_order="nlo",logplot=False,error_bars=True):
+    """
+    Plot the uv + dv + S (quark singlet) PDF over x.
+
+    Parameters
+    ----------
+    x_0 : float, optional
+        The value of minimum value of parton x. Default is 1e-2
+    evolution_order : str, optional
+        "lo", "nlo",... . Default is "nlo"
+    logplot : bool, optional
+        Whether to use a logarithmic scale on the x-axis. Default is False.
+    error_bars : bool, optional
+        Whether to display error bars corresponding to PDF uncertainties. Default is True.
+    """
+    hp.check_evolution_order(evolution_order)
+    vectorized_uv_plus_dv_plus_S_pdf = np.vectorize(mstw.uv_plus_dv_plus_S_pdf)
+    if logplot:
+        x_vals = np.logspace(np.log10(x_0), np.log10(1 - 1e-4), 100)
+    else:
+        x_vals = np.linspace(x_0,1-1e-4,100)
+    y_vals = vectorized_uv_plus_dv_plus_S_pdf(x_vals,evolution_order)
+    if error_bars:
+        plus_error = vectorized_uv_plus_dv_plus_S_pdf(x_vals,evolution_order,"plus")
+        minus_error = vectorized_uv_plus_dv_plus_S_pdf(x_vals,evolution_order,"minus")
+    else:
+        plus_error = 0 * y_vals
+        minus_error = 0 * y_vals
+
+    plt.errorbar(
+            x_vals, y_vals,
+            yerr=(minus_error, plus_error),
+            fmt='o')
+    if logplot:
+        plt.xscale('log')
+    plt.grid(True)
+    plt.show()
+
+def plot_gluon_pdf(x_0=1e-2,evolution_order="nlo",logplot=False,error_bars=True):
+    """
+    Plot the gluon PDF over x.
+
+    Parameters
+    ----------
+    x_0 : float, optional
+        The value of minimum value of parton x. Default is 1e-2
+    evolution_order : str, optional
+        "lo", "nlo",... . Default is "nlo"
+    logplot : bool, optional
+        Whether to use a logarithmic scale on the x-axis. Default is False.
+    error_bars : bool, optional
+        Whether to display error bars corresponding to PDF uncertainties. Default is True.
+    """
+    hp.check_evolution_order(evolution_order)
+    vectorized_gluon_pdf = np.vectorize(mstw.gluon_pdf)
+    if logplot:
+        x_vals = np.logspace(np.log10(x_0), np.log10(1 - 1e-4), 100)
+    else:
+        x_vals = np.linspace(x_0,1-1e-4,100)
+    y_vals = x_vals * vectorized_gluon_pdf(x_vals,evolution_order)
+    if error_bars:
+        plus_error = x_vals * vectorized_gluon_pdf(x_vals,evolution_order,"plus")
+        minus_error = x_vals * vectorized_gluon_pdf(x_vals,evolution_order,"minus")
+    else:
+        plus_error = 0 * y_vals
+        minus_error = 0 * y_vals
+
+    plt.errorbar(
+            x_vals, y_vals,
+            yerr=(minus_error, plus_error),
+            fmt='o')
+    if logplot:
+        plt.xscale('log')
+    plt.grid(True)
+    plt.show()
+
+def plot_polarized_uv_pdf(x_0=1e-2,evolution_order="nlo",logplot = False,error_bars=True):
+    """
+    Plot the polarized uv PDF at a fixed value of x.
+
+    Parameters
+    ----------
+    x_0 : float, optional
+        The value of minimum value of parton x. Default is 1e-2
+    evolution_order : str, optional
+        "lo", "nlo",... . Default is "nlo"
+    logplot : bool, optional
+        Whether to use a logarithmic scale on the x-axis. Default is False.
+    error_bars : bool, optional
+        Whether to display error bars corresponding to PDF uncertainties. Default is True.
+    """
+    hp.check_evolution_order(evolution_order)
+    vectorized_polarized_uv_pdf = np.vectorize(aac.polarized_uv_pdf)
+    if logplot:
+        x_vals = np.logspace(np.log10(x_0), np.log10(1 - 1e-4), 100)
+    else:
+        x_vals = np.linspace(x_0,1-1e-4,100)
+    y_vals = x_vals * vectorized_polarized_uv_pdf(x_vals,evolution_order)
+    if error_bars:
+        plus_error = x_vals * vectorized_polarized_uv_pdf(x_vals,evolution_order,"plus")
+        minus_error = x_vals * vectorized_polarized_uv_pdf(x_vals,evolution_order,"minus")
+    else:
+        plus_error = 0 * y_vals
+        minus_error = 0 * y_vals
+
+    plt.errorbar(
+            x_vals, y_vals,
+            yerr=(minus_error, plus_error),
+            fmt='o')
+    plt.grid(True)
+    if logplot:
+        plt.xscale('log')
+    plt.show()
+
+def plot_polarized_dv_pdf(x_0=1e-2,evolution_order="nlo",logplot = False,error_bars=True):
+    """
+    Plot the polarized dv PDF at a fixed value of x.
+
+    Parameters
+    ----------
+    x_0 : float, optional
+        The value of minimum value of parton x. Default is 1e-2
+    evolution_order : str, optional
+        "lo", "nlo",... . Default is "nlo"
+    logplot : bool, optional
+        Whether to use a logarithmic scale on the x-axis. Default is False.
+    error_bars : bool, optional
+        Whether to display error bars corresponding to PDF uncertainties. Default is True.
+    """
+    hp.check_evolution_order(evolution_order)
+    vectorized_polarized_dv_pdf = np.vectorize(aac.polarized_dv_pdf)
+    if logplot:
+        x_vals = np.logspace(np.log10(x_0), np.log10(1 - 1e-4), 100)
+    else:
+        x_vals = np.linspace(x_0,1-1e-4,100)
+    y_vals = x_vals * vectorized_polarized_dv_pdf(x_vals,evolution_order)
+    if error_bars:
+        plus_error = x_vals * vectorized_polarized_dv_pdf(x_vals,evolution_order,"plus")
+        minus_error = x_vals *  vectorized_polarized_dv_pdf(x_vals,evolution_order,"minus")
+    else:
+        plus_error = 0 * y_vals
+        minus_error = 0 * y_vals
+
+    plt.errorbar(
+            x_vals, y_vals,
+            yerr=(minus_error, plus_error),
+            fmt='o')
+    plt.grid(True)
+    if logplot:
+        plt.xscale('log')
+    plt.show()
+
+
+def plot_polarized_ubar_pdf(x_0=1e-2,evolution_order="nlo",logplot = False,error_bars=True):
+    """
+    Plot the polarized ubar PDF at a fixed value of x.
+
+    Parameters
+    ----------
+    x_0 : float, optional
+        The value of minimum value of parton x. Default is 1e-2
+    evolution_order : str, optional
+        "lo", "nlo",... . Default is "nlo"
+    logplot : bool, optional
+        Whether to use a logarithmic scale on the x-axis. Default is False.
+    error_bars : bool, optional
+        Whether to display error bars corresponding to PDF uncertainties. Default is True.
+    """
+    hp.check_evolution_order(evolution_order)
+    vectorized_polarized_ubar_pdf = np.vectorize(aac.polarized_ubar_pdf)
+    if logplot:
+        x_vals = np.logspace(np.log10(x_0), np.log10(1 - 1e-4), 100)
+    else:
+        x_vals = np.linspace(x_0,1-1e-4,100)
+    y_vals = x_vals * vectorized_polarized_ubar_pdf(x_vals,evolution_order)
+    if error_bars:
+        plus_error = x_vals * vectorized_polarized_ubar_pdf(x_vals,evolution_order,"plus")
+        minus_error = x_vals *  vectorized_polarized_ubar_pdf(x_vals,evolution_order,"minus")
+    else:
+        plus_error = 0 * y_vals
+        minus_error = 0 * y_vals
+
+    plt.errorbar(
+            x_vals, y_vals,
+            yerr=(minus_error, plus_error),
+            fmt='o')
+    plt.grid(True)
+    if logplot:
+        plt.xscale('log')
+    plt.show()
+
+def plot_polarized_uv_minus_dv_pdf(x_0=1e-2,evolution_order="nlo",logplot = False,error_bars=True):
+    """
+    Plot the polarized uv - dv (non_singlet_isovector) PDF at a fixed value of x.
+
+    Parameters
+    ----------
+    x_0 : float, optional
+        The value of minimum value of parton x. Default is 1e-2
+    evolution_order : str, optional
+        "lo", "nlo",... . Default is "nlo"
+    logplot : bool, optional
+        Whether to use a logarithmic scale on the x-axis. Default is False.
+    error_bars : bool, optional
+        Whether to display error bars corresponding to PDF uncertainties. Default is True.
+    """
+    hp.check_evolution_order(evolution_order)
+    vectorized_polarized_uv_minus_dv_pdf = np.vectorize(aac.polarized_uv_minus_dv_pdf)
+    if logplot:
+        x_vals = np.logspace(np.log10(x_0), np.log10(1 - 1e-4), 100)
+    else:
+        x_vals = np.linspace(x_0,1-1e-4,100)
+    y_vals = vectorized_polarized_uv_minus_dv_pdf(x_vals,evolution_order)
+    if error_bars:
+        plus_error = vectorized_polarized_uv_minus_dv_pdf(x_vals,evolution_order,"plus")
+        minus_error = vectorized_polarized_uv_minus_dv_pdf(x_vals,evolution_order,"minus")
+    else:
+        plus_error = 0 * y_vals
+        minus_error = 0 * y_vals
+
+    plt.errorbar(
+            x_vals, y_vals,
+            yerr=(minus_error, plus_error),
+            fmt='o')
+    plt.grid(True)
+    if logplot:
+        plt.xscale('log')
+    plt.show()
+
+def plot_polarized_uv_plus_dv_plus_S_pdf(x_0=1e-2,evolution_order="nlo",logplot = False,error_bars=True):
+    """
+    Plot the polarized uv + dv + S (singlet quark) PDF at a fixed value of x.
+
+    Parameters
+    ----------
+    x_0 : float, optional
+        The value of minimum value of parton x. Default is 1e-2
+    evolution_order : str, optional
+        "lo", "nlo",... . Default is "nlo"
+    logplot : bool, optional
+        Whether to use a logarithmic scale on the x-axis. Default is False.
+    error_bars : bool, optional
+        Whether to display error bars corresponding to PDF uncertainties. Default is True.
+    """
+    hp.check_evolution_order(evolution_order)
+    vectorized_polarized_uv_plus_dv_plus_S_pdf = np.vectorize(aac.polarized_uv_plus_dv_plus_S_pdf)
+    if logplot:
+        x_vals = np.logspace(np.log10(x_0), np.log10(1 - 1e-4), 100)
+    else:
+        x_vals = np.linspace(x_0,1-1e-4,100)
+    y_vals = vectorized_polarized_uv_plus_dv_plus_S_pdf(x_vals,evolution_order)
+    if error_bars:
+        plus_error = vectorized_polarized_uv_plus_dv_plus_S_pdf(x_vals,evolution_order,"plus")
+        minus_error = vectorized_polarized_uv_plus_dv_plus_S_pdf(x_vals,evolution_order,"minus")
+    else:
+        plus_error = 0 * y_vals
+        minus_error = 0 * y_vals
+
+    plt.errorbar(
+            x_vals, y_vals,
+            yerr=(minus_error, plus_error),
+            fmt='o')
+    plt.grid(True)
+    if logplot:
+        plt.xscale('log')
+    plt.show()
+
+def plot_polarized_gluon_pdf(x_0=1e-2,y_0=-1,y_1=1,evolution_order="nlo",logplot = False,error_bars=True):
+    """
+    Plot the polarized gluon PDF at a fixed value of x.
+
+    Parameters
+    ----------
+    x_0 : float, optional
+        The value of minimum value of parton x. Default is 1e-2
+    evolution_order : str, optional
+        "lo", "nlo",... . Default is "nlo"
+    logplot : bool, optional
+        Whether to use a logarithmic scale on the x-axis. Default is False.
+    error_bars : bool, optional
+        Whether to display error bars corresponding to PDF uncertainties. Default is True.
+    """
+    hp.check_evolution_order(evolution_order)
+    vectorized_polarized_gluon_pdf = np.vectorize(aac.polarized_gluon_pdf)
+    if logplot:
+        x_vals = np.logspace(np.log10(x_0), np.log10(1 - 1e-4), 100)
+    else:
+        x_vals = np.linspace(x_0,1-1e-4,100)
+    y_vals = x_vals * vectorized_polarized_gluon_pdf(x_vals,evolution_order)
+    if error_bars:
+        plus_error = x_vals *vectorized_polarized_gluon_pdf(x_vals,evolution_order,"plus")
+        minus_error = x_vals *vectorized_polarized_gluon_pdf(x_vals,evolution_order,"minus")
+    else:
+        plus_error = 0 * y_vals
+        minus_error = 0 * y_vals
+
+    plt.errorbar(
+            x_vals, y_vals,
+            yerr=(minus_error, plus_error),
+            fmt='o')
+    plt.grid(True)
+    plt.ylim([y_0,y_1])
+    if logplot:
+        plt.xscale('log')
+    plt.show()
 
 ############################
 ####### Plot Moments #######

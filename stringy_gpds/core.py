@@ -7,11 +7,9 @@ import csv
 from .config import mp
 
 from scipy.integrate import quad, odeint, trapezoid, fixed_quad
-from scipy.interpolate import interp1d, RectBivariateSpline
 
 from itertools import product
 from joblib import Parallel, delayed
-from tqdm import tqdm
 
 from .mstw_pdf import get_alpha_s
 

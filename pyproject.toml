@@ -1,0 +1,28 @@
+[project]
+name = "stringy-gpds"
+version = "1.0.0"
+description = "A python package to compute Generalized Parton Distribution functions (GPDs) by utilizing a string-based parametrization of conformal moments"
+readme = "README.md"
+requires-python = ">=3.10"
+license = {file = "LICENSE"}
+authors = [
+  {name = "Florian Hechenberger", email = "hechenberger.florian@gmail.com"}
+]
+dependencies = [
+  "numpy",
+  "mpmath"
+  "matplotlib",
+  "joblib",
+  "csv",
+  "tqdm",
+  "Path",
+  "re",
+  "os",
+  "scipy",
+  "time",
+  "itertools"
+]
+
+[build-system]
+requires = ["setuptools>=61.0", "wheel"]
+build-backend = "setuptools.build_meta"

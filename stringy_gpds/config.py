@@ -99,7 +99,6 @@ GPD_PUBLICATION_MAPPING = {
     # ("2008.10573","non_singlet_isovector","E",0.00, -0.69, 2.00): ("mediumturquoise","000_069_200"),
     # ("2008.10573","non_singlet_isovector","E",0.33, -0.69, 2.00): ("green","033_069_200"),
     # ("2312.10829","non_singlet_isovector","E",0.10, -0.23, 2.00): ("orange","010_023_200"),
-    # Martha
     ("2305.11117","non_singlet_isovector","E",0.00,-0.17,2.00): (blue,"000_017_200"),
     ("2310.13114","non_singlet_isovector","Htilde",0.00,-0.17,2.00): (blue,"000_017_200"),
     ("2305.11117","non_singlet_isovector","H",0.00,-0.17,2.00): (blue,"000_017_200"),

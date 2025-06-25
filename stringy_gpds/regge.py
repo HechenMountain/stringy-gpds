@@ -4,7 +4,7 @@
 #####################################
 import numpy as np
 
-from .mstw_pdf import MSTW_PDF,get_alpha_s
+from .mstw_pdf import MSTW_PDF
 from .aac_pdf import AAC_PDF
 
 from . import helpers as hp
