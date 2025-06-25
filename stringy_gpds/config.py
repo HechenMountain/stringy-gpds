@@ -20,7 +20,7 @@ BASE_PATH = DEFAULT_DATA_PATH / "data"
 # Folder for generated plots
 PLOT_PATH = DEFAULT_DATA_PATH / "plots"
 # Project root directory
-PROJECT_ROOT = Path(__file__).resolve()
+PROJECT_ROOT = Path(__file__).resolve().parent
 # PDF location
 PDF_PATH = PROJECT_ROOT / "pdfs"
 
