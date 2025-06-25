@@ -1,5 +1,6 @@
 # Cleaner path structure
 from pathlib import Path
+import os
 # Set cache memory below
 from joblib import Memory
 
@@ -12,12 +13,14 @@ mp.dps = 16
 ####    clear data handling     ####
 ####################################
 
-# Project root directory
-PROJECT_ROOT = Path(__file__).resolve().parent.parent
+# Path for data and plots
+DEFAULT_DATA_PATH = Path.home() / "stringy-gpds"
 # Parent directory for data
-BASE_PATH = PROJECT_ROOT / "data"
+BASE_PATH = DEFAULT_DATA_PATH / "data"
 # Folder for generated plots
-PLOT_PATH = PROJECT_ROOT / "plots"
+PLOT_PATH = DEFAULT_DATA_PATH / "plots"
+# Project root directory
+PROJECT_ROOT = Path(__file__).resolve()
 # PDF location
 PDF_PATH = PROJECT_ROOT / "pdfs"
 

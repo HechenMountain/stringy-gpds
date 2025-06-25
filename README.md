@@ -100,7 +100,9 @@ Initial tables for interpolation are supplied for harmonic numbers, anomalous di
 ## 📁 Data Access
 
 The full dataset (CSV tables for interpolation, extracted lattice data and data used for plot generation) 
-is available at [Zenodo](https://doi.org/10.5281/zenodo.15738460).
+is available at [Zenodo](https://doi.org/10.5281/zenodo.15738460). The contents of the data folder need to be placed in /home/your-username/stringy-gpds/data (Linux)
+or C:\Users\your-username\stringy_gpds\data (Windows)
+
 
 ## 📊 Lattice data
 The `.csv` files under [Zenodo](https://doi.org/10.5281/zenodo.15738460) containing lattice data
@@ -121,6 +123,11 @@ These files are provided **for reproducibility purposes only**. The maintainers 
 ## 🐛 Issues & Support
 
 If you encounter any problems, have questions, or want to request a feature, feel free to open an issue on the [GitHub Issue Tracker](https://github.com/HechenMountain/stringy-gpds/issues).
+
+## 📈 Plots 
+The plots are automatically saved to the folder
+/home/your-username/stringy_gpds/plots (Linux) or 
+C:\Users\your-username\stringy_gpds\plots (Windows)
 
 ## 📖 How to Cite
 
