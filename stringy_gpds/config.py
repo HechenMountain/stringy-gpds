@@ -1,6 +1,5 @@
 # Cleaner path structure
 from pathlib import Path
-import os
 # Set cache memory below
 from joblib import Memory
 
@@ -13,22 +12,20 @@ mp.dps = 16
 ####    clear data handling     ####
 ####################################
 
-# Path for data and plots
-DEFAULT_DATA_PATH = Path.home() / "stringy-gpds"
+# User base directory
+USER_PATH = Path.home() / "stringy-gpds"
 # Parent directory for data
-BASE_PATH = DEFAULT_DATA_PATH / "data"
+DATA_PATH = USER_PATH / "data"
 # Folder for generated plots
-PLOT_PATH = DEFAULT_DATA_PATH / "plots"
-# Project root directory
-PROJECT_ROOT = Path(__file__).resolve().parent
+PLOT_PATH = USER_PATH / "plots"
 # PDF location
-PDF_PATH = PROJECT_ROOT / "pdfs"
+PDF_PATH = USER_PATH / "pdfs"
 
-# Subdirectories for cleaner file handling
-IMPACT_PARAMETER_MOMENTS_PATH = BASE_PATH / "ImpactParameterMoments"
-MOMENTUM_SPACE_MOMENTS_PATH = BASE_PATH / "MomentumSpaceMoments"
-GPD_PATH = BASE_PATH / "GPDs" 
-INTERPOLATION_TABLE_PATH = BASE_PATH / "InterpolationTables"
+# Additional subdirectories
+IMPACT_PARAMETER_MOMENTS_PATH = DATA_PATH / "ImpactParameterMoments"
+MOMENTUM_SPACE_MOMENTS_PATH = DATA_PATH / "MomentumSpaceMoments"
+GPD_PATH = DATA_PATH / "GPDs" 
+INTERPOLATION_TABLE_PATH = DATA_PATH / "InterpolationTables"
 
 MSTW_PATH = PDF_PATH / "MSTW.csv"
 AAC_PATH = PDF_PATH / "AAC.csv"
@@ -39,6 +36,9 @@ AAC_PATH = PDF_PATH / "AAC.csv"
 #### Make sure to clear after ####
 ## parameters have been changed ##
 ##################################
+# Project root directory
+PROJECT_ROOT = Path(__file__).resolve().parent
+# Cache directory
 CACHE_PATH = PROJECT_ROOT / "cache"
 memory = Memory(CACHE_PATH,verbose=0)
 # Clear after changing parameters
@@ -60,7 +60,7 @@ INTERPOLATE_MOMENTS = True
 # Can usually be neglected (recommended: False)
 ND_EVOLVED_COMPLEX_MOMENT = False
 
-# If no lattice data:
+# Standard choice
 ETA_ARRAY = [0,0.33,0.1]
 T_ARRAY = [-0.69,-0.69,-0.23]
 MU_ARRAY = [2,2,2]
@@ -116,7 +116,8 @@ GPD_PUBLICATION_MAPPING = {
 # Map GPDs to moment labels
 GPD_LABEL_MAP ={"H": "A",
                 "E": "B",
-                "Htilde": "Atilde"
+                "Htilde": "Atilde",
+                "Etilde" : "Btilde"
                     }
 
 # Invert map
@@ -249,3 +250,31 @@ MOMENT_NORMALIZATIONS = {
         }
     }
 }
+
+# Overwrite standard values with user input
+CONFIG_PATH = USER_PATH / "user_config.py"
+if CONFIG_PATH.exists():
+    # Dictionary
+    user_cfg = {}
+    # Read as string
+    exec(CONFIG_PATH.read_text(), user_cfg)
+    # Overwrite
+    # Interpolation
+    INTERPOLATE_MOMENTS = user_cfg.get("interpolate_moments",INTERPOLATE_MOMENTS)
+    ND_EVOLVED_COMPLEX_MOMENT =user_cfg.get("nd_evolved_complex_moment",ND_EVOLVED_COMPLEX_MOMENT)
+    # Kinematics
+    ETA_ARRAY = user_cfg.get("eta_array", ETA_ARRAY)
+    T_ARRAY = user_cfg.get("t_array", T_ARRAY)
+    MU_ARRAY = user_cfg.get("mu_array", MU_ARRAY)
+    # Choice of moments
+    PARTICLES = user_cfg.get("particles", PARTICLES)
+    MOMENTS = user_cfg.get("moments", MOMENTS)
+    LABELS = user_cfg.get("labels", LABELS)
+    ORDERS = user_cfg.get("orders", ORDERS)
+    ERRORS = user_cfg.get("errors", ERRORS)
+    # (Lattice) data
+    PUBLICATION_MAPPING = user_cfg.get("publication_mapping", PUBLICATION_MAPPING)
+    GPD_PUBLICATION_MAPPING = user_cfg.get("gpd_publication_mapping", GPD_PUBLICATION_MAPPING)
+    # Model parameters
+    REGGE_SLOPES = user_cfg.get("regge_slopes", REGGE_SLOPES)
+    MOMENT_NORMALIZATIONS = user_cfg.get("moment_normalizations", MOMENT_NORMALIZATIONS)

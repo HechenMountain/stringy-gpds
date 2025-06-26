@@ -21,6 +21,16 @@ A Python package that utilizes a string-based parametrization of quark and gluon
 ```bash
 pip install git+https://github.com/HechenMountain/stringy-gpds.git
 ```
+
+## ⚙️ Configuration
+
+Optional user-specific settings can be defined in a `config.toml` file placed at:
+
+- Linux/macOS/WSL: `~/.stringy_gpds/config.toml`
+- Windows: `C:\Users\your-username\.stringy_gpds\config.toml`
+
+This lets you override default model parameters, lattice data to show in the plot and which moments to interpolate.
+
 ## 🚀 Example Usage
 
 ```python
@@ -100,8 +110,9 @@ Initial tables for interpolation are supplied for harmonic numbers, anomalous di
 ## 📁 Data Access
 
 The full dataset (CSV tables for interpolation, extracted lattice data and data used for plot generation) 
-is available at [Zenodo](https://doi.org/10.5281/zenodo.15738460). The contents of the data folder need to be placed in /home/your-username/stringy-gpds/data (Linux)
-or C:\Users\your-username\stringy_gpds\data (Windows)
+is available at [Zenodo](https://doi.org/10.5281/zenodo.15738460). The contents of the data folder need to be placed in:
+- Linux/macOS/WSL: `~/.stringy_gpds/data`
+- Windows: `C:\Users\your-username\.stringy_gpds\data`
 
 
 ## 📊 Lattice data
@@ -125,9 +136,9 @@ These files are provided **for reproducibility purposes only**. The maintainers 
 If you encounter any problems, have questions, or want to request a feature, feel free to open an issue on the [GitHub Issue Tracker](https://github.com/HechenMountain/stringy-gpds/issues).
 
 ## 📈 Plots 
-The plots are automatically saved to the folder
-/home/your-username/stringy_gpds/plots (Linux) or 
-C:\Users\your-username\stringy_gpds\plots (Windows)
+The plots are automatically saved to the folder:
+- Linux/macOS/WSL: `~/.stringy_gpds/plots`
+- Windows: `C:\Users\your-username\.stringy_gpds\plots`
 
 ## 📖 How to Cite
 
