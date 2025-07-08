@@ -6,15 +6,16 @@ A Python package that utilizes a string-based parametrization of quark and gluon
 
 ## 📦 Features
 
-- Evolution of conformal moments for quarks and gluons.
-- Reconstruction of GPDs via Mellin-Barnes techniques.
+- Up to next-to-leading-order evolution of conformal moments for quarks and gluons. Including non-diagonal evolution for complex conformal spin.
+- Reconstruction of GPDs via resummation of the conformal moment expansion through a complex Mellin-Barnes integral.
 - Momentum space and impact parameter space representation.
 - Fast reconstruction due to caching, interpolation and dipole fits for impact parameter representation.
 - Spin and orbital angular momentum decomposition, spin-orbit correlation.
 - Dedicated plotting functions.
-- Automatic data handling to compare with available data.
-- Up to next-to-leading-order evolution including non-diagonal parts in evolution equation.
-- Includes H, Htilde and E GPDs and their moments
+- Automatic data handling to compare with available data. Easily extended by user to accomodate new data.
+- Currently supports H, Htilde and E GPDs and their moments.
+- Different choice of input PDF sets.
+- User-friendly modification of model parameters.
 
 ## 🛠 Installation
 
@@ -24,12 +25,13 @@ pip install git+https://github.com/HechenMountain/stringy-gpds.git
 
 ## ⚙️ Configuration
 
-Optional user-specific settings can be defined in a `config.toml` file placed at:
+Optional user-specific settings can be defined in a `user_configy.py` file placed at:
 
-- Linux/macOS/WSL: `~/.stringy_gpds/config.toml`
-- Windows: `C:\Users\your-username\.stringy_gpds\config.toml`
+- Linux/macOS: `~/.stringy_gpds/user_configy.py`
+- Windows: `C:\Users\your-username\.stringy_gpds\user_configy.py`
 
 This lets you override default model parameters, lattice data to show in the plot and which moments to interpolate.
+An example user_config.py can be downloaded at [Zenodo](https://doi.org/10.5281/zenodo.15738460).
 
 ## 🚀 Example Usage
 
@@ -109,10 +111,13 @@ Initial tables for interpolation are supplied for harmonic numbers, anomalous di
 
 ## 📁 Data Access
 
-The full dataset (CSV tables for interpolation, extracted lattice data and data used for plot generation) 
+The full dataset (PDFs, CSV tables for interpolation, extracted lattice data and data used for plot generation) 
 is available at [Zenodo](https://doi.org/10.5281/zenodo.15738460). The contents of the data folder need to be placed in:
-- Linux/macOS/WSL: `~/.stringy_gpds/data`
+- Linux/macOS: `~/.stringy_gpds/data`
 - Windows: `C:\Users\your-username\.stringy_gpds\data`
+And the contents of the pdfs folder need to be placed in:
+- Linux/macOS: `~/.stringy_gpds/pdfs`
+- Windows: `C:\Users\your-username\.stringy_gpds\pdfs`
 
 
 ## 📊 Lattice data
@@ -129,7 +134,7 @@ were manually extracted from published results in the following works:
 
 Please cite the original authors if you use these data in scientific work.
 
-These files are provided **for reproducibility purposes only**. The maintainers of this package claim **no ownership** of the original data.
+These files are provided **for reproducibility purposes only**. The maintainer of this package claim **no ownership** of the original data.
 
 ## 🐛 Issues & Support
 
@@ -137,7 +142,7 @@ If you encounter any problems, have questions, or want to request a feature, fee
 
 ## 📈 Plots 
 The plots are automatically saved to the folder:
-- Linux/macOS/WSL: `~/.stringy_gpds/plots`
+- Linux/macOS: `~/.stringy_gpds/plots`
 - Windows: `C:\Users\your-username\.stringy_gpds\plots`
 
 ## 📖 How to Cite

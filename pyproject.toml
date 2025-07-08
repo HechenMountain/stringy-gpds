@@ -14,8 +14,7 @@ dependencies = [
   "matplotlib",
   "joblib",
   "tqdm",
-  "scipy",
-  "toml"
+  "scipy"
 ]
 
 [build-system]
