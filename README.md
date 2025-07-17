@@ -7,20 +7,20 @@ A Python package that utilizes a string-based parametrization of quark and gluon
 ## 📦 Features
 
 - Up to next-to-leading-order evolution of conformal moments for quarks and gluons. Including non-diagonal evolution for complex conformal spin.
-- Reconstruction of GPDs via resummation of the conformal moment expansion through a complex Mellin-Barnes integral.
+- Reconstruction of evolved GPDs via resummation of the conformal moment expansion through a complex Mellin-Barnes integral.
 - Momentum space and impact parameter space representation.
 - Fast reconstruction due to caching, interpolation and dipole fits for impact parameter representation.
 - Spin and orbital angular momentum decomposition, spin-orbit correlation.
 - Dedicated plotting functions.
 - Automatic data handling to compare with available data. Easily extended by user to accomodate new data.
-- Currently supports H, Htilde and E GPDs and their moments.
+- Currently supports (un)polarized H and E GPDs and their moments.
 - Different choice of input PDF sets.
 - User-friendly modification of model parameters.
 
 ## 🛠 Installation
 
 ```bash
-pip install git+https://github.com/HechenMountain/stringy-gpds.git
+pip install stringy-gpds
 ```
 
 ## ⚙️ Configuration
@@ -34,6 +34,8 @@ This lets you override default model parameters, lattice data to show in the plo
 An example user_config.py can be downloaded at [Zenodo](https://doi.org/10.5281/zenodo.15738460).
 
 ## 🚀 Example Usage
+On first execution, the program generates interpolators and computes error estimates for the GPDs which are being cached on the filesystem.
+You can specify which functions are interpolated and which error metrics are calculated in user_config.py (see [Zenodo](https://doi.org/10.5281/zenodo.15738460)).
 
 ```python
 from stringy_gpds import evolve_conformal_moment, mellin_barnes_gpd

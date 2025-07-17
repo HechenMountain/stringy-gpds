@@ -6,7 +6,8 @@ import csv
 # mpmath precision set in config
 from .config import mp
 
-from scipy.integrate import quad, odeint, trapezoid, fixed_quad
+from scipy.integrate import odeint, trapezoid, quad, fixed_quad
+from scipy.special import j0
 
 from itertools import product
 from joblib import Parallel, delayed
@@ -208,7 +209,6 @@ def d_hat(j,eta,t):
         The value of d_hat (= 1 for eta == 0)
     """
 
-    m_N = 0.93827 # Nucleon mass in GeV
     if eta == 0:
         return 1
     # For large imaginary parts the convergence is very slow
@@ -223,10 +223,10 @@ def d_hat(j,eta,t):
 
     if mp.im(j) < 0:
         j = mp.conj(j)
-        result = mp.hyp2f1(-j/2, -(j-1)/2, 1/2 - j, - 4 * m_N**2/t * eta**2)
+        result = mp.hyp2f1(-j/2, -(j-1)/2, 1/2 - j, - 4 * cfg.m_N**2/t * eta**2)
         result = mp.conj(result)
     else:
-        result = mp.hyp2f1(-j/2, -(j-1)/2, 1/2 - j, - 4 * m_N**2/t * eta**2)
+        result = mp.hyp2f1(-j/2, -(j-1)/2, 1/2 - j, - 4 * cfg.m_N**2/t * eta**2)
     return result
     
 def quark_singlet_regge_A(j,eta,t, alpha_prime_ud=0.891, moment_label="A", evolution_order ="nlo", error_type="central"):
@@ -1121,7 +1121,7 @@ def evolve_gluon_singlet_D(j,eta,t,mu,D0=1,moment_label = "A",evolution_order="n
     result = evolve_singlet_D(j,eta,t,mu,D0,"gluon",moment_label,evolution_order,error_type)
     return result
 
-def fourier_transform_moment(n,eta,mu,b_vec,A0=1,particle="quark",moment_type="non_singlet_isovector", moment_label="A",evolution_order="nlo", Delta_max = 5,num_points=100, error_type="central",dipole_form=True):
+def fourier_transform_moment(n,eta,mu,b_vec,A0=1,particle="quark",moment_type="non_singlet_isovector", moment_label="A",evolution_order="nlo", Delta_max = 5, error_type="central",dipole_form=False):
     """
     Compute Fourier transformed moments using trapezoidal rule.
 
@@ -1131,10 +1131,10 @@ def fourier_transform_moment(n,eta,mu,b_vec,A0=1,particle="quark",moment_type="n
         Conformal spin.
     eta : float
         Skewness parameter.
-    t : float
-        Mandelstam t.
     mu : float
         Resolution scale.
+    b_vec : float
+        2D Impact parameter
     A0 : float, optional
         Normalization factor (default A0 = 1).
     particle : str, optional
@@ -1147,8 +1147,6 @@ def fourier_transform_moment(n,eta,mu,b_vec,A0=1,particle="quark",moment_type="n
         "lo", "nlo",... . Default is "nlo"
     Delta_max : float, optional
         Maximal momentum transfer to cut off integration
-    num_points : int, optional
-        Number of grid points used for trapezoidal rule is num_points**2
     error_type : str, optional
         Choose "central", upper ("plus") or lower ("minus") value for input PDF parameters. Default is "central"
     dipole_form : bool, optional
@@ -1157,41 +1155,41 @@ def fourier_transform_moment(n,eta,mu,b_vec,A0=1,particle="quark",moment_type="n
     Returns
     -------
     float
-        The value of the Fourier transformed moment at `b_vec`.
+        The value of the Fourier transformed moment at `b_perp`.
+
+    Notes
+    -----
+    Assumes radial symmetry of the moment such that the Fourier transform
+    reduces to the Hankel transform.
     """
 
     hp.check_error_type(error_type)
     hp.check_particle_type(particle)
     hp.check_moment_type_label(moment_type,moment_label)
-    b_x, b_y = b_vec
-    # Limits of integration for Delta_x, Delta_y on a square grid
-    x_min, x_max = -Delta_max, Delta_max
-    y_min, y_max = -Delta_max, Delta_max
-    # Discretize the grid (vectorized)
-    Delta_x_vals = np.linspace(x_min, x_max, num_points)
-    Delta_y_vals = np.linspace(y_min, y_max, num_points)
-
-    # Create a meshgrid for delta_x, delta_y
-    Delta_x_grid, Delta_y_grid = np.meshgrid(Delta_x_vals, Delta_y_vals)
  
-    def integrand(Delta_x,Delta_y,b_x,b_y):
+    # Convert 2D vector to scalar because of assumed radial symmetry
+    b_x, b_y = b_vec
+    b_perp = np.sqrt(b_x**2 + b_y**2)
+
+    def integrand(Delta):
         if eta == 0:
-            t = -(Delta_x**2+Delta_y**2)
+            t = - Delta**2
         else:
-            m_N = 0.93827
-            t = - (4 * eta**2 * m_N**2 + (Delta_x**2+Delta_y**2)) / (1-eta**2)
-        exponent = -1j * (b_x * Delta_x + b_y * Delta_y)
+            t = - (4 * eta**2 * cfg.m_N**2 + Delta**2) / (1-eta**2)
+        j0b = j0(b_perp * Delta)
         if dipole_form:
             moment = dipole_moment(n,eta,t,mu,particle,moment_type,moment_label,evolution_order,error_type)
         else:
             moment = evolve_conformal_moment(n,eta,t,mu,A0,particle,moment_type,moment_label,evolution_order,error_type)
-        result = moment * np.exp(exponent)
+        result = Delta * moment * j0b 
         return result
     
-    # Compute the integrand for each pair of (Delta_x, Delta_y) values
-    integrand_values = integrand(Delta_x_grid, Delta_y_grid, b_x, b_y)
-    # Perform the numerical integration using the trapezoidal rule for efficiency
-    integral_result = np.real(trapezoid(trapezoid(integrand_values, Delta_x_vals, axis=0), Delta_y_vals))/((2*np.pi)**2)
+    # fixed_quad is faster for dipole_form = True
+    if dipole_form:
+        integral_result, _ = fixed_quad(integrand,0,Delta_max,n=100)
+    else:
+        integral_result, error = quad(integrand,0,Delta_max)
+    integral_result /= (2*np.pi)
 
     return integral_result
     
@@ -1206,10 +1204,10 @@ def inverse_fourier_transform_moment(n,eta,mu,Delta_vec,particle="quark",moment_
         Conformal spin.
     eta : float
         Skewness parameter.
-    Delta_vec : vector float
-        Momentum transfer
     mu : float
         Resolution scale.
+    Delta_vec : vector float
+        Momentum transfer
     particle : str, optional
         "quark" or "gluon". Default is "quark".
     moment_type : str, optional
@@ -1224,8 +1222,6 @@ def inverse_fourier_transform_moment(n,eta,mu,Delta_vec,particle="quark",moment_
         Number of grid points used for trapezoidal rule is num_points**2
     error_type : str, optional
         Choose "central", upper ("plus") or lower ("minus") value for input PDF parameters. Default is "central"
-    dipole_form : bool, optional
-        Use dipole fit for faster integration.
 
     Returns
     -------
@@ -1247,7 +1243,9 @@ def inverse_fourier_transform_moment(n,eta,mu,Delta_vec,particle="quark",moment_
     def integrand(b_x,b_y,Delta_x,Delta_y):
         b_vec = (b_x,b_y)
         exponent = 1j * (b_x * Delta_x + b_y * Delta_y)
-        moment = fourier_transform_moment(n,eta,mu,b_vec,particle,moment_type,moment_label,evolution_order,num_points=num_points,Delta_max=Delta_max)
+        moment = fourier_transform_moment(n, eta, mu, b_vec, particle=particle,
+                                          moment_type=moment_type, moment_label=moment_label,
+                                          evolution_order=evolution_order, Delta_max=Delta_max)
         result = moment * np.exp(exponent)
         return result
 
@@ -1261,7 +1259,7 @@ def inverse_fourier_transform_moment(n,eta,mu,Delta_vec,particle="quark",moment_
 
     return integral_result.real
 
-def fourier_transform_transverse_moment(n,eta,mu,b_vec,A0=1,particle="quark",moment_type="non_singlet_isovector",evolution_order="nlo", Delta_max = 5,num_points=100, error_type="central",dipole_form=True):
+def fourier_transform_transverse_moment(n,eta,mu,b_vec,A0=1,particle="quark",moment_type="non_singlet_isovector",evolution_order="nlo", Delta_max = 5,num_points=100, error_type="central",dipole_form=False):
     """
     Compute Fourier transformed transverse moments using trapezoidal rule. Currently only supports unpolarized moments.
 
@@ -1301,8 +1299,6 @@ def fourier_transform_transverse_moment(n,eta,mu,b_vec,A0=1,particle="quark",mom
     hp.check_particle_type(particle)
     hp.check_moment_type_label(moment_type,"A")
     hp.check_moment_type_label(moment_type,"B")
-    # Nucleon mass in GeV
-    M_n = 0.93827
 
     b_x, b_y = b_vec
     # Limits of integration for Delta_x, Delta_y on a square grid
@@ -1316,14 +1312,14 @@ def fourier_transform_transverse_moment(n,eta,mu,b_vec,A0=1,particle="quark",mom
     Delta_x_grid, Delta_y_grid = np.meshgrid(Delta_x_vals, Delta_y_vals)
 
     def integrand(Delta_x,Delta_y,b_x,b_y):
-        t = -(Delta_x**2+Delta_y**2)
+        t = -(Delta_x**2+Delta_y**2) - 4 * eta**2 * cfg.m_N**2/ (1 - eta**2)
         exponent = -1j * (b_x * Delta_x + b_y * Delta_y)
         if dipole_form:
             moment_1 = dipole_moment(n,eta,t,mu,particle,moment_type,"A",evolution_order,error_type)
-            moment_2 = 1j * Delta_y/(2*M_n) * dipole_moment(n,eta,t,mu,particle,moment_type,"B",evolution_order,error_type)
+            moment_2 = 1j * Delta_y/(2*cfg.m_N) * dipole_moment(n,eta,t,mu,particle,moment_type,"B",evolution_order,error_type)
         else:
             moment_1 = evolve_conformal_moment(n,eta,t,mu,A0,particle,moment_type,"A",evolution_order,error_type)
-            moment_2 = 1j * Delta_y/(2*M_n) * evolve_conformal_moment(n,eta,t,mu,A0,particle,moment_type,"B",evolution_order,error_type)
+            moment_2 = 1j * Delta_y/(2*cfg.m_N) * evolve_conformal_moment(n,eta,t,mu,A0,particle,moment_type,"B",evolution_order,error_type)
         moment = moment_1 + moment_2
         result = moment * np.exp(exponent)
         return result
@@ -1337,7 +1333,7 @@ def fourier_transform_transverse_moment(n,eta,mu,b_vec,A0=1,particle="quark",mom
 
 def fourier_transform_quark_gluon_helicity(eta,mu,b_vec,particle="quark",moment_type="non_singlet_isovector",
                                            evolution_order="nlo", Delta_max = 10,num_points=100,
-                                           error_type="central",dipole_form=True):
+                                           error_type="central",dipole_form=False):
     """
     Quark gluon helicity in impact parameter space in GeV^2. For documentation see fourier_transform_moment.
     """
@@ -1372,7 +1368,7 @@ def fourier_transform_quark_gluon_helicity(eta,mu,b_vec,particle="quark",moment_
 
 def fourier_transform_quark_helicity(eta,mu,b_vec,moment_type="non_singlet_isovector",
                                      evolution_order="nlo", Delta_max = 10,num_points=100,
-                                     error_type="central",dipole_form=True):
+                                     error_type="central",dipole_form=False):
     """
     Helper function to get Fourier transformed quark helicity. For documentation see fourier_transform_moment.
     """
@@ -1381,7 +1377,7 @@ def fourier_transform_quark_helicity(eta,mu,b_vec,moment_type="non_singlet_isove
                                                     error_type=error_type,dipole_form=dipole_form)
     return result
 
-def fourier_transform_gluon_helicity(eta,mu,b_vec,evolution_order="nlo",Delta_max = 10,num_points=100, error_type="central",dipole_form=True):
+def fourier_transform_gluon_helicity(eta,mu,b_vec,evolution_order="nlo",Delta_max = 10,num_points=100, error_type="central",dipole_form=False):
     """
     Helper function to get Fourier transformed gluon helicity. For documentation see fourier_transform_moment.
     """
@@ -1393,7 +1389,7 @@ def fourier_transform_gluon_helicity(eta,mu,b_vec,evolution_order="nlo",Delta_ma
 def fourier_transform_spin_orbit_correlation(eta,mu,b_vec,evolution_order="nlo",
                                              particle="quark",moment_type="non_singlet_isovector",
                                              Delta_max = 8,num_points=100, 
-                                             error_type="central",dipole_form=True):
+                                             error_type="central",dipole_form=False):
     """
     Spin-orbit correlation in impact parameter space in GeV^2. For documentation see fourier_transform_moment.
     """
@@ -1455,7 +1451,7 @@ def fourier_transform_spin_orbit_correlation(eta,mu,b_vec,evolution_order="nlo",
         
 def fourier_transform_orbital_angular_momentum(eta,mu,b_vec,particle="quark",moment_type="non_singlet_isovector",
                                                evolution_order="nlo", Delta_max = 7,num_points=100,
-                                               error_type="central",dipole_form=True):
+                                               error_type="central",dipole_form=False):
     """
     Orbital angular momentum in impact parameter space in GeV^2. For documentation see fourier_transform_moment.
     """
@@ -1516,12 +1512,24 @@ def fourier_transform_orbital_angular_momentum(eta,mu,b_vec,particle="quark",mom
 
 def fourier_transform_quark_orbital_angular_momentum(eta,mu,b_vec,moment_type="non_singlet_isovector",
                                                      evolution_order="nlo", Delta_max = 7,num_points=100,
-                                                     error_type="central",dipole_form=True):
+                                                     error_type="central",dipole_form=False):
     """
     Helper function to get quark orbital angular momentum. For documentation see fourier_transform_moment.
     """
     result = fourier_transform_orbital_angular_momentum(eta,mu,b_vec,particle="quark",
                                                         moment_type=moment_type,evolution_order=evolution_order,
+                                                        Delta_max=Delta_max,num_points=num_points,
+                                                        error_type=error_type,dipole_form=dipole_form)
+    return result
+
+def fourier_transform_singlet_orbital_angular_momentum(eta,mu,b_vec,particle="quark",
+                                                     evolution_order="nlo", Delta_max = 7,num_points=100,
+                                                     error_type="central",dipole_form=False):
+    """
+    Helper function to get quark orbital angular momentum. For documentation see fourier_transform_moment.
+    """
+    result = fourier_transform_orbital_angular_momentum(eta,mu,b_vec,particle=particle,
+                                                        moment_type="singlet",evolution_order=evolution_order,
                                                         Delta_max=Delta_max,num_points=num_points,
                                                         error_type=error_type,dipole_form=dipole_form)
     return result

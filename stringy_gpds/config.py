@@ -137,116 +137,100 @@ N_F = 3
 BETA_0 = 4/3 * T_F * N_F - 11/3 * N_C
 BETA_1 = 20/3 * T_F * C_A * N_F + 4 * C_F * T_F * N_F -34/3 * C_A**2
 
+# Proton mass
+m_N = 0.93827
+
 ########################
 ### Model Parameters ###
 ########################
 
 REGGE_SLOPES = {
-    "vector": {
-        "non_singlet_isovector": {
-            "A": {
-                "lo": 0.6582,
-                "nlo": 0.6345
-            },
-            "B": {
-                "lo": 1.4581,
-                "nlo": 1.3929
-            }
+    "non_singlet_isovector": {
+        "A": {
+            "lo": 0.6582,
+            "nlo": 0.6345
         },
-        "non_singlet_isoscalar": {
-            "A": {
-                "lo": 0.9426,
-                "nlo": 0.9492
-            },
-            "B": {
-                "lo": 1.1298,
-                "nlo": 1.1368
-            }
+        "B": {
+            "lo": 1.4581,
+            "nlo": 1.3929
         },
-        "singlet": {
-            "A": {
-                "lo": (0.5306,1.9267, 0.6552, 5.1354),
-                "nlo": (0.5044,1.9657, 0.5584, 5.2081)
-            },
-            "B": {
-                "lo": (0,0,0),
-                "nlo": (0,0,0)
-            }
+        "Atilde": {
+            "lo": 0.4553,
+            "nlo": 0.3140
         }
     },
-    "axial": {
-        "non_singlet_isovector": {
-            "Atilde": {
-                "lo": 0.4553,
-                "nlo": 0.3140
-            }
+    "non_singlet_isoscalar": {
+        "A": {
+            "lo": 0.9426,
+            "nlo": 0.9492
         },
-        "non_singlet_isoscalar": {
-            "Atilde": {
-                "lo": 0.2974,
-                "nlo": 0.3140
-            }
+        "B": {
+            "lo": 1.1298,
+            "nlo": 1.1368
         },
-        "singlet": {
-            "Atilde": {
-                "lo": (0.8454, 1.179, 0.490, 0.744),
-                "nlo": (0.7186, 1.179, 0.490, 0.744)
-            },
+        "Atilde": {
+            "lo": 0.2974,
+            "nlo": 0.3140
+        }
+    },
+    "singlet": {
+        "A": {
+            "lo": (0.5306,1.9267,0.6552,5.1354),
+            "nlo": (0.5044,1.9657,0.5584,5.2081)
+        },
+        "B": {
+            "lo": (0,0,0),
+            "nlo": (0,0,0)
+        },
+        "Atilde": {
+            "lo": (0.8454,1.179,0.490,0.744),
+            "nlo": (0.7186,1.179,0.490,0.744)
         }
     }
 }
 
+
 MOMENT_NORMALIZATIONS = {
-    "vector": {
-        "non_singlet_isovector": {
-            "A": {
-                "lo": 1,
-                "nlo": 1
-            },
-            "B": {
-                "lo": 3.8319,
-                "nlo": 3.8170
-            }
+    "non_singlet_isovector": {
+        "A": {
+            "lo": 1,
+            "nlo": 1
         },
-        "non_singlet_isoscalar": {
-            "A": {
-                "lo": 0.9879,
-                "nlo": 0.9703
-            },
-            "B": {
-                "lo": -0.1215,
-                "nlo": -0.1194
-            }
+        "B": {
+            "lo": 3.8319,
+            "nlo": 3.8170
         },
-        "singlet": {
-            "A": {
-                "lo": (1,1,1,1),
-                "nlo": (1,1,1,1)
-            },
-            "B": {
-                "lo": (1,1,1,1),
-                "nlo": (1,1,1,1)
-            }
+        "Atilde": {
+            "lo": 1.0010,
+            "nlo": 0.9890
         }
     },
-    "axial": {
-        "non_singlet_isovector": {
-            "Atilde": {
-                "lo": 1.0010,
-                "nlo": 0.9890
-            }
+    "non_singlet_isoscalar": {
+        "A": {
+            "lo": 0.9879,
+            "nlo": 0.9703
         },
-        "non_singlet_isoscalar": {
-            "Atilde": {
-                "lo": 0.7129,
-                "nlo": 0.7152
-            }
+        "B": {
+            "lo": -0.1215,
+            "nlo": -0.1194
         },
-        "singlet": {
-            "Atilde": {
-                "lo": (1,1,1,1),
-                "nlo": (1,1,1,1)
-            },
+        "Atilde": {
+            "lo": 0.7129,
+            "nlo": 0.7152
+        }
+    },
+    "singlet": {
+        "A": {
+            "lo": (1,1,1,1),
+            "nlo": (1,1,1,1)
+        },
+        "B": {
+            "lo": (1,1,1,1),
+            "nlo": (1,1,1,1)
+        },
+        "Atilde": {
+            "lo": (1,1,1,1),
+            "nlo": (1,1,1,1)
         }
     }
 }

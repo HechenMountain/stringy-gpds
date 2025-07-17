@@ -2718,8 +2718,8 @@ def plot_fourier_transform_singlet_orbital_angular_momentum(eta, mu,  particle =
     If both `write_to_file` and `read_from_file` are True, a ValueError is raised.
     """  
     def ft_oam(b_vec,error_type):
-            return core.fourier_transform_quark_orbital_angular_momentum(eta=eta, mu=mu, b_vec=b_vec, 
-                                                                    moment_type="singlet", evolution_order=evolution_order,
+            return core.fourier_transform_singlet_orbital_angular_momentum(eta=eta, mu=mu, b_vec=b_vec, 
+                                                                    particle=particle, evolution_order=evolution_order,
                                                                     Delta_max=Delta_max, num_points=num_points, error_type=error_type)
     if write_to_file and read_from_file:
         raise ValueError("write_to_file and read_from_file can't simultaneously be True")
@@ -2815,7 +2815,7 @@ def plot_fourier_transform_singlet_orbital_angular_momentum(eta, mu,  particle =
         ax.set_ylabel(r'$b_y\,[\mathrm{fm}]$', fontsize=14)
         ax.set_xlim([-b_max * hbarc, b_max * hbarc])
         ax.set_ylim([-b_max * hbarc, b_max * hbarc])
-        ax.set_title(rf"$L_z^{title}$", fontsize=14)
+        ax.set_title(rf"$L_z^{{{title}}}$", fontsize=14)
 
         # Add colorbar
         cbar_ax = fig.add_axes([ax.get_position().x1, ax.get_position().y0, 0.03, ax.get_position().height])
@@ -2833,7 +2833,7 @@ def plot_fourier_transform_singlet_orbital_angular_momentum(eta, mu,  particle =
             ax_lower.set_xlim([-b_max * hbarc, b_max * hbarc])
             
             ax_lower.set_ylim([ymin, ymax ])
-            ax_lower.set_ylabel(rf'$L_z^{title}$', fontsize=14)
+            ax_lower.set_ylabel(rf'$L_z^{{{title}}}$', fontsize=14)
 
     fig.subplots_adjust(wspace=0, hspace=0)
     fig.savefig(FILE_PATH,format="pdf",bbox_inches="tight",dpi=600)

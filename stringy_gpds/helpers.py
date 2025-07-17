@@ -213,12 +213,10 @@ def get_regge_slope(moment_type, moment_label, evolution_order="nlo"):
     """
     check_moment_type_label(moment_type, moment_label)
 
-    evolve_type = get_evolve_type(moment_label)
-
     try:
-        return cfg.REGGE_SLOPES[evolve_type][moment_type][moment_label][evolution_order]
+        return cfg.REGGE_SLOPES[moment_type][moment_label][evolution_order]
     except KeyError:
-        raise ValueError(f"Missing Regge slope for: evolve_type={evolve_type}, moment_type={moment_type}, moment_label={moment_label}, evolution_order={evolution_order}")
+        raise ValueError(f"Missing Regge slope for: moment_type={moment_type}, moment_label={moment_label}, evolution_order={evolution_order}")
     
 def get_moment_normalizations(moment_type, moment_label, evolution_order="nlo"):
     """
@@ -245,12 +243,11 @@ def get_moment_normalizations(moment_type, moment_label, evolution_order="nlo"):
         If the configuration is not found in MOMENT_NORMALIZATIONS in config.py
     """
     check_moment_type_label(moment_type, moment_label)
-    evolve_type = get_evolve_type(moment_label)
 
     try:
-        return cfg.MOMENT_NORMALIZATIONS[evolve_type][moment_type][moment_label][evolution_order]
+        return cfg.MOMENT_NORMALIZATIONS[moment_type][moment_label][evolution_order]
     except KeyError:
-        raise ValueError(f"Missing moment normalization for: evolve_type={evolve_type}, moment_type={moment_type}, moment_label={moment_label}, evolution_order={evolution_order}")
+        raise ValueError(f"Missing moment normalization for: moment_type={moment_type}, moment_label={moment_label}, evolution_order={evolution_order}")
 
 ##########################
 ####   File Handling  ####

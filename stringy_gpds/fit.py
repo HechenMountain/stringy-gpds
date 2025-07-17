@@ -172,12 +172,14 @@ def dipole_fit_moment(n,eta,mu,particle="quark",moment_type="non_singlet_isovect
     t_vals = t_vals[mask]
     f_vals = f_vals[mask]
 
-    # Initial parameter guess: A_D ~ max(f_vals), m_D2 ~ 1.0 
-    initial_guess = [np.max(f_vals), 1.0]
-    bounds = ([-np.inf, 0], [np.inf, np.inf])
-
-    popt, pcov = curve_fit(dipole_form, t_vals, f_vals, p0=initial_guess,bounds=bounds)
-    AD_fit, m_D2_fit = popt
+    if all(val == 0 for val in f_vals):
+        AD_fit, m_D2_fit = 0, 1
+    else:
+        # Initial parameter guess: A_D ~ max(f_vals), m_D2 ~ 1.0 
+        initial_guess = [np.max(f_vals), 1.0]
+        bounds = ([-np.inf, 0], [np.inf, np.inf])
+        popt, pcov = curve_fit(dipole_form, t_vals, f_vals, p0=initial_guess,bounds=bounds)
+        AD_fit, m_D2_fit = popt
 
     if plot_fit:
         t_fit = np.linspace(0, -10, 100)
