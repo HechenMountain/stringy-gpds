@@ -43,8 +43,8 @@ from stringy_gpds import evolve_conformal_moment, mellin_barnes_gpd
 evolve_conformal_moment(j=2,eta=0.33,t=-0.69,mu=2,particle="gluon",moment_type="singlet",moment_label="Atilde",evolution_order="nlo")
 
 # Particles are "quark" and "gluon" with moments "non_singlet_isovector", "non_singlet_isoscalar" and "singlet". 
-# The moment_label corresponds to the standard nomenclature used in the literature. 
-# I.e. A(tilde) for moments of H(tilde) GPDs and B for moments of E GPD. 
+# The moment_label corresponds to the standard nomenclature used in the literature, but with the D-term implicit.
+# I.e. A(tilde) for moments of H(tilde) GPDs and B for moments of E GPD.
 # The Regge slopes and normalizations are defined in config.py. If a different PDF set is used, the corresponding functions to fit
 # to form factors are fit_non_singlet_slopes etc.
 

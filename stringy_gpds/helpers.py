@@ -536,7 +536,7 @@ def read_Lz_data(particle,moment_type,pub_id_A,pub_id_B,pub_id_Atilde):
 
     return A_t_vals, Lz, Lz_err
 
-def generate_filename(eta, t, mu, prefix="FILE_NAME",error_type="central"):
+def generate_filename(eta, t, mu, prefix="FILE_NAME",error_type="central",file_ext="csv"):
     """
     Generate a filename based on eta, t, and mu formatted as three-digit values.
 
@@ -548,7 +548,8 @@ def generate_filename(eta, t, mu, prefix="FILE_NAME",error_type="central"):
         Mandelstam t
     mu : float
         Resolution scale
-    
+    file_ext : str
+        File extension. E.g. "csv", "pdf", etc.
     Returns
     -------
     tuple or None
@@ -569,7 +570,7 @@ def generate_filename(eta, t, mu, prefix="FILE_NAME",error_type="central"):
     t_str = f"{abs(t):.2f}".replace(".", "").zfill(3)
     mu_str = f"{abs(mu):.2f}".replace(".", "").zfill(3)
     err_str = error_mapping.get(error_type)
-    filename = f"{prefix}_{eta_str}_{t_str}_{mu_str}{err_str}.csv"
+    filename = f"{prefix}_{eta_str}_{t_str}_{mu_str}{err_str}.{file_ext}"
     return filename
 
 def parse_filename(filename, prefix="FILE_NAME"):

@@ -996,7 +996,7 @@ def plot_orbital_angular_momentum(eta,mu,particle="quark",evolution_order="nlo",
 def plot_fourier_transform_moments(n, eta, mu, plot_title="", particle="quark",
                                    moment_type="non_singlet_isovector", moment_label="A",
                                    evolution_order="nlo", b_max=2, Delta_max=5,
-                                   num_points=100, error_type="central"):
+                                   error_type="central"):
     """
     Generate a 2D density plot of the Fourier transform of RGE-evolved conformal moments
     for a given moment type and label in impact parameter space..
@@ -1023,8 +1023,6 @@ def plot_fourier_transform_moments(n, eta, mu, plot_title="", particle="quark",
         Maximum value of impact parameter in Gev^-1 used for the plot.
     Delta_max : float, optional
         Upper bound for the momentum magnitude in the integration. Default is 5 GeV.
-    num_points : int, optional
-        Number of points used in trapezoidal integration. Default is 100.
     error_type : str, optional
         Choose "central", upper ("plus") or lower ("minus") value for input PDF parameters. Default is "central"
 
@@ -1050,7 +1048,7 @@ def plot_fourier_transform_moments(n, eta, mu, plot_title="", particle="quark",
     def ft_moment(b_vec):
         return core.fourier_transform_moment(n=n,eta=eta,mu=mu,b_vec=b_vec,
                                         particle=particle,moment_type=moment_type, moment_label=moment_label, 
-                                        evolution_order=evolution_order,Delta_max=Delta_max,num_points=num_points,error_type=error_type,dipole_form=True)
+                                        evolution_order=evolution_order,Delta_max=Delta_max,error_type=error_type,dipole_form=True)
     # Parallel computation using joblib
     fourier_transform_moment_values_flat = Parallel(n_jobs=-1)(delayed(ft_moment)(b_vec) for b_vec in b_vecs)
 
@@ -1125,11 +1123,11 @@ def plot_fourier_transform_transverse_moments(n, eta, mu, particle="quark",
     moments for a transversely polarized target. 
     
     The plot is saved under
-    cfg.PLOT_PATH / f"imp_param_transv_pol_moment_j_{n}_{moment_type}.pdf" where 
+    cfg.PLOT_PATH / f"imp_param_transv_pol_moment_j_{n}_{moment_type}_{eta}_{t}_{mu}.pdf" where 
     PLOT_PATH is defined in config.py
 
     If write_to_file is set to true the data is saved under 
-    cfg.IMPACT_PARAMETER_MOMENTS_PATH / f"imp_param_transv_pol_moment_j_{n}_{mom_type}.csv"
+    cfg.IMPACT_PARAMETER_MOMENTS_PATH / f"imp_param_transv_pol_moment_j_{n}_{mom_type}_{eta}_{t}_{mu}.csv"
     where IMPACT_PARAMETER_MOMENTS_PATH is defined in config.py
 
     If both `write_to_file` and `read_from_file` are True, a ValueError is raised.
@@ -1137,7 +1135,7 @@ def plot_fourier_transform_transverse_moments(n, eta, mu, particle="quark",
     def ft_transverse_moment(b_vec):
         return core.fourier_transform_transverse_moment(n=n,eta=eta, mu=mu, b_vec=b_vec,  A0=1,
                                                    particle=particle,moment_type=mom_type, evolution_order=evolution_order, 
-                                                   Delta_max=Delta_max, num_points=num_points, error_type="central")
+                                                   Delta_max=Delta_max, num_points=num_points, error_type="central",dipole_form=True)
     hp.check_particle_type(particle)
 
     if moment_type not in ["non_singlet_isovector", "non_singlet_isoscalar", "u", "d", "all","singlet"]:
@@ -1146,7 +1144,9 @@ def plot_fourier_transform_transverse_moments(n, eta, mu, particle="quark",
     if write_to_file and read_from_file:
         raise ValueError("write_to_file and read_from_file can't simultaneously be True")
 
-    FILE_PATH = cfg.PLOT_PATH / f"imp_param_transv_pol_moment_j_{n}_{moment_type}.pdf"
+    prfx =  f"imp_param_transv_pol_moment_j_{n}_{moment_type}"
+    file_name = hp.generate_filename(eta,0,mu,prfx,file_ext="pdf")
+    FILE_PATH = cfg.PLOT_PATH / file_name
 
     # Define the grid for b_vec
     b_x = np.linspace(-b_max, b_max, n_b)
@@ -1318,8 +1318,8 @@ def plot_fourier_transform_transverse_moments_grid(n_max, eta, mu,
     -----
     This function creates a 2D density plot of the Fourier-transformed conformal
     moments for a transversely polarized target. The plot is saved under
-    cfg.PLOT_PATH / "imp_param_transv_pol_moments.pdf"
-    where PLOT_PATH is defined in config.py
+    cfg.PLOT_PATH / "imp_param_transv_pol_moments_{eta}_{t}_{mu}.pdf"
+    where PLOT_PATH is defined in config.py.
     """
 
     def get_subplot_positions_and_heights(n_rows,n_cols):
@@ -1350,7 +1350,9 @@ def plot_fourier_transform_transverse_moments_grid(n_max, eta, mu,
     if len(vmin)<n_max or len(vmax)<n_max:
         raise ValueError("Supply vmin and vmax as arrays of length n_max")
 
-    FILE_PATH = cfg.PLOT_PATH / "imp_param_transv_pol_moments.pdf"
+    prfx = "imp_param_transv_pol_moments"
+    file_name = hp.generate_filename(eta,0,mu,prfx,file_ext="pdf")
+    FILE_PATH = cfg.PLOT_PATH / file_name
 
     moment_types = ["non_singlet_isovector", "non_singlet_isoscalar", "u", "d"]
 
@@ -1462,7 +1464,7 @@ def plot_fourier_transform_transverse_moments_grid(n_max, eta, mu,
     plt.close()
 
 def plot_fourier_transform_quark_spin_orbit_correlation(eta, mu,  moment_type="non_singlet_isovector",evolution_order="nlo", 
-                                          b_max=4.5, Delta_max=10, num_points=100, n_b=50, interpolation = True,n_int=300,
+                                          b_max=4.5, Delta_max=10, n_b=50, interpolation = True,n_int=300,
                                           vmin = -1.8 , vmax = 1, ymin = -2, ymax = .3,
                                           plot_option="both",write_to_file = False, read_from_file = True):
     """
@@ -1482,8 +1484,6 @@ def plot_fourier_transform_quark_spin_orbit_correlation(eta, mu,  moment_type="n
         Maximum value of impact parameter in Gev^-1 used for the plot.
     Delta_max : float, optional
         Upper bound for the momentum magnitude in the integration. Default is 5 GeV.
-    num_points : int, optional
-        Number of points used in trapezoidal integration. Default is 100.
     n_b : int, optional
         Number of points for discretizing the transverse position plane. Default is 100.
     interpolation : bool, optional
@@ -1525,7 +1525,7 @@ def plot_fourier_transform_quark_spin_orbit_correlation(eta, mu,  moment_type="n
     def ft_spin_orbit(b_vec,moment_type,error_type):
         return core.fourier_transform_spin_orbit_correlation(eta=eta, mu=mu, b_vec=b_vec,  
                                                         particle=particle,moment_type=moment_type, evolution_order=evolution_order,
-                                                        Delta_max=Delta_max, num_points=num_points, error_type=error_type)
+                                                        Delta_max=Delta_max, error_type=error_type,dipole_form=True)
     particle = "quark"
     if moment_type not in ["non_singlet_isovector", "non_singlet_isoscalar", "u", "d", "all"]:
         raise ValueError(f"Wrong moment_type {moment_type}")
@@ -1536,8 +1536,10 @@ def plot_fourier_transform_quark_spin_orbit_correlation(eta, mu,  moment_type="n
 
     if moment_type not in ["non_singlet_isovector", "non_singlet_isoscalar", "u", "d", "all"]:
         raise ValueError(f"Wrong moment_type {moment_type}")
-
-    FILE_PATH = cfg.PLOT_PATH / f"imp_param_spin_orbit_{moment_type}.pdf"
+    
+    prfx = f"imp_param_spin_orbit_{moment_type}"
+    file_name = hp.generate_filename(eta,0,mu,prfx,file_ext="pdf")
+    FILE_PATH = cfg.PLOT_PATH / file_name
 
 
     # Define the grid for b_vec
@@ -1736,7 +1738,7 @@ def plot_fourier_transform_quark_spin_orbit_correlation(eta, mu,  moment_type="n
     plt.close()
 
 def plot_fourier_transform_quark_helicity(eta, mu,  moment_type="non_singlet_isovector",evolution_order="nlo", 
-                                          b_max=4.5, Delta_max=8, num_points=100, n_b=50, interpolation = True,n_int=300,
+                                          b_max=4.5, Delta_max=8, n_b=50, interpolation = True,n_int=300,
                                           vmin = -1.1 , vmax = 2.5, ymin = -0.5, ymax = 2.5,
                                           plot_option="both", read_from_file=True, write_to_file = False):
     """
@@ -1756,8 +1758,6 @@ def plot_fourier_transform_quark_helicity(eta, mu,  moment_type="non_singlet_iso
         Maximum value of impact parameter in Gev^-1 used for the plot.
     Delta_max : float, optional
         Upper bound for the momentum magnitude in the integration. Default is 5 GeV.
-    num_points : int, optional
-        Number of points used in trapezoidal integration. Default is 100.
     n_b : int, optional
         Number of points for discretizing the transverse position plane. Default is 100.
     interpolation : bool, optional
@@ -1800,14 +1800,16 @@ def plot_fourier_transform_quark_helicity(eta, mu,  moment_type="non_singlet_iso
     def ft_quark_helicity(b_vec,moment_type,error_type):
         return core.fourier_transform_quark_helicity(eta=eta, mu=mu, b_vec=b_vec,  
                                                 moment_type=moment_type, evolution_order=evolution_order,
-                                                Delta_max=Delta_max, num_points=num_points, error_type=error_type)
+                                                Delta_max=Delta_max, error_type=error_type,dipole_form=True)
     if write_to_file and read_from_file:
         raise ValueError("write_to_file and read_from_file can't simultaneously be True")
 
     if moment_type not in ["non_singlet_isovector", "non_singlet_isoscalar", "u", "d", "all"]:
         raise ValueError(f"Wrong moment_type {moment_type}")
 
-    FILE_PATH = cfg.PLOT_PATH / f"imp_param_helicity_{moment_type}.pdf"
+    prfx = f"imp_param_helicity_{moment_type}"
+    file_name = hp.generate_filename(eta,0,mu,prfx,file_ext="pdf")
+    FILE_PATH = cfg.PLOT_PATH / file_name
     
 
     # Define the grid for b_vec
@@ -2003,7 +2005,7 @@ def plot_fourier_transform_quark_helicity(eta, mu,  moment_type="non_singlet_iso
     plt.close()
 
 def plot_fourier_transform_singlet_helicity(eta, mu,  particle = "gluon",evolution_order="nlo",
-                                          b_max=4.5, Delta_max=8, num_points=100, n_b=50, interpolation = True,n_int=300,
+                                          b_max=4.5, Delta_max=8, n_b=50, interpolation = True,n_int=300,
                                           vmin = -2.05 , vmax = 3.08, ymin= -2.05, ymax = 3.08,
                                           plot_option="both", read_from_file=True, write_to_file = False):
     """
@@ -2023,8 +2025,6 @@ def plot_fourier_transform_singlet_helicity(eta, mu,  particle = "gluon",evoluti
         Maximum value of impact parameter in Gev^-1 used for the plot.
     Delta_max : float, optional
         Upper bound for the momentum magnitude in the integration. Default is 5 GeV.
-    num_points : int, optional
-        Number of points used in trapezoidal integration. Default is 100.
     n_b : int, optional
         Number of points for discretizing the transverse position plane. Default is 100.
     interpolation : bool, optional
@@ -2065,9 +2065,9 @@ def plot_fourier_transform_singlet_helicity(eta, mu,  particle = "gluon",evoluti
     If both `write_to_file` and `read_from_file` are True, a ValueError is raised.
     """ 
     def ft_singlet_helicity(b_vec,error_type):
-        return core.fourier_transform_quark_gluon_helicity(eta=eta, mu=mu, b_vec=b_vec, 
+        return core.fourier_transform_helicity(eta=eta, mu=mu, b_vec=b_vec, 
                                                       particle=particle,moment_type="singlet", evolution_order=evolution_order,
-                                                      Delta_max=Delta_max, num_points=num_points, error_type=error_type)
+                                                      Delta_max=Delta_max, error_type=error_type,dipole_form=True)
     if write_to_file and read_from_file:
         raise ValueError("write_to_file and read_from_file can't simultaneously be True")
     
@@ -2077,7 +2077,10 @@ def plot_fourier_transform_singlet_helicity(eta, mu,  particle = "gluon",evoluti
         }
     title = title_map[particle]
     
-    FILE_PATH = cfg.PLOT_PATH / f"imp_param_helicity_singlet_{particle}.pdf"
+    prfx = f"imp_param_helicity_singlet_{particle}"
+    file_name = hp.generate_filename(eta,0,mu,prfx,file_ext="pdf")
+    FILE_PATH = cfg.PLOT_PATH / file_name
+
     READ_WRITE_PATH = cfg.IMPACT_PARAMETER_MOMENTS_PATH / f"imp_param_helicity_singlet_{particle}"
 
     # Define the grid for b_vec
@@ -2199,7 +2202,7 @@ def plot_fourier_transform_singlet_helicity(eta, mu,  particle = "gluon",evoluti
     plt.close()
 
 def plot_fourier_transform_singlet_spin_orbit_correlation(eta, mu,  particle = "gluon",evolution_order="nlo",
-                                          b_max=4.5, Delta_max=8, num_points=100, n_b=50, interpolation = True, n_int=300,
+                                          b_max=4.5, Delta_max=8, n_b=50, interpolation = True, n_int=300,
                                           vmin = -2.05 , vmax = 3.08, ymin= -2.05, ymax = 3.08,
                                           plot_option="both", read_from_file=True, write_to_file = False):
     """
@@ -2219,8 +2222,6 @@ def plot_fourier_transform_singlet_spin_orbit_correlation(eta, mu,  particle = "
         Maximum value of impact parameter in Gev^-1 used for the plot.
     Delta_max : float, optional
         Upper bound for the momentum magnitude in the integration. Default is 5 GeV.
-    num_points : int, optional
-        Number of points used in trapezoidal integration. Default is 100.
     n_b : int, optional
         Number of points for discretizing the transverse position plane. Default is 100.
     interpolation : bool, optional
@@ -2263,7 +2264,7 @@ def plot_fourier_transform_singlet_spin_orbit_correlation(eta, mu,  particle = "
     def ft_singlet_spin_orbit(b_vec,error_type):
         return core.fourier_transform_spin_orbit_correlation(eta=eta, mu=mu, b_vec=b_vec, 
                                                       particle=particle,moment_type="singlet", evolution_order=evolution_order,
-                                                      Delta_max=Delta_max, num_points=num_points, error_type=error_type)
+                                                      Delta_max=Delta_max, error_type=error_type,dipole_form=True)
     if write_to_file and read_from_file:
         raise ValueError("write_to_file and read_from_file can't simultaneously be True")
     
@@ -2273,7 +2274,10 @@ def plot_fourier_transform_singlet_spin_orbit_correlation(eta, mu,  particle = "
         }
     title = title_map[particle]
     
-    FILE_PATH = cfg.PLOT_PATH / f"imp_param_spin_orbit_singlet_{particle}.pdf"
+    prfx = f"imp_param_spin_orbit_singlet_{particle}"
+    file_name = hp.generate_filename(eta,0,mu,prfx,file_ext="pdf")
+    FILE_PATH = cfg.PLOT_PATH / file_name
+
     READ_WRITE_PATH = cfg.IMPACT_PARAMETER_MOMENTS_PATH / f"imp_param_spin_orbit_singlet_{particle}"
 
     # Define the grid for b_vec
@@ -2388,7 +2392,7 @@ def plot_fourier_transform_singlet_spin_orbit_correlation(eta, mu,  particle = "
 
 
 def plot_fourier_transform_quark_orbital_angular_momentum(eta, mu,  moment_type="non_singlet_isovector",evolution_order="nlo", 
-                                          b_max=3, Delta_max=7, num_points=100, n_b=50, interpolation = True,n_int=300,
+                                          b_max=3, Delta_max=7, n_b=50, interpolation = True,n_int=300,
                                           vmin = -2 , vmax = 2, ymin = -2, ymax = .3,
                                           plot_option="both", read_from_file=True, write_to_file = False):
     """
@@ -2408,8 +2412,6 @@ def plot_fourier_transform_quark_orbital_angular_momentum(eta, mu,  moment_type=
         Maximum value of impact parameter in Gev^-1 used for the plot.
     Delta_max : float, optional
         Upper bound for the momentum magnitude in the integration. Default is 5 GeV.
-    num_points : int, optional
-        Number of points used in trapezoidal integration. Default is 100.
     n_b : int, optional
         Number of points for discretizing the transverse position plane. Default is 100.
     interpolation : bool, optional
@@ -2452,7 +2454,7 @@ def plot_fourier_transform_quark_orbital_angular_momentum(eta, mu,  moment_type=
     def ft_oam(b_vec,moment_type,error_type):
         return core.fourier_transform_quark_orbital_angular_momentum(eta=eta, mu=mu, b_vec=b_vec, 
                                                       moment_type=moment_type, evolution_order=evolution_order,
-                                                      Delta_max=Delta_max, num_points=num_points, error_type=error_type)
+                                                      Delta_max=Delta_max, error_type=error_type,dipole_form=True)
     if write_to_file and read_from_file:
         raise ValueError("write_to_file and read_from_file can't simultaneously be True")
 
@@ -2460,7 +2462,9 @@ def plot_fourier_transform_quark_orbital_angular_momentum(eta, mu,  moment_type=
     if moment_type not in ["non_singlet_isovector", "non_singlet_isoscalar", "u", "d", "all"]:
         raise ValueError(f"Wrong moment_type {moment_type}")
 
-    FILE_PATH = cfg.PLOT_PATH / f"imp_param_oam_{moment_type}.pdf"
+    prfx = f"imp_param_oam_{moment_type}"
+    file_name = hp.generate_filename(eta,0,mu,prfx,file_ext="pdf")
+    FILE_PATH = cfg.PLOT_PATH / file_name
 
     # Convert GeV^-1 to fm
     hbarc = 0.1975
@@ -2656,7 +2660,7 @@ def plot_fourier_transform_quark_orbital_angular_momentum(eta, mu,  moment_type=
     plt.close()
 
 def plot_fourier_transform_singlet_orbital_angular_momentum(eta, mu,  particle = "gluon",evolution_order="nlo",
-                                          b_max=4.5, Delta_max=8, num_points=100, n_b=50, interpolation = True, n_int=300,
+                                          b_max=4.5, Delta_max=8, n_b=50, interpolation = True, n_int=300,
                                           vmin = -2.05 , vmax = 3.08, ymin= -2.05, ymax = 3.08,
                                           plot_option="both", read_from_file=True, write_to_file = False):
     """
@@ -2676,8 +2680,6 @@ def plot_fourier_transform_singlet_orbital_angular_momentum(eta, mu,  particle =
         Maximum value of impact parameter in Gev^-1 used for the plot.
     Delta_max : float, optional
         Upper bound for the momentum magnitude in the integration. Default is 5 GeV.
-    num_points : int, optional
-        Number of points used in trapezoidal integration. Default is 100.
     n_b : int, optional
         Number of points for discretizing the transverse position plane. Default is 100.
     interpolation : bool, optional
@@ -2720,7 +2722,7 @@ def plot_fourier_transform_singlet_orbital_angular_momentum(eta, mu,  particle =
     def ft_oam(b_vec,error_type):
             return core.fourier_transform_singlet_orbital_angular_momentum(eta=eta, mu=mu, b_vec=b_vec, 
                                                                     particle=particle, evolution_order=evolution_order,
-                                                                    Delta_max=Delta_max, num_points=num_points, error_type=error_type)
+                                                                    Delta_max=Delta_max, error_type=error_type,dipole_form=True)
     if write_to_file and read_from_file:
         raise ValueError("write_to_file and read_from_file can't simultaneously be True")
     
@@ -2729,7 +2731,10 @@ def plot_fourier_transform_singlet_orbital_angular_momentum(eta, mu,  particle =
             "quark": ("sea")
         }
     title = title_map[particle]
-    FILE_PATH = cfg.PLOT_PATH / f"imp_param_oam_singlet_{particle}.pdf"
+
+    prfx = f"imp_param_oam_singlet_{particle}"
+    file_name = hp.generate_filename(eta,0,mu,prfx,file_ext="pdf")
+    FILE_PATH = cfg.PLOT_PATH / file_name
     READ_WRITE_PATH = cfg.IMPACT_PARAMETER_MOMENTS_PATH / f"imp_param_oam_singlet_{particle}"
 
     # Define the grid for b_vec

@@ -164,6 +164,7 @@ def dipole_fit_moment(n,eta,mu,particle="quark",moment_type="non_singlet_isovect
         print(f"(n, eta, mu, particle, moment_type, moment_label, evolution_order,error_type) = {n, eta, mu, particle, moment_type, moment_label, evolution_order,error_type}.")
         print(f"Positive values:{num_pos}, Negative values: {num_neg}")
 
+    # Discard either region
     if num_pos >= num_neg:
         mask = f_vals > 0
     else:
