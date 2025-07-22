@@ -1377,7 +1377,7 @@ def fourier_transform_helicity(eta,mu,b_vec,particle="quark",moment_type="non_si
         if error_type != "central":
             error_1 = .5 * ft_moment(b_vec,moment_type="non_singlet_isoscalar",error_type=error_type) - moment_1
             error_2 = .5 * ft_moment(b_vec,moment_type="non_singlet_isovector",error_type=error_type) - moment_2
-            error = np.sqrt(error_1**2 + error_2**2)
+            error = np.sqrt(error_1**2 + error_2**2) / 2
             result += hp.error_sign(error,error_type)
 
     return result
@@ -1439,31 +1439,32 @@ def fourier_transform_spin_orbit_correlation(eta,mu,b_vec,evolution_order="nlo",
             prf = 1
         else:
             prf = -1
-            term_1 = ft_moment(2,b_vec,moment_type="non_singlet_isoscalar",moment_label="Atilde",error_type="central")
-            term_2 = ft_moment(1,b_vec,moment_type="non_singlet_isoscalar",moment_label="A",error_type="central")
-            moment_1 = (term_1-term_2)/2
-            if error_type != "central":      
-                term_1_error = .5 * (ft_moment(2,b_vec,moment_type="non_singlet_isoscalar",moment_label="Atilde",error_type=error_type)
-                                - term_1)
-                term_2_error = .5 * (ft_moment(2,b_vec,moment_type="non_singlet_isoscalar",moment_label="A",error_type=error_type)
-                                - term_2)
-                error_1 = np.sqrt(term_1_error**2+term_2_error**2)
-                moment_1 += hp.error_sign(error,error_type)
-    
-            term_1 = ft_moment(2,b_vec,moment_type="non_singlet_isovector",moment_label="Atilde",error_type="central")
-            term_2 = ft_moment(1,b_vec,moment_type="non_singlet_isovector",moment_label="A",error_type="central")
-            moment_2 = (term_1-term_2)/2 
-            moment = (moment_1 + prf * moment_2)/2
-            if error_type != "central":      
-                term_1_error = .5 * (ft_moment(2,b_vec,moment_type="non_singlet_isovector",moment_label="Atilde",error_type=error_type)
-                                - term_1)
-                term_2_error = .5 * (ft_moment(1,b_vec,moment_type="non_singlet_isovector",moment_label="A",error_type=error_type)
-                                - term_2)
-                error_2 = np.sqrt(term_1_error**2+term_2_error**2)
-                error = np.sqrt(error_1**2 + error_2**2)
-                moment += hp.error_sign(error,error_type)
-            result = moment
-            return result
+        term_1 = ft_moment(2,b_vec,moment_type="non_singlet_isoscalar",moment_label="Atilde",error_type="central")
+        term_2 = ft_moment(1,b_vec,moment_type="non_singlet_isoscalar",moment_label="A",error_type="central")
+        moment_1 = (term_1-term_2)/2
+        if error_type != "central":      
+            term_1_error = .5 * (ft_moment(2,b_vec,moment_type="non_singlet_isoscalar",moment_label="Atilde",error_type=error_type)
+                            - term_1)
+            term_2_error = .5 * (ft_moment(1,b_vec,moment_type="non_singlet_isoscalar",moment_label="A",error_type=error_type)
+                            - term_2)
+            error_1 = np.sqrt(term_1_error**2+term_2_error**2)
+
+        term_1 = ft_moment(2,b_vec,moment_type="non_singlet_isovector",moment_label="Atilde",error_type="central")
+        term_2 = ft_moment(1,b_vec,moment_type="non_singlet_isovector",moment_label="A",error_type="central")
+        moment_2 = (term_1-term_2)/2 
+
+        moment = (moment_1 + prf * moment_2)/2
+        if error_type != "central":      
+            term_1_error = .5 * (ft_moment(2,b_vec,moment_type="non_singlet_isovector",moment_label="Atilde",error_type=error_type)
+                            - term_1)
+            term_2_error = .5 * (ft_moment(1,b_vec,moment_type="non_singlet_isovector",moment_label="A",error_type=error_type)
+                            - term_2)
+            error_2 = np.sqrt(term_1_error**2+term_2_error**2)
+            
+            error = np.sqrt(error_1**2 + error_2**2) / 2
+            moment += hp.error_sign(error,error_type)
+        result = moment
+        return result
         
 def fourier_transform_orbital_angular_momentum(eta,mu,b_vec,particle="quark",moment_type="non_singlet_isovector",
                                                evolution_order="nlo", Delta_max = 7,
@@ -1501,30 +1502,30 @@ def fourier_transform_orbital_angular_momentum(eta,mu,b_vec,particle="quark",mom
             prf = 1
         else:
             prf = -1
-            term_1 = ft_moment(2,b_vec,moment_type="non_singlet_isoscalar",moment_label="A",error_type="central")
-            term_2 = ft_moment(2,b_vec,moment_type="non_singlet_isoscalar",moment_label="B",error_type="central")
-            term_3 = ft_moment(1,b_vec,moment_type="non_singlet_isoscalar",moment_label="Atilde",error_type="central")
-            moment_1 = (term_1+term_2-term_3)/2
-            if error_type != "central":      
-                term_1_error = .5 * (ft_moment(2,b_vec,moment_type="non_singlet_isoscalar",moment_label="A",error_type=error_type) - term_1)
-                term_2_error = .5 * (ft_moment(2,b_vec,moment_type="non_singlet_isoscalar",moment_label="B",error_type=error_type) - term_2)
-                term_3_error = .5 * (ft_moment(1,b_vec,moment_type="non_singlet_isoscalar",moment_label="Atilde",error_type=error_type) - term_3)
-                error_1 = np.sqrt(term_1_error**2+term_2_error**2+term_3_error**2)
+        term_1 = ft_moment(2,b_vec,moment_type="non_singlet_isoscalar",moment_label="A",error_type="central")
+        term_2 = ft_moment(2,b_vec,moment_type="non_singlet_isoscalar",moment_label="B",error_type="central")
+        term_3 = ft_moment(1,b_vec,moment_type="non_singlet_isoscalar",moment_label="Atilde",error_type="central")
+        moment_1 = (term_1+term_2-term_3)/2
+        if error_type != "central":      
+            term_1_error = .5 * (ft_moment(2,b_vec,moment_type="non_singlet_isoscalar",moment_label="A",error_type=error_type) - term_1)
+            term_2_error = .5 * (ft_moment(2,b_vec,moment_type="non_singlet_isoscalar",moment_label="B",error_type=error_type) - term_2)
+            term_3_error = .5 * (ft_moment(1,b_vec,moment_type="non_singlet_isoscalar",moment_label="Atilde",error_type=error_type) - term_3)
+            error_1 = np.sqrt(term_1_error**2+term_2_error**2+term_3_error**2)
 
-            term_1 = ft_moment(2,b_vec,moment_type="non_singlet_isovector",moment_label="A",error_type="central")
-            term_2 = ft_moment(2,b_vec,moment_type="non_singlet_isovector",moment_label="B",error_type="central")
-            term_3 = ft_moment(1,b_vec,moment_type="non_singlet_isovector",moment_label="Atilde",error_type="central")
-            moment_2 = (term_1+term_2-term_3)/2
-            moment = (moment_1 + prf * moment_2)/2
-            if error_type != "central":      
-                term_1_error = .5 * (ft_moment(2,b_vec,moment_type="non_singlet_isovector",moment_label="A",error_type=error_type) - term_1)
-                term_2_error = .5 * (ft_moment(2,b_vec,moment_type="non_singlet_isovector",moment_label="B",error_type=error_type) - term_2)
-                term_3_error = .5 * (ft_moment(1,b_vec,moment_type="non_singlet_isovector",moment_label="Atilde",error_type=error_type) - term_3)
-                error_2 = np.sqrt(term_1_error**2+term_2_error**2+term_3_error**2)
-                error = np.sqrt(error_1**2 + error_2**2)
-                moment += hp.error_sign(error,error_type)
-            result = moment
-            return result
+        term_1 = ft_moment(2,b_vec,moment_type="non_singlet_isovector",moment_label="A",error_type="central")
+        term_2 = ft_moment(2,b_vec,moment_type="non_singlet_isovector",moment_label="B",error_type="central")
+        term_3 = ft_moment(1,b_vec,moment_type="non_singlet_isovector",moment_label="Atilde",error_type="central")
+        moment_2 = (term_1+term_2-term_3)/2
+        moment = (moment_1 + prf * moment_2)/2
+        if error_type != "central":      
+            term_1_error = .5 * (ft_moment(2,b_vec,moment_type="non_singlet_isovector",moment_label="A",error_type=error_type) - term_1)
+            term_2_error = .5 * (ft_moment(2,b_vec,moment_type="non_singlet_isovector",moment_label="B",error_type=error_type) - term_2)
+            term_3_error = .5 * (ft_moment(1,b_vec,moment_type="non_singlet_isovector",moment_label="Atilde",error_type=error_type) - term_3)
+            error_2 = np.sqrt(term_1_error**2+term_2_error**2+term_3_error**2)
+            error = np.sqrt(error_1**2 + error_2**2) / 2
+            moment += hp.error_sign(error,error_type)
+        result = moment
+        return result
 
 def fourier_transform_quark_orbital_angular_momentum(eta,mu,b_vec,moment_type="non_singlet_isovector",
                                                      evolution_order="nlo", Delta_max = 7,
@@ -2055,7 +2056,7 @@ def mellin_barnes_gpd(x, eta, t, mu,  A0=1 ,particle = "quark", moment_type="non
 #### Additional Observables ####
 ################################
 
-def spin_orbit_corelation(eta,t,mu, A0 = 1, particle="quark",moment_type="non_singlet_isovector",evolution_order="nlo"):
+def spin_orbit_correlation(eta,t,mu, A0 = 1, particle="quark",moment_type="non_singlet_isovector",evolution_order="nlo"):
     """ 
     Returns the spin orbit correlation C_z of moment_type including errors
 

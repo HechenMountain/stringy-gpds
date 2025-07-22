@@ -834,7 +834,7 @@ def plot_spin_orbit_correlation(eta,mu,particle="quark",evolution_order="nlo",n_
     """
     def compute_result(t_vals,moment_type):
         parallel_results = Parallel(n_jobs=-1)(
-            delayed(lambda t: core.spin_orbit_corelation(eta=eta,t=t,mu=mu,
+            delayed(lambda t: core.spin_orbit_correlation(eta=eta,t=t,mu=mu,
                                                     particle=particle,moment_type=moment_type,
                                                     evolution_order=evolution_order))(t)
             for t in t_vals)
@@ -1564,19 +1564,19 @@ def plot_fourier_transform_quark_spin_orbit_correlation(eta, mu,  moment_type="n
     else:
         fig, axs = plt.subplots(2, 1, figsize=(3, 4.5), gridspec_kw={'height_ratios': [2, 1], 'hspace': 0})
         axs = np.array([[axs[0]], [axs[1]]])  # Make it a 2D array for consistency
-
+        
+    title_map = {
+        "non_singlet_isovector": "u-d",
+        "non_singlet_isoscalar": "u+d",
+        "u": "u",
+        "d": "d"
+    }
     for i, mom_type in enumerate(moment_types):
         READ_WRITE_PATH = cfg.IMPACT_PARAMETER_MOMENTS_PATH / f"imp_param_spin_orbit_{mom_type}"
         row, col = divmod(i, 4)  # Map index to subplot location
         ax = axs[0, col]
         ax_lower = axs[1, col]
 
-        title_map = {
-            "non_singlet_isovector": "u-d",
-            "non_singlet_isoscalar": "u+d",
-            "u": "u",
-            "d": "d"
-        }
         title = title_map[mom_type]
 
         # Compute Fourier transform and cache the results for non_singlet_isovector and non_singlet_isoscalar
@@ -1635,24 +1635,24 @@ def plot_fourier_transform_quark_spin_orbit_correlation(eta, mu,  moment_type="n
         if mom_type in ["u","d"]:
             if read_from_file:
                 file_name = hp.generate_filename(eta,0,mu,READ_WRITE_PATH,"central")
-                b_x_fm, b_y_fm, _ = hp.read_ft_from_csv(file_name)
-            elif interpolation:
-                b_x = np.linspace(-b_max, b_max, n_b)
-                b_y = np.linspace(-b_max, b_max, n_b)
-                b_x_fm = b_x * hbarc
-                b_y_fm = b_y * hbarc
-
-            error_plus = np.sqrt((cache["non_singlet_isoscalar_plus"]-cache["non_singlet_isoscalar"])**2
-                                    + (cache["non_singlet_isovector_plus"]-cache["non_singlet_isovector"])**2)/2
-            error_minus = np.sqrt((cache["non_singlet_isoscalar_minus"]-cache["non_singlet_isoscalar"])**2
-                                    + (cache["non_singlet_isovector_minus"]-cache["non_singlet_isovector"])**2)/2
-            if mom_type == "u":
-                prf = 1
-            if mom_type == "d":
-                prf = -1 
-            fourier_transform_moment_values_flat = (cache["non_singlet_isoscalar"] + prf * cache["non_singlet_isovector"]) / 2
-            fourier_transform_moment_values_flat_plus = fourier_transform_moment_values_flat + error_plus
-            fourier_transform_moment_values_flat_minus = fourier_transform_moment_values_flat - error_minus
+                b_x_fm, b_y_fm, fourier_transform_moment_values_flat = hp.read_ft_from_csv(file_name)
+                file_name = hp.generate_filename(eta,0,mu,READ_WRITE_PATH,"plus")
+                _, _, fourier_transform_moment_values_flat_plus = hp.read_ft_from_csv(file_name)
+                file_name = hp.generate_filename(eta,0,mu,READ_WRITE_PATH,"minus")
+                _, _, fourier_transform_moment_values_flat_minus = hp.read_ft_from_csv(file_name)
+            # Compute from cache
+            elif moment_type == "all":
+                error_plus = np.sqrt((cache["non_singlet_isoscalar_plus"]-cache["non_singlet_isoscalar"])**2
+                                        + (cache["non_singlet_isovector_plus"]-cache["non_singlet_isovector"])**2)/2
+                error_minus = np.sqrt((cache["non_singlet_isoscalar_minus"]-cache["non_singlet_isoscalar"])**2
+                                        + (cache["non_singlet_isovector_minus"]-cache["non_singlet_isovector"])**2)/2
+                if mom_type == "u":
+                    prf = 1
+                if mom_type == "d":
+                    prf = -1 
+                fourier_transform_moment_values_flat = (cache["non_singlet_isoscalar"] + prf * cache["non_singlet_isovector"]) / 2
+                fourier_transform_moment_values_flat_plus = fourier_transform_moment_values_flat + error_plus
+                fourier_transform_moment_values_flat_minus = fourier_transform_moment_values_flat - error_minus
 
         # Save write out values before interpolation
         if write_to_file:
@@ -1664,7 +1664,10 @@ def plot_fourier_transform_quark_spin_orbit_correlation(eta, mu,  moment_type="n
                 ft_write_out_minus = fourier_transform_moment_values_flat_minus
 
         if interpolation:
-
+            b_x = np.linspace(-b_max, b_max, n_b)
+            b_y = np.linspace(-b_max, b_max, n_b)
+            b_x_fm = b_x * hbarc
+            b_y_fm = b_y * hbarc
             ft_interpolation = RectBivariateSpline(b_x_fm, b_y_fm, fourier_transform_moment_values_flat)
             ft_interpolation_plus = RectBivariateSpline(b_x_fm, b_y_fm, fourier_transform_moment_values_flat_plus)
             ft_interpolation_minus = RectBivariateSpline(b_x_fm, b_y_fm, fourier_transform_moment_values_flat_minus)
@@ -1691,9 +1694,15 @@ def plot_fourier_transform_quark_spin_orbit_correlation(eta, mu,  moment_type="n
             ax.set_xlim([-b_max * hbarc, b_max * hbarc])
             ax.set_ylim([-b_max * hbarc, b_max * hbarc])
 
+            if moment_type == "all":
+                # Colorbar width is dynamic
+                width = 0.01
+            else:
+                width = 0.05
+
             # Add colorbar only once per row
             if col == len(moment_types)-1:
-                cbar_ax = fig.add_axes([ax.get_position().x1, ax.get_position().y0, 0.01, ax.get_position().height])
+                cbar_ax = fig.add_axes([ax.get_position().x1, ax.get_position().y0, width, ax.get_position().height])
                 fig.colorbar(im, cax=cbar_ax)
 
         # Lower plot: 1D slice at b_y = 0
@@ -1906,24 +1915,23 @@ def plot_fourier_transform_quark_helicity(eta, mu,  moment_type="non_singlet_iso
         if mom_type in ["u","d"]:
             if read_from_file:
                 file_name = hp.generate_filename(eta,0,mu,READ_WRITE_PATH,"central")
-                b_x_fm, b_y_fm, _ = hp.read_ft_from_csv(file_name)
-            elif interpolation:
-                b_x = np.linspace(-b_max, b_max, n_b)
-                b_y = np.linspace(-b_max, b_max, n_b)
-                b_x_fm = b_x * hbarc
-                b_y_fm = b_y * hbarc
-
-            error_plus = np.sqrt((cache["non_singlet_isoscalar_plus"]-cache["non_singlet_isoscalar"])**2
-                                    + (cache["non_singlet_isovector_plus"]-cache["non_singlet_isovector"])**2)/2
-            error_minus = np.sqrt((cache["non_singlet_isoscalar_minus"]-cache["non_singlet_isoscalar"])**2
-                                    + (cache["non_singlet_isovector_minus"]-cache["non_singlet_isovector"])**2)/2
-            if mom_type == "u":
-                prf = 1
-            if mom_type == "d":
-                prf = -1 
-            fourier_transform_moment_values_flat = (cache["non_singlet_isoscalar"] + prf * cache["non_singlet_isovector"]) / 2
-            fourier_transform_moment_values_flat_plus = fourier_transform_moment_values_flat + error_plus
-            fourier_transform_moment_values_flat_minus = fourier_transform_moment_values_flat - error_minus
+                b_x_fm, b_y_fm, fourier_transform_moment_values_flat = hp.read_ft_from_csv(file_name)
+                file_name = hp.generate_filename(eta,0,mu,READ_WRITE_PATH,"plus")
+                _, _, fourier_transform_moment_values_flat_plus = hp.read_ft_from_csv(file_name)
+                file_name = hp.generate_filename(eta,0,mu,READ_WRITE_PATH,"minus")
+                _, _, fourier_transform_moment_values_flat_minus = hp.read_ft_from_csv(file_name)
+            else:
+                error_plus = np.sqrt((cache["non_singlet_isoscalar_plus"]-cache["non_singlet_isoscalar"])**2
+                                        + (cache["non_singlet_isovector_plus"]-cache["non_singlet_isovector"])**2)/2
+                error_minus = np.sqrt((cache["non_singlet_isoscalar_minus"]-cache["non_singlet_isoscalar"])**2
+                                        + (cache["non_singlet_isovector_minus"]-cache["non_singlet_isovector"])**2)/2
+                if mom_type == "u":
+                    prf = 1
+                if mom_type == "d":
+                    prf = -1 
+                fourier_transform_moment_values_flat = (cache["non_singlet_isoscalar"] + prf * cache["non_singlet_isovector"]) / 2
+                fourier_transform_moment_values_flat_plus = fourier_transform_moment_values_flat + error_plus
+                fourier_transform_moment_values_flat_minus = fourier_transform_moment_values_flat - error_minus
 
         # Save write out values before interpolation
         if write_to_file:
@@ -1935,6 +1943,10 @@ def plot_fourier_transform_quark_helicity(eta, mu,  moment_type="non_singlet_iso
                 ft_write_out_minus = fourier_transform_moment_values_flat_minus
 
         if interpolation:
+            b_x = np.linspace(-b_max, b_max, n_b)
+            b_y = np.linspace(-b_max, b_max, n_b)
+            b_x_fm = b_x * hbarc
+            b_y_fm = b_y * hbarc
             ft_interpolation = RectBivariateSpline(b_x_fm, b_y_fm, fourier_transform_moment_values_flat)
             ft_interpolation_plus = RectBivariateSpline(b_x_fm, b_y_fm, fourier_transform_moment_values_flat_plus)
             ft_interpolation_minus = RectBivariateSpline(b_x_fm, b_y_fm, fourier_transform_moment_values_flat_minus)
@@ -1960,9 +1972,15 @@ def plot_fourier_transform_quark_helicity(eta, mu,  moment_type="non_singlet_iso
             ax.set_xlim([-b_max * hbarc, b_max * hbarc])
             ax.set_ylim([-b_max * hbarc, b_max * hbarc])
 
+            if moment_type == "all":
+                # Colorbar width is dynamic
+                width = 0.01
+            else:
+                width = 0.05
+
             # Add colorbar only once per row
             if col == len(moment_types)-1:
-                cbar_ax = fig.add_axes([ax.get_position().x1, ax.get_position().y0, 0.01, ax.get_position().height])
+                cbar_ax = fig.add_axes([ax.get_position().x1, ax.get_position().y0, width, ax.get_position().height])
                 fig.colorbar(im, cax=cbar_ax)
 
         # Lower plot: 1D slice at b_y = 0
@@ -2168,7 +2186,7 @@ def plot_fourier_transform_singlet_helicity(eta, mu,  particle = "gluon",evoluti
         ax.set_title(rf'$S_z^{{{title}}}$', fontsize=14)
 
         # Add colorbar
-        cbar_ax = fig.add_axes([ax.get_position().x1, ax.get_position().y0, 0.03, ax.get_position().height])
+        cbar_ax = fig.add_axes([ax.get_position().x1, ax.get_position().y0, 0.05, ax.get_position().height])
         fig.colorbar(im, cax=cbar_ax)
 
         # Lower plot: 1D slice at b_y = 0
@@ -2366,7 +2384,7 @@ def plot_fourier_transform_singlet_spin_orbit_correlation(eta, mu,  particle = "
         ax.set_title(rf"$C_z^{title}$", fontsize=14)
 
         # Add colorbar
-        cbar_ax = fig.add_axes([ax.get_position().x1, ax.get_position().y0, 0.03, ax.get_position().height])
+        cbar_ax = fig.add_axes([ax.get_position().x1, ax.get_position().y0, 0.05, ax.get_position().height])
         fig.colorbar(im, cax=cbar_ax)
 
         # Lower plot: 1D slice at b_y = 0
@@ -2558,24 +2576,23 @@ def plot_fourier_transform_quark_orbital_angular_momentum(eta, mu,  moment_type=
         if mom_type in ["u","d"]:
             if read_from_file:
                 file_name = hp.generate_filename(eta,0,mu,READ_WRITE_PATH,"central")
-                b_x_fm, b_y_fm, _ = hp.read_ft_from_csv(file_name)
-            elif interpolation:
-                b_x = np.linspace(-b_max, b_max, n_b)
-                b_y = np.linspace(-b_max, b_max, n_b)
-                b_x_fm = b_x * hbarc
-                b_y_fm = b_y * hbarc
-
-            error_plus = np.sqrt((cache["non_singlet_isoscalar_plus"]-cache["non_singlet_isoscalar"])**2
-                                    + (cache["non_singlet_isovector_plus"]-cache["non_singlet_isovector"])**2)/2
-            error_minus = np.sqrt((cache["non_singlet_isoscalar_minus"]-cache["non_singlet_isoscalar"])**2
+                b_x_fm, b_y_fm, fourier_transform_moment_values_flat = hp.read_ft_from_csv(file_name)
+                file_name = hp.generate_filename(eta,0,mu,READ_WRITE_PATH,"plus")
+                _, _, fourier_transform_moment_values_flat_plus = hp.read_ft_from_csv(file_name)
+                file_name = hp.generate_filename(eta,0,mu,READ_WRITE_PATH,"minus")
+                _, _, fourier_transform_moment_values_flat_minus = hp.read_ft_from_csv(file_name)
+            else:
+                error_plus = np.sqrt((cache["non_singlet_isoscalar_plus"]-cache["non_singlet_isoscalar"])**2
+                                        + (cache["non_singlet_isovector_plus"]-cache["non_singlet_isovector"])**2)/2
+                error_minus = np.sqrt((cache["non_singlet_isoscalar_minus"]-cache["non_singlet_isoscalar"])**2
                                     + (cache["non_singlet_isovector_minus"]-cache["non_singlet_isovector"])**2)/2
-            if mom_type == "u":
-                prf = 1
-            if mom_type == "d":
-                prf = -1 
-            fourier_transform_moment_values_flat = (cache["non_singlet_isoscalar"] + prf * cache["non_singlet_isovector"]) / 2
-            fourier_transform_moment_values_flat_plus = fourier_transform_moment_values_flat + error_plus
-            fourier_transform_moment_values_flat_minus = fourier_transform_moment_values_flat - error_minus
+                if mom_type == "u":
+                    prf = 1
+                if mom_type == "d":
+                    prf = -1 
+                fourier_transform_moment_values_flat = (cache["non_singlet_isoscalar"] + prf * cache["non_singlet_isovector"]) / 2
+                fourier_transform_moment_values_flat_plus = fourier_transform_moment_values_flat + error_plus
+                fourier_transform_moment_values_flat_minus = fourier_transform_moment_values_flat - error_minus
 
         # Save write out values before interpolation
         if write_to_file:
@@ -2587,6 +2604,10 @@ def plot_fourier_transform_quark_orbital_angular_momentum(eta, mu,  moment_type=
                 ft_write_out_minus = fourier_transform_moment_values_flat_minus
 
         if interpolation:
+            b_x = np.linspace(-b_max, b_max, n_b)
+            b_y = np.linspace(-b_max, b_max, n_b)
+            b_x_fm = b_x * hbarc
+            b_y_fm = b_y * hbarc
             ft_interpolation = RectBivariateSpline(b_x_fm, b_y_fm, fourier_transform_moment_values_flat)
             ft_interpolation_plus = RectBivariateSpline(b_x_fm, b_y_fm, fourier_transform_moment_values_flat_plus)
             ft_interpolation_minus = RectBivariateSpline(b_x_fm, b_y_fm, fourier_transform_moment_values_flat_minus)
@@ -2613,9 +2634,15 @@ def plot_fourier_transform_quark_orbital_angular_momentum(eta, mu,  moment_type=
             ax.set_xlim([-b_max * hbarc, b_max * hbarc])
             ax.set_ylim([-b_max * hbarc, b_max * hbarc])
 
+            if moment_type == "all":
+                # Colorbar width is dynamic
+                width = 0.01
+            else:
+                width = 0.05
+
             # Add colorbar only once per row
             if col == len(moment_types)-1:
-                cbar_ax = fig.add_axes([ax.get_position().x1, ax.get_position().y0, 0.01, ax.get_position().height])
+                cbar_ax = fig.add_axes([ax.get_position().x1, ax.get_position().y0, width, ax.get_position().height])
                 fig.colorbar(im, cax=cbar_ax)
 
         # Lower plot: 1D slice at b_y = 0
@@ -2823,7 +2850,7 @@ def plot_fourier_transform_singlet_orbital_angular_momentum(eta, mu,  particle =
         ax.set_title(rf"$L_z^{{{title}}}$", fontsize=14)
 
         # Add colorbar
-        cbar_ax = fig.add_axes([ax.get_position().x1, ax.get_position().y0, 0.03, ax.get_position().height])
+        cbar_ax = fig.add_axes([ax.get_position().x1, ax.get_position().y0, 0.05, ax.get_position().height])
         fig.colorbar(im, cax=cbar_ax)
 
         # Lower plot: 1D slice at b_y = 0

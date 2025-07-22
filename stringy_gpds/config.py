@@ -67,7 +67,7 @@ MU_ARRAY = [2,2,2]
 
 PARTICLES = ["quark","gluon"]
 MOMENTS = ["singlet","non_singlet_isoscalar","non_singlet_isovector"]
-LABELS = ["A","Atilde"]
+LABELS = ["A","Atilde","B"]
 ORDERS = ["nlo"]
 ERRORS = ["central","plus","minus"]
 
