@@ -1656,8 +1656,11 @@ def plot_fourier_transform_quark_spin_orbit_correlation(eta, mu,  moment_type="n
 
         # Save write out values before interpolation
         if write_to_file:
-            b_x_fm_write_out = b_x_fm
-            b_y_fm_write_out = b_y_fm
+            # Regenerate original grid 
+            b_x = np.linspace(-b_max, b_max, n_b)
+            b_y = np.linspace(-b_max, b_max, n_b)
+            b_x_fm_write_out = b_x * hbarc
+            b_y_fm_write_out = b_y * hbarc
             ft_write_out = fourier_transform_moment_values_flat
             if plot_option in ["lower","both"]:
                 ft_write_out_plus = fourier_transform_moment_values_flat_plus
@@ -1920,7 +1923,7 @@ def plot_fourier_transform_quark_helicity(eta, mu,  moment_type="non_singlet_iso
                 _, _, fourier_transform_moment_values_flat_plus = hp.read_ft_from_csv(file_name)
                 file_name = hp.generate_filename(eta,0,mu,READ_WRITE_PATH,"minus")
                 _, _, fourier_transform_moment_values_flat_minus = hp.read_ft_from_csv(file_name)
-            else:
+            else:          
                 error_plus = np.sqrt((cache["non_singlet_isoscalar_plus"]-cache["non_singlet_isoscalar"])**2
                                         + (cache["non_singlet_isovector_plus"]-cache["non_singlet_isovector"])**2)/2
                 error_minus = np.sqrt((cache["non_singlet_isoscalar_minus"]-cache["non_singlet_isoscalar"])**2
@@ -1935,8 +1938,11 @@ def plot_fourier_transform_quark_helicity(eta, mu,  moment_type="non_singlet_iso
 
         # Save write out values before interpolation
         if write_to_file:
-            b_x_fm_write_out = b_x_fm
-            b_y_fm_write_out = b_y_fm
+            # Regenerate original grid 
+            b_x = np.linspace(-b_max, b_max, n_b)
+            b_y = np.linspace(-b_max, b_max, n_b)
+            b_x_fm_write_out = b_x * hbarc
+            b_y_fm_write_out = b_y * hbarc
             ft_write_out = fourier_transform_moment_values_flat
             if plot_option in ["lower","both"]:
                 ft_write_out_plus = fourier_transform_moment_values_flat_plus
@@ -2596,8 +2602,11 @@ def plot_fourier_transform_quark_orbital_angular_momentum(eta, mu,  moment_type=
 
         # Save write out values before interpolation
         if write_to_file:
-            b_x_fm_write_out = b_x_fm
-            b_y_fm_write_out = b_y_fm
+            # Regenerate original grid 
+            b_x = np.linspace(-b_max, b_max, n_b)
+            b_y = np.linspace(-b_max, b_max, n_b)
+            b_x_fm_write_out = b_x * hbarc
+            b_y_fm_write_out = b_y * hbarc
             ft_write_out = fourier_transform_moment_values_flat
             if plot_option in ["lower","both"]:
                 ft_write_out_plus = fourier_transform_moment_values_flat_plus
