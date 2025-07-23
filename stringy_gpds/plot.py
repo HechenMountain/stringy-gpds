@@ -883,7 +883,7 @@ def plot_spin_orbit_correlation(eta,mu,particle="quark",evolution_order="nlo",n_
     #padding = .05 *  (t_max - t_min)
     padding = 0
     plt.xlim(t_min-padding,t_max+padding)
-    plt.xlabel("$-t\,[\mathrm{GeV}^2]$")
+    plt.xlabel(r"$-t\,[\mathrm{GeV}^2]$")
     plt.legend(fontsize=14, markerscale=1.5)
     plt.grid(True)
     #plt.yscale('log') # set y axis to log scale
@@ -976,7 +976,7 @@ def plot_orbital_angular_momentum(eta,mu,particle="quark",evolution_order="nlo",
     #padding = .05 *  (t_max - t_min)
     padding = 0
     plt.xlim(t_min-padding,t_max+padding)
-    plt.xlabel("$-t\,[\mathrm{GeV}^2]$")
+    plt.xlabel(r"$-t\,[\mathrm{GeV}^2]$")
     plt.legend(fontsize=14, markerscale=1.5)
     plt.grid(True)
     #plt.yscale('log') # set y axis to log scale
@@ -1065,7 +1065,7 @@ def plot_fourier_transform_moments(n, eta, mu, plot_title="", particle="quark",
     plt.colorbar()
     plt.xlabel(r'$b_x\,[\mathrm{fm}]$', fontsize=14)
     plt.ylabel(r'$b_y\,[\mathrm{fm}]$', fontsize=14)
-    plt.title(f"{plot_title}$(j={n}, \\eta=0, t, \\mu={mu}\, \\mathrm{{GeV}})$", fontsize=14)
+    plt.title(rf"{plot_title}$(j={n}, \eta=0, t, \mu={mu}\, \mathrm{{GeV}})$", fontsize=14)
     plt.show()
 
 def plot_fourier_transform_transverse_moments(n, eta, mu, particle="quark",
@@ -2950,17 +2950,18 @@ def plot_gpd_data(particle="quark", gpd_type="non_singlet_isovector", gpd_label=
         return core.mellin_barnes_gpd(x, eta, t, mu, particle,gpd_type,moment_label, evolution_order, real_imag="real", error_type=error_type,n_jobs=1)
     
     y_label_map = {
-            ("non_singlet_isovector","H"): "$H^{{u-d}}(x,\eta,t;\mu)$",
-            ("non_singlet_isoscalar","H"): "$H^{{u+d}}(x,\eta,t;\mu)$",
-            ("non_singlet_isovector","Htilde"): "$\\widetilde{{H}}^{{u-d}}(x,\eta,t;\mu)$",
-            ("non_singlet_isoscalar", "Htilde"): "$\\widetilde{{H}}^{{u+d}}(x,\eta,t;\mu)$",
-            ("u","Htilde"): "$\\widetilde{{H}}^{{u}}(x,\eta,t;\mu)$",
-            ("d","Htilde"): "$\\widetilde{{H}}^{{d}}(x,\eta,t;\mu)$",
-            ("non_singlet_isovector","E"): "$E^{{u-d}}(x,\eta,t;\mu)$",
-            ("non_singlet_isoscalar", "E"): "$E^{{u+d}}(x,\eta,t;\mu)$",
-            ("u","E"): "$E^{{u}}(x,\eta,t;\mu)$",
-            ("d","E"): "$E^{{d}}(x,\eta,t;\mu)$"
+        ("non_singlet_isovector", "H"):        r"$H^{u-d}(x,\eta,t;\mu)$",
+        ("non_singlet_isoscalar", "H"):        r"$H^{u+d}(x,\eta,t;\mu)$",
+        ("non_singlet_isovector", "Htilde"):   r"$\widetilde{H}^{u-d}(x,\eta,t;\mu)$",
+        ("non_singlet_isoscalar", "Htilde"):   r"$\widetilde{H}^{u+d}(x,\eta,t;\mu)$",
+        ("u", "Htilde"):                        r"$\widetilde{H}^{u}(x,\eta,t;\mu)$",
+        ("d", "Htilde"):                        r"$\widetilde{H}^{d}(x,\eta,t;\mu)$",
+        ("non_singlet_isovector", "E"):        r"$E^{u-d}(x,\eta,t;\mu)$",
+        ("non_singlet_isoscalar", "E"):        r"$E^{u+d}(x,\eta,t;\mu)$",
+        ("u", "E"):                             r"$E^{u}(x,\eta,t;\mu)$",
+        ("d", "E"):                             r"$E^{d}(x,\eta,t;\mu)$"
     }
+
 
     if (gpd_type, gpd_label) in y_label_map:
         y_label = y_label_map[(gpd_type, gpd_label)]
