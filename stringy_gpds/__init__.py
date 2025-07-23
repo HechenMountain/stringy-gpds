@@ -1,7 +1,7 @@
 from .core import (
     evolve_conformal_moment,
     mellin_barnes_gpd,
-    spin_orbit_corelation,
+    spin_orbit_correlation,
     total_spin,
     orbital_angular_momentum,
     gluon_helicity,

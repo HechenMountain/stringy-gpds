@@ -3325,8 +3325,10 @@ def plot_gpds(eta_array, t_array, mu_array, colors, A0=1, particle="quark",
                 key_p = (particle, moment_type, moment_label, evolution_order, "plus")
                 key_m = (particle, moment_type, moment_label, evolution_order, "minus")
                 # Check whether they exist
-                if key_p or key_m not in core.gpd_errors:
-                    raise ValueError("No error estimates for GPDs have been computed. Modify PARTICLES, MOMENTS,... in config file")
+                if key_p not in core.gpd_errors or key_m not in core.gpd_errors:
+                    print(key_p)
+                    print(key_m)
+                    raise ValueError(f"No error estimates for {particle,moment_type,moment_label,evolution_order} GPDs have been computed. Modify PARTICLES, MOMENTS,... in config file")
                 selected_triples = [
                     (eta_, t_, mu_)
                     for eta_, t_, mu_ in zip(cfg.ETA_ARRAY, cfg.T_ARRAY, cfg.MU_ARRAY)
@@ -3334,8 +3336,13 @@ def plot_gpds(eta_array, t_array, mu_array, colors, A0=1, particle="quark",
                 # Get corresponding index for kinematic triple eta, t, mu
                 index = selected_triples.index((eta, t, mu))
                 # Get error estimate
+                # print(type(results))
+                # print("---")
+                # print(type(core.gpd_errors[key_p][index]),type(core.gpd_errors[key_p][index]))
                 gpd_rel_error_p = core.gpd_errors[key_p][index]
                 gpd_rel_error_m = core.gpd_errors[key_m][index]
+                # Type conversion
+                results = np.array(results)
                 # Multiply relative error with central value
                 results_plus = results * gpd_rel_error_p
                 results_minus = results * gpd_rel_error_m
