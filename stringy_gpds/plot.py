@@ -560,13 +560,13 @@ def plot_moment(n, eta, y_label, mu_in=2, t_max=3, A0=1, particle="quark",
         ax.errorbar(t_vals, Fn0_vals, yerr=Fn0_errs, fmt='o', color=color, label=f"{pub_id}")
 
     # Add labels and formatting
-    ax.set_xlabel("$-t\,[\mathrm{GeV}^2]$", fontsize=14)
+    ax.set_xlabel(r"$-t\,[\mathrm{GeV}^2]$", fontsize=14)
     if particle == "gluon" and n == 2:
-        ax.set_ylabel(f"$A_g(t,\mu = {mu_in}\,[\mathrm{{GeV}}])$", fontsize=14)
+        ax.set_ylabel(rf"$A_g(t,\mu = {mu_in}\,[\mathrm{{GeV}}])$", fontsize=14)
     elif particle == "quark" and moment_type == "singlet" and n == 2:
-        ax.set_ylabel(f"$A_{{u+d+s}}(t,\mu = {mu_in}\,[\mathrm{{GeV}}])$", fontsize=14)
+        ax.set_ylabel(rf"$A_{{u+d+s}}(t,\mu = {mu_in}\,[\mathrm{{GeV}}])$", fontsize=14)
     else:
-        ax.set_ylabel(f"{y_label}$(j={n}, \\eta=0, t, \\mu={mu_in}\, \\mathrm{{GeV}})$", fontsize=14)
+        ax.set_ylabel(rf"{y_label}$(j={n}, \eta=0, t, \mu={mu_in}\, \mathrm{{GeV}})$", fontsize=14)
     ax.legend()
     ax.grid(True, which="both")
     ax.set_xlim([0, t_max])
@@ -737,8 +737,8 @@ def plot_moments_on_grid(eta, y_label, t_max=3, A0=1, particle="quark", moment_t
             ax.legend()
 
         # Add labels and formatting
-        ax.set_xlabel("$-t\,[\mathrm{GeV}^2]$", fontsize=14)
-        ax.set_ylabel(f"{y_label}$(j={n}, \\eta=0, t, \\mu={mu}\, \\mathrm{{GeV}})$", fontsize=14)
+        ax.set_xlabel(r"$-t\,[\mathrm{GeV}^2]$", fontsize=14)
+        ax.set_ylabel(rf"{y_label}$(j={n}, \eta=0, t, \mu={mu}\, \mathrm{{GeV}})$", fontsize=14)
  
         ax.grid(True, which="both")
         ax.set_xlim([0, t_max])
@@ -766,8 +766,8 @@ def plot_moments_on_grid(eta, y_label, t_max=3, A0=1, particle="quark", moment_t
                 Fn0_errs = hp.Fn0_errors(n, particle, moment_type, data_moment_label, pub_id)
                 ax_single.errorbar(t_vals, Fn0_vals, yerr=Fn0_errs, fmt='o', color=color, label=f"{pub_id}")
             ax_single.legend()
-        ax_single.set_xlabel("$-t\,[\mathrm{GeV}^2]$", fontsize=14)
-        ax_single.set_ylabel(f"{y_label}$(j={n}, \\eta=0, t, \\mu={mu}\, \\mathrm{{GeV}})$", fontsize=14)
+        ax_single.set_xlabel(r"$-t\,[\mathrm{GeV}^2]$", fontsize=14)
+        ax_single.set_ylabel(rf"{y_label}$(j={n}, \eta=0, t, \mu={mu}\, \mathrm{{GeV}})$", fontsize=14)
         ax_single.grid(True, which="both")
         ax_single.set_xlim([0, t_max])
         if set_y_lim:
