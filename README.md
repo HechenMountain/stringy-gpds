@@ -20,22 +20,24 @@ A Python package that utilizes a string-based parametrization of quark and gluon
 ## 🛠 Installation
 
 ```bash
-pip install stringy-gpds
+pip install git+https://github.com/HechenMountain/stringy-gpds.git
 ```
 
 ## ⚙️ Configuration
+This code relies on tables that are used for interpolation which can be found at [Zenodo](https://doi.org/10.5281/zenodo.15738460).
+The folder contained the tables need to be placed at:
+- Linux/macOS: `~/stringy-gpds/`
+- Windows: `C:\Users\your-username\stringy-gpds\`
 
-Optional user-specific settings can be defined in a `user_configy.py` file placed at:
-
-- Linux/macOS: `~/.stringy_gpds/user_configy.py`
-- Windows: `C:\Users\your-username\.stringy_gpds\user_configy.py`
+Optional user-specific settings can be defined in a `user_configy.py` file placed in the same folder.
 
 This lets you override default model parameters, lattice data to show in the plot and which moments to interpolate.
-An example user_config.py can be downloaded at [Zenodo](https://doi.org/10.5281/zenodo.15738460).
+An example user_config.py can also be downloaded at [Zenodo](https://doi.org/10.5281/zenodo.15738460).
 
 ## 🚀 Example Usage
 On first execution, the program generates interpolators and computes error estimates for the GPDs which are being cached on the filesystem.
 You can specify which functions are interpolated and which error metrics are calculated in user_config.py (see [Zenodo](https://doi.org/10.5281/zenodo.15738460)).
+Optionally, the non-diagonal evolution can be kept for the evaluation of the Mellin-Barnes integral.
 
 ```python
 from stringy_gpds import evolve_conformal_moment, mellin_barnes_gpd
@@ -45,39 +47,35 @@ evolve_conformal_moment(j=2,eta=0.33,t=-0.69,mu=2,particle="gluon",moment_type="
 # Particles are "quark" and "gluon" with moments "non_singlet_isovector", "non_singlet_isoscalar" and "singlet". 
 # The moment_label corresponds to the standard nomenclature used in the literature, but with the D-term implicit.
 # I.e. A(tilde) for moments of H(tilde) GPDs and B for moments of E GPD.
-# The Regge slopes and normalizations are defined in config.py. If a different PDF set is used, the corresponding functions to fit
+# The Regge slopes and normalizations are defined in user_config.py. If a different PDF set is used, the corresponding functions to fit
 # to form factors are fit_non_singlet_slopes etc.
 
 # To obtain the GPD at a particular value of parton x use
 mellin_barnes_gpd(x=.2,eta=0.33,t=-0.69,mu=2,particle="gluon",moment_type="singlet",moment_label="Atilde",evolution_order="nlo")
 
 # For the GPD reconstruction over the whole x region it is recommended to interpolate the moments
-# for complex values of conformal spin-j. This is done by setting INTERPOLATE_MOMENTS = False in config.py
+# for complex values of conformal spin-j. This is done by setting interpolate_moments = False in user_config.py
 # and use generate_moment_table for the desired kinematics eta, t and resolution scale mu. 
-# Afterwards, the kernel should be restarted, INTERPOLATE_MOMENTS = True
-# and the desired moments to interpolate should be defined in config.py using e.g.
+# Afterwards, the kernel should be restarted, interpolate_moments = True
+# and the desired moments to interpolate should be defined in user_config.py using e.g.
+eta_array = [0.0, 0.33, 0.1]
+t_array = [-0.69, -0.69, -0.23]
+mu_array = [2, 2, 2]
 
-ETA_ARRAY = [0,0.33,0.1]
-T_ARRAY = [-0.69,-0.69,-0.23]
-MU_ARRAY = [2,2,2]
-
-PARTICLES = ["quark","gluon"]
-MOMENTS = ["singlet","non_singlet_isoscalar","non_singlet_isovector"]
-LABELS = ["A","Atilde"]
-ORDERS = ["nlo"]
-ERRORS = ["central","plus","minus"]
+particles = ["gluon"]
+moments = ["singlet"]
+labels = ["Atilde"]
+orders = ["nlo"]
+errors = ["central", "plus", "minus"]
 
 # To generate the data over the whole region in parton x use
 import stringy_gpds.config as cfg
 from stringy_gpds import plot_gpds
-eta_array = cfg.ETA_ARRAY
-t_array = cfg.T_ARRAY
-mu_array = cfg.MU_ARRAY
 colors = ["purple","green","red"]
 plot_gpds(eta_array,t_array,mu_array,colors,particle="quark",gpd_type="non_singlet_isovector",gpd_label="H",evolution_order="nlo",error_bars=True, read_from_file= False,write_to_file=True, y_0=0, y_1=2.5,plot_legend=True)
 
 # To plot the lattice data as well use plot_gpd_data. 
-# This will automatically use the kinematics defined in GPD_PUBLICATION_MAPPING in config.py
+# This will automatically use the kinematics defined in gpd_publication_mapping in user_config.py
 # for a given set of (particle,gpd_type,gpd_label)
 
 # For fast numerical Fourier transforms it is recommended to generate dipole fits using e.g.
@@ -98,16 +96,16 @@ plot_fourier_transform_singlet_helicity(n=0,mu=2,particle="quark",vmin=0,vmax=0.
 ```
 
 ## 💬 Additional Comments
-Carefully read config.py, it should be self-explanatory. 
+Carefully read user_config.py and or config.py (within the package folder), it should be self-explanatory. 
 All functions in the source code are equipped with docstrings.
 If there is still something unclear after reading the docstrings and config.py, do not hesitate to contact me!
 
 All dimensionful quantities are given in units of GeV with conversion to fm only for the plots.
 
-For the GPD reconstruction, the non-diagonal part of the evolution equations can be discarded by using ND_EVOLVED_COMPLEX_MOMENT = False (recommended) 
+For the GPD reconstruction, the non-diagonal part of the evolution equations can be discarded by using nd_evolved_complex_moment = False (recommended) 
 since the contribution is < 5%.
 
-For the data handling include ArXiv IDs in PUBLICATION_MAPPING for the moments and GPD_PUBLICATION_MAPPING for GPDs.
+For the data handling include ArXiv IDs in publication_mapping for the moments and gpd_publication_mapping for GPDs in user_config.py.
 
 Initial tables for interpolation are supplied for harmonic numbers, anomalous dimensions and some moments.
 
@@ -115,11 +113,11 @@ Initial tables for interpolation are supplied for harmonic numbers, anomalous di
 
 The full dataset (PDFs, CSV tables for interpolation, extracted lattice data and data used for plot generation) 
 is available at [Zenodo](https://doi.org/10.5281/zenodo.15738460). The contents of the data folder need to be placed in:
-- Linux/macOS: `~/.stringy_gpds/data`
-- Windows: `C:\Users\your-username\.stringy_gpds\data`
+- Linux/macOS: `~/stringy_gpds/data`
+- Windows: `C:\Users\your-username\stringy_gpds\data`
 And the contents of the pdfs folder need to be placed in:
-- Linux/macOS: `~/.stringy_gpds/pdfs`
-- Windows: `C:\Users\your-username\.stringy_gpds\pdfs`
+- Linux/macOS: `~/stringy_gpds/pdfs`
+- Windows: `C:\Users\your-username\stringy_gpds\pdfs`
 
 
 ## 📊 Lattice data
@@ -134,9 +132,11 @@ were manually extracted from published results in the following works:
 - Phys.Rev.Lett. 125 (2020) 26, 262001 • e-Print: 2008.10573 [hep-lat]
 - Phys.Rev.D 77 (2008) 094502 • e-Print: 0705.4295 [hep-lat]
 
-Please cite the original authors if you use these data in scientific work.
+These files are provided **for reproducibility purposes only**. 
+The maintainer of this package claims **no ownership** of the original data.
+Please cite the original authors if you use this data in scientific work.
 
-These files are provided **for reproducibility purposes only**. The maintainer of this package claim **no ownership** of the original data.
+
 
 ## 🐛 Issues & Support
 
@@ -144,11 +144,17 @@ If you encounter any problems, have questions, or want to request a feature, fee
 
 ## 📈 Plots 
 The plots are automatically saved to the folder:
-- Linux/macOS: `~/.stringy_gpds/plots`
-- Windows: `C:\Users\your-username\.stringy_gpds\plots`
+- Linux/macOS: `~/stringy_gpds/plots`
+- Windows: `C:\Users\your-username\stringy_gpds\plots`
+
+It needs to be either created by the user or by running the first cell in the ipynb.
+
+## 📄 License
+
+- **Software** is licensed under the [MIT License](LICENSE).
 
 ## 📖 How to Cite
 
 If you use this code or data, please cite:
 
-Hechenberger, F. Mamo, K. A., Zahed, I. (2025). String-based Parametrization of Polarized GPDs at any Skewness
+Hechenberger, F. Mamo, K. A., Zahed, I. (2025). Rapidity‑Dependent Spin Decomposition of the Nucleon
