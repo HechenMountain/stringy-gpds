@@ -127,6 +127,7 @@ were manually extracted from published results in the following works:
 - Phys.Rev.D 110 (2024) 3, 3 • e-Print: 2312.10829 [hep-lat]
 - Phys.Rev.Lett. 132 (2024) 25, 251904 • e-Print: 2310.08484 [hep-lat]
 - Phys.Rev.D 108 (2023) 1, 014507 • e-Print: 2305.11117 [hep-lat]
+- Phys.Rev.D 106 (2022) 11, 114512 • e-Print: 2209.05373 [hep-lat]
 - Phys.Lett.B 824 (2022) 136821 • e-Print: 2112.07519 [hep-lat]
 - Phys.Rev.D 101 (2020) 3, 034519 • e-Print: 1908.10706 [hep-lat]
 - Phys.Rev.Lett. 125 (2020) 26, 262001 • e-Print: 2008.10573 [hep-lat]
@@ -157,4 +158,4 @@ It needs to be either created by the user or by running the first cell in the ip
 
 If you use this code or data, please cite:
 
-Hechenberger, F. Mamo, K. A., Zahed, I. (2025). Rapidity‑Dependent Spin Decomposition of the Nucleon
+Hechenberger, F. Mamo, K. A., Zahed, I. (2025). Rapidity-Dependent Spin Decomposition of the Nucleon, 2507.18615
