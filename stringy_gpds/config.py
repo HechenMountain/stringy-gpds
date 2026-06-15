@@ -4,7 +4,7 @@ from pathlib import Path
 from joblib import Memory
 
 # Set precision globally
-import mpmath as mp
+from mpmath import mp
 mp.dps = 16
 
 ####################################
