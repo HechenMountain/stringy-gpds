@@ -2,10 +2,20 @@
 ######## Exact integrals for ########
 ## reggeized PDFs and their errors ##
 #####################################
+# The closed forms below are tied to the exact  #
+# functional forms of unpolarized_pdf.py /      #
+# polarized_pdf.py, so a new input PDF set must #
+# be fitted to those forms (fit.fit_input_pdfs) #
+# and not to an arbitrary parametrization.      #
+# Parameter errors are propagated in            #
+# uncorrelated quadrature; the sigmas in the    #
+# polarized csv are band-calibrated accordingly #
+# (see fit.fit_polarized_input_pdfs).           #
+#################################################
 import numpy as np
 
-from .mstw_pdf import MSTW_PDF
-from .aac_pdf import AAC_PDF
+from .unpolarized_pdf import MSTW_PDF
+from .polarized_pdf import AAC_PDF
 
 from . import helpers as hp
 from .core import mp
@@ -888,7 +898,7 @@ def s_plus_pdf_regge(j,eta,alpha_p,t, evolution_order = "nlo", error_type="centr
 
 def Delta_pdf_regge(j,eta,alpha_p,t, evolution_order = "nlo", error_type="central"):
     """
-    Result of the integral of the Reggeized Delta(x) = ubar(x) - dbar(x) PDF using the given parameters and selected error type.
+    Result of the integral of the Reggeized Delta(x) = dbar(x) - ubar(x) PDF (MSTW convention) using the given parameters and selected error type.
 
     Parameters
     ----------
@@ -1430,11 +1440,6 @@ def polarized_S_pdf_regge(j,eta,alpha_p,t, evolution_order = "nlo", error_type="
         pdf_error = polarized_pdf_regge_error(A_pdf,eta_1,eta_2,epsilon,gamma_pdf,
                                         delta_A_pdf,err_delta_A_pdf,alpha,err_alpha,gamma_pol,err_gamma_pol,lambda_pol,err_lambda_pol,
                                         j,alpha_p,t,evolution_order,error_type)
-        # Polarized sea quark pdf extremely sensitive to parametrization
-        # Enforcing standard form combined with Gaussian error propagation
-        # gives a huge error that is not compatible with the results by AAC
-        # so we enforce the same scale for now
-        pdf_error /= 5.20
         return pdf, pdf_error
     else:
         return pdf, 0
@@ -1551,12 +1556,6 @@ def polarized_gluon_pdf_regge(j,eta,alpha_p,t, evolution_order = "nlo", error_ty
             sum_squared = Delta_A_pdf**2 + Delta_alpha**2 + Delta_gamma_pol**2 +Delta_lambda_pol**2
             result = abs(mp.sqrt(sum_squared))
             pdf_error += result
-            # pdf_error += abs(mp.sqrt(Delta_A_pdf**2 + Delta_alpha**2 + Delta_gamma_pol**2 +Delta_lambda_pol**2))
-            # Polarized gluon pdf extremely sensitive to parametrization
-            # Enforcing standard form combined with Gaussian error propagation
-            # gives a huge error that is not compatible with the results by AAC
-            # so we enforce the same scale for now
-            pdf_error /= 5.20
         return pdf, pdf_error
     else:
         return pdf, 0

@@ -31,8 +31,131 @@ The folder contained the tables need to be placed at:
 
 Optional user-specific settings can be defined in a `user_configy.py` file placed in the same folder.
 
-This lets you override default model parameters, lattice data to show in the plot and which moments to interpolate.
+This lets you override default model parameters, the input PDF set, lattice data to show in the plot and which moments to interpolate.
 An example user_config.py can also be downloaded at [Zenodo](https://doi.org/10.5281/zenodo.15738460).
+
+### Input PDF sets
+The input PDFs are read from `pdfs/<pdf_set>.csv` (unpolarized, MSTW schema) and
+`pdfs/<pdf_set>_POL.csv` (polarized, AAC schema). Select a set in `user_config.py`:
+
+```python
+pdf_set = "JAM22"   # default: JAM22 PDFs fitted with the GUMP program, mu0 = 2 GeV
+mu_input = 2        # input scale of the set in GeV
+```
+
+Supplied sets:
+
+| set | input scale | comment |
+|-----|-------------|---------|
+| `JAM22` | 2 GeV | default, strange quark resolved (`s`, `sbar` fitted separately) |
+| `GUMP` | 2 GeV | no strange in the data, sea completed by the kappa-prescription `s=sbar=kappa / 2 (ubar + dbar)`  |
+| `MSTW_original` + `AAC_original` | 1 GeV | the original MSTW/AAC parameters (set `pol_pdf_set = "AAC_original"` and `mu_input = 1`) |
+
+## 🔁 Updating the input PDFs
+`fit.py` fits a new PDF data set into the parametrization the model requires. The data
+format is the one produced by the GUMP program: `x, t, mu, f, delta f, GPD type, flavor`
+with GPD type 0 (unpolarized) and 2 (polarized), quarks tabulated for both signs of x
+(`f(-x) = -qbar(x)` unpolarized, `f(-x) = +Delta qbar(x)` polarized), and `x*f_g(x)` for the gluon.
+
+Because the moments are built on the input PDFs, a new set invalidates the downstream
+model parameters and tables. From the repo's `scripts/` folder:
+
+```bash
+# 1. fit the data and activate the set (writes pdfs/<set>.csv + pdfs/<set>_POL.csv,
+#    inherits alpha_S(Q0^2) from --base-pdf-set, default: whatever is currently active)
+python scripts/fit_input_pdfs.py --pdf-set JAM22 --data PDFdata_JAM22.csv
+
+# 2. Regge slopes / normalizations vs the form-factor / lattice dipoles for the active
+#    set -> fit_output/slopes_JAM22.json (singlet A normalizations are held at 1: the
+#    forward limit is the input-PDF prediction and A_q(0) + A_g(0) = 1 by the momentum
+#    sum rule)
+python scripts/refit_slopes.py --pdf-set JAM22
+
+# 3. copy the printed regge_slopes / moment_normalizations into user_config.py, then
+#    regenerate the standard-kinematics interpolation tables
+python scripts/regen_tables.py
+
+# 4. sanity checks: F1 isovector at t=0 ~ 1, A_q(0)+A_g(0) ~ 1, forward-limit MB
+#    closure against the input PDFs
+python scripts/validate.py --pdf-set JAM22
+
+# optional: fit-quality (pull) plots
+python scripts/plot_pdf_fits.py --pdf-set JAM22 --data PDFdata_JAM22.csv
+```
+
+Notes on the fit:
+- `A_u`, `A_d`, `A_g` and `x_0` are not fitted but fixed by the number and momentum sum
+  rules, so `int uv = 2`, `int dv = 1`, `int (s - sbar) = 0` and `int x [uv+dv+S+g] = 1`
+  hold exactly for the written parameters.
+- If the data set has no strange entries, `fit_input_pdfs.py` completes the strange sea
+  via `s = sbar = kappa/2 (ubar + dbar)` (`kappa` default 0.5, mirrored in the polarized case).
+- The functional forms are dictated by the analytic Regge integrals in `regge.py`; a set
+  fitted to a *different* parametrization cannot be used.
+
+Without `scripts/` (e.g. a plain `pip install`), the same steps are the Python API directly:
+
+```python
+from stringy_gpds.fit import (fit_input_pdfs, fit_polarized_input_pdfs,
+                              fit_non_singlet_slopes, fit_singlet_slopes_A,
+                              fit_singlet_slopes_Atilde)
+import stringy_gpds.config as cfg
+
+fit_input_pdfs("PDFdata_JAM22.csv", pdf_set="JAM22")
+fit_polarized_input_pdfs("PDFdata_JAM22.csv", pdf_set="JAM22")
+# point user_config.py at pdf_set = "JAM22" and restart the kernel, then:
+cfg.memory.clear()   # the cached moments belong to the old PDFs
+fit_non_singlet_slopes(evolution_order="nlo")
+fit_singlet_slopes_A(evolution_order="nlo", fix_norm_A=True)
+fit_singlet_slopes_Atilde(evolution_order="nlo")
+# copy the printed values into regge_slopes / moment_normalizations in user_config.py,
+# then regenerate the moment tables (interpolate_moments = False, generate_moment_table, ...)
+```
+
+## 🧮 Table-generation scripts (`scripts/`)
+For batch CSV/plot output over many kinematics at once (rather than one `evolve_conformal_moment`/
+`mellin_barnes_gpd` call at a time), `scripts/` has a four-stage pipeline, driven by the same
+CLI flags on every stage:
+
+| flag | meaning |
+|------|---------|
+| `--pdf-set` | input PDF set (default `JAM22`) |
+| `--label` | GPD label `H`/`E`/`Htilde`/`Etilde` (default `H`), mapped to a moment label via `GPD_LABEL_MAP` |
+| `--particles` | `quark`/`gluon` (default both; `gluon` + non-singlet is skipped, gluon is singlet-only) |
+| `--moments` | `non_singlet_isovector`/`non_singlet_isoscalar`/`singlet` (default all three) |
+| `--order` | `lo`/`nlo` (default `nlo`) |
+| `--errors` | `central`/`plus`/`minus` (default all three) |
+| `--eta` | skewness values, e.g. `--eta 0 0.1 0.2` |
+| `--mu2` | output scales in GeV², e.g. `--mu2 2 10` |
+| `--t-min` or `--t` | either the minimal-\|t\| kinematics at Δ⊥²=0 (`t_min(eta) = -4 eta^2 m_N^2/(1-eta^2)`), or literal `t` values, one per `--eta` |
+
+```bash
+# whole pipeline in one call
+python scripts/run_gpd_pipeline.py --pdf-set JAM22 --label H \
+    --particles quark gluon --moments singlet non_singlet_isovector \
+    --eta 0 0.1 0.2 0.3 --mu2 2 10 --t-min
+
+# or checkpoint between stages, e.g. review the cheap moment tables before the
+# heavy GPD reconstruction:
+python scripts/run_gpd_pipeline.py --stages moments --eta 0 0.1 --mu2 2 10 --t-min
+python scripts/run_gpd_pipeline.py --stages interp gpds combine --eta 0 0.1 --mu2 2 10 --t-min
+```
+
+Each stage also runs standalone, taking the same flags:
+- `generate_moment_tables.py` -- conformal moment tables `F_j` at integer `j` (`--j-max`,
+  `--j-min-singlet`, `--j-min-nonsinglet`) -> `data/moments/<SET>/`, `plots/moments/<SET>/`.
+- `generate_interp_tables.py` -- moment interpolation tables for non-integer `j`, needed by
+  the next stage -> `~/stringy-gpds/data/InterpolationTables/`.
+- `generate_gpd_tables.py` -- x-space GPD reconstruction (`--n-points-singlet`,
+  `--n-points-nonsinglet` for the x-grid density) -> `data/gpds/<SET>/`, `plots/gpds/<SET>/`.
+- `combine_gpd_tables.py` -- reformats the per-eta GPD CSVs into one wide table per
+  (particle, moment_type, mu²) with every eta side by side -> `data/gpds/<SET>/combined/`.
+
+If `fit_output/slopes_<pdf-set>.json` exists (written by `refit_slopes.py`) its
+`regge_slopes`/`moment_normalizations` override `config.py`'s defaults for that set;
+otherwise the set is assumed to already be configured there (true for `JAM22`).
+
+`csv_to_mathematica.py` converts any of these CSVs to a Mathematica-readable `.m` table;
+see its own `--help`.
 
 ## 🚀 Example Usage
 On first execution, the program generates interpolators and computes error estimates for the GPDs which are being cached on the filesystem.

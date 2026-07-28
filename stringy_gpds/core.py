@@ -12,7 +12,7 @@ from scipy.special import j0
 from itertools import product
 from joblib import Parallel, delayed
 
-from .mstw_pdf import get_alpha_s
+from .unpolarized_pdf import get_alpha_s
 
 from . import config as cfg
 from . import helpers as hp
@@ -25,8 +25,18 @@ from . import adim
 #############################################
 # singlet_moment for B GPD set to zero      #
 # Normalizations of isoscalar_moment        #
-# ubar = dbar                               #
-# Delta_u_bar = Delta_s_bar = Delta_s       #
+# Strange sea is taken from the input PDF   #
+#   set (default JAM22, mu0 = MU_INPUT):    #
+#   s + sbar and s - sbar are fitted to the #
+#   data, as are Delta_s and Delta_sbar.    #
+#   For a set without strange (GUMP) the    #
+#   kappa-prescription is used instead:     #
+#   s = sbar = (kappa/2)(ubar+dbar) and     #
+#   Delta_s + Delta_sbar =                  #
+#     kappa (Delta_ubar + Delta_dbar),      #
+#   kappa = 0.5, encoded in the input csv   #
+# ubar = dbar only in N_F <= 2 branches;    #
+#   default N_F = 3 uses fitted Delta       #
 #############################################
 
 #############################################
@@ -41,9 +51,9 @@ from . import adim
 
 def evolve_alpha_s(mu, evolution_order="nlo"):
     """
-    Evolve the strong coupling constant alpha_s = g**2 / (4 pi) from an input scale μ_in to another scale μ.
+    Evolve the strong coupling constant alpha_s = g**2 / (4 pi) from the input scale mu_in = cfg.MU_INPUT to another scale mu.
 
-    Note that the MSTW lo best fit determines alpha_s(mu**2 = 1 GeV**2) \approx 0.68183, which differs from the current world average.
+    The input value alpha_S(Q0^2 = MU_INPUT**2) is read from the input PDF csv (see get_alpha_s).
 
     Parameters
     ----------
@@ -58,8 +68,8 @@ def evolve_alpha_s(mu, evolution_order="nlo"):
         The value of the strong coupling constant alpha_s at the given scale.
     """
     # Set parameters
-    mu_R = 1 # 1 GeV from MSTW and AAC PDFs
-    # Extract value of alpha_S at the renormalization point of mu_R**2 = 1 GeV**2
+    mu_R = cfg.MU_INPUT # input scale of the PDF parametrization
+    # Extract value of alpha_S at the renormalization point of mu_R**2
     alpha_s_in = get_alpha_s(evolution_order)
 
     if mu_R == mu:
@@ -80,7 +90,7 @@ def evolve_alpha_s(mu, evolution_order="nlo"):
         denominator = 1 - (alpha_s_in / (4 * np.pi)) * cfg.BETA_0 * log_term
         result = alpha_s_in / denominator
     else:
-        Q2_values = np.linspace(1,mu**2, 10000)
+        Q2_values = np.linspace(mu_R**2, mu**2, 100)
 
         solution, info = odeint(beta_function, alpha_s_in, Q2_values,full_output = 1)
 

@@ -6,8 +6,8 @@ import os
 from . import config as cfg
 from . import helpers as hp
 from . import core
-from . import mstw_pdf as mstw
-from . import aac_pdf as aac
+from . import unpolarized_pdf as unpol
+from . import polarized_pdf as pol
 
 # mpmath precision set in config
 from .config import mp
@@ -36,7 +36,7 @@ def plot_uv_pdf(x_0=1e-2,evolution_order="nlo",logplot=False,error_bars=True):
         Whether to display error bars corresponding to PDF uncertainties. Default is True.
     """
     hp.check_evolution_order(evolution_order)
-    vectorized_uv_pdf = np.vectorize(mstw.uv_pdf)
+    vectorized_uv_pdf = np.vectorize(unpol.uv_pdf)
     if logplot:
         x_vals = np.logspace(np.log10(x_0), np.log10(1 - 1e-4), 100)
     else:
@@ -74,7 +74,7 @@ def plot_dv_pdf(x_0=1e-2,evolution_order="nlo",logplot=False,error_bars=True):
         Whether to display error bars corresponding to PDF uncertainties. Default is True.
     """
     hp.check_evolution_order(evolution_order)
-    vectorized_dv_pdf = np.vectorize(mstw.dv_pdf)
+    vectorized_dv_pdf = np.vectorize(unpol.dv_pdf)
     if logplot:
         x_vals = np.logspace(np.log10(x_0), np.log10(1 - 1e-4), 100)
     else:
@@ -112,7 +112,7 @@ def plot_uv_minus_dv_pdf(x_0=1e-2,evolution_order="nlo",logplot=False,error_bars
         Whether to display error bars corresponding to PDF uncertainties. Default is True.
     """
     hp.check_evolution_order(evolution_order)
-    vectorized_uv_minus_dv_pdf = np.vectorize(mstw.uv_minus_dv_pdf)
+    vectorized_uv_minus_dv_pdf = np.vectorize(unpol.uv_minus_dv_pdf)
     if logplot:
         x_vals = np.logspace(np.log10(x_0), np.log10(1 - 1e-4), 100)
     else:
@@ -150,7 +150,7 @@ def plot_uv_plus_dv_plus_S_pdf(x_0=1e-2,evolution_order="nlo",logplot=False,erro
         Whether to display error bars corresponding to PDF uncertainties. Default is True.
     """
     hp.check_evolution_order(evolution_order)
-    vectorized_uv_plus_dv_plus_S_pdf = np.vectorize(mstw.uv_plus_dv_plus_S_pdf)
+    vectorized_uv_plus_dv_plus_S_pdf = np.vectorize(unpol.uv_plus_dv_plus_S_pdf)
     if logplot:
         x_vals = np.logspace(np.log10(x_0), np.log10(1 - 1e-4), 100)
     else:
@@ -188,7 +188,7 @@ def plot_gluon_pdf(x_0=1e-2,evolution_order="nlo",logplot=False,error_bars=True)
         Whether to display error bars corresponding to PDF uncertainties. Default is True.
     """
     hp.check_evolution_order(evolution_order)
-    vectorized_gluon_pdf = np.vectorize(mstw.gluon_pdf)
+    vectorized_gluon_pdf = np.vectorize(unpol.gluon_pdf)
     if logplot:
         x_vals = np.logspace(np.log10(x_0), np.log10(1 - 1e-4), 100)
     else:
@@ -226,7 +226,7 @@ def plot_polarized_uv_pdf(x_0=1e-2,evolution_order="nlo",logplot = False,error_b
         Whether to display error bars corresponding to PDF uncertainties. Default is True.
     """
     hp.check_evolution_order(evolution_order)
-    vectorized_polarized_uv_pdf = np.vectorize(aac.polarized_uv_pdf)
+    vectorized_polarized_uv_pdf = np.vectorize(pol.polarized_uv_pdf)
     if logplot:
         x_vals = np.logspace(np.log10(x_0), np.log10(1 - 1e-4), 100)
     else:
@@ -264,7 +264,7 @@ def plot_polarized_dv_pdf(x_0=1e-2,evolution_order="nlo",logplot = False,error_b
         Whether to display error bars corresponding to PDF uncertainties. Default is True.
     """
     hp.check_evolution_order(evolution_order)
-    vectorized_polarized_dv_pdf = np.vectorize(aac.polarized_dv_pdf)
+    vectorized_polarized_dv_pdf = np.vectorize(pol.polarized_dv_pdf)
     if logplot:
         x_vals = np.logspace(np.log10(x_0), np.log10(1 - 1e-4), 100)
     else:
@@ -303,7 +303,7 @@ def plot_polarized_ubar_pdf(x_0=1e-2,evolution_order="nlo",logplot = False,error
         Whether to display error bars corresponding to PDF uncertainties. Default is True.
     """
     hp.check_evolution_order(evolution_order)
-    vectorized_polarized_ubar_pdf = np.vectorize(aac.polarized_ubar_pdf)
+    vectorized_polarized_ubar_pdf = np.vectorize(pol.polarized_ubar_pdf)
     if logplot:
         x_vals = np.logspace(np.log10(x_0), np.log10(1 - 1e-4), 100)
     else:
@@ -341,7 +341,7 @@ def plot_polarized_uv_minus_dv_pdf(x_0=1e-2,evolution_order="nlo",logplot = Fals
         Whether to display error bars corresponding to PDF uncertainties. Default is True.
     """
     hp.check_evolution_order(evolution_order)
-    vectorized_polarized_uv_minus_dv_pdf = np.vectorize(aac.polarized_uv_minus_dv_pdf)
+    vectorized_polarized_uv_minus_dv_pdf = np.vectorize(pol.polarized_uv_minus_dv_pdf)
     if logplot:
         x_vals = np.logspace(np.log10(x_0), np.log10(1 - 1e-4), 100)
     else:
@@ -379,7 +379,7 @@ def plot_polarized_uv_plus_dv_plus_S_pdf(x_0=1e-2,evolution_order="nlo",logplot 
         Whether to display error bars corresponding to PDF uncertainties. Default is True.
     """
     hp.check_evolution_order(evolution_order)
-    vectorized_polarized_uv_plus_dv_plus_S_pdf = np.vectorize(aac.polarized_uv_plus_dv_plus_S_pdf)
+    vectorized_polarized_uv_plus_dv_plus_S_pdf = np.vectorize(pol.polarized_uv_plus_dv_plus_S_pdf)
     if logplot:
         x_vals = np.logspace(np.log10(x_0), np.log10(1 - 1e-4), 100)
     else:
@@ -417,7 +417,7 @@ def plot_polarized_gluon_pdf(x_0=1e-2,y_0=-1,y_1=1,evolution_order="nlo",logplot
         Whether to display error bars corresponding to PDF uncertainties. Default is True.
     """
     hp.check_evolution_order(evolution_order)
-    vectorized_polarized_gluon_pdf = np.vectorize(aac.polarized_gluon_pdf)
+    vectorized_polarized_gluon_pdf = np.vectorize(pol.polarized_gluon_pdf)
     if logplot:
         x_vals = np.logspace(np.log10(x_0), np.log10(1 - 1e-4), 100)
     else:
