@@ -55,27 +55,32 @@ def generate_moment_table(eta,t,mu,solution,particle,moment_type,moment_label, e
     """
 
     def compute_moment(j):
-        # For mu != 1 we interpolate the evolved moments
-        if mu != 1 or (moment_type == "singlet" and solution not in ["+","-"]):
-            return core.evolve_conformal_moment(j, eta, t,mu,A0=1,particle=particle,moment_type=moment_type,
+        # For mu != MU_INPUT we interpolate the evolved moments
+        if mu != cfg.MU_INPUT or (moment_type == "singlet" and solution not in ["+","-"]):
+            res = core.evolve_conformal_moment(j, eta, t,mu,A0=1,particle=particle,moment_type=moment_type,
                                            moment_label=moment_label,evolution_order=evolution_order,
                                            error_type=error_type)
-        # For mu = 1 we use the corresponding input moments
+        # For mu = MU_INPUT we use the corresponding input moments
         elif moment_type == "non_singlet_isovector":
-            return core.non_singlet_isovector_moment(j,eta,t,
+            res = core.non_singlet_isovector_moment(j,eta,t,
                                                 moment_label=moment_label,
                                                 evolution_order=evolution_order, error_type=error_type)
         elif moment_type == "non_singlet_isoscalar":
-            return core.non_singlet_isoscalar_moment(j,eta,t,
+            res = core.non_singlet_isoscalar_moment(j,eta,t,
                                                 moment_label=moment_label,
                                                 evolution_order=evolution_order, error_type=error_type)
         elif moment_type == "singlet":
-            val = core.singlet_moment(j, eta, t, 
+            val = core.singlet_moment(j, eta, t,
                                   moment_label=moment_label,
                                   solution=solution, evolution_order=evolution_order, error_type=error_type)
-            return val[0] if error_type == "central" else val[1]
+            res = val[0] if error_type == "central" else val[1]
         else:
             raise ValueError(f"Unknown moment_type {moment_type}")
+        # evolve_conformal_moment returns a bare (real) value when the result
+        # has no imaginary part (e.g. at Im(j) = 0); normalize to (value, nd_value)
+        if not isinstance(res, tuple):
+            res = (res, 0)
+        return res
 
     # Define output filename
     if mu != 1 or (moment_type == "singlet" and solution not in ["+","-"]) or moment_type != "singlet":

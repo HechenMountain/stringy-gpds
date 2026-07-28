@@ -36,7 +36,12 @@ from .fit import (
     fit_non_singlet_slopes,
     fit_singlet_slopes_A,
     fit_singlet_slopes_Atilde,
-    fit_singlet_D_slopes
+    fit_singlet_D_slopes,
+    fit_input_pdfs,
+    fit_polarized_input_pdfs,
+    load_pdf_data,
+    read_pdf_parameter_csv,
+    input_carriers
 )
 
 from .tabgen import (
@@ -83,6 +88,11 @@ __all__ = [
     "fit_singlet_slopes_A",
     "fit_singlet_slopes_Atilde",
     "fit_singlet_D_slopes",
+    "fit_input_pdfs",
+    "fit_polarized_input_pdfs",
+    "load_pdf_data",
+    "read_pdf_parameter_csv",
+    "input_carriers",
 
     # tabgen
     "generate_moment_table",

@@ -1,8 +1,24 @@
 # ################################################
-# Polarized PDFs currently under assumption of   #
-# isospin symmetry and qbar=ubar=dbar=s=sbar     #
-# for polarized PDFs. s                          #
-# Modify AAC.csv to not use thi assumption.      #
+# Polarized PDFs Delta f = F(x) * f_unpol(x),    #
+# with one AAC-form factor F per flavor row of   #
+# the polarized parameter file pdfs/<POL_PDF_SET>#
+# .csv (mu0 = cfg.MU_INPUT). The default set is  #
+# JAM22 (GUMP program), fitted with              #
+# fit.fit_polarized_input_pdfs.                  #
+#                                                #
+# Assumptions:                                   #
+# - The sea is flavor-asymmetric: Delta_ubar,    #
+#   Delta_dbar, Delta_s and Delta_sbar each have #
+#   their own factor, fitted to the data.        #
+# - Strange: fitted directly if the data set     #
+#   resolves it (JAM22). For a data set without  #
+#   strange (GUMP) the s, sbar and s_plus rows   #
+#   instead share the light-sea factor, i.e.     #
+#   Delta_s + Delta_sbar =                       #
+#   kappa (Delta_ubar + Delta_dbar), kappa = 0.5.#
+# - The carriers below (uv, dv, S, g, s_plus,    #
+#   sv, ...) must match the unpolarized set, so  #
+#   re-fit the factors whenever it changes.      #
 # ################################################
 
 # Dependencies
@@ -10,7 +26,7 @@ import csv
 import numpy as np
 
 # Unpolarized PDFs needed for parametrization
-from .mstw_pdf import (
+from .unpolarized_pdf import (
     uv_pdf, dv_pdf, gluon_pdf,
     sv_pdf,s_plus_pdf, S_pdf,
     Delta_pdf
@@ -294,9 +310,13 @@ def polarized_s_pdf(x, evolution_order="nlo",error_type="central"):
     -------
     float
         The value of the polarized s PDF based on the selected parameters and error type.
+
+    Note
+    ----
+    Uses the Delta_*_s rows of the polarized parameter file, which are fitted to the
+    strange data of the input set (JAM22). For a set without strange (GUMP) the s and
+    sbar rows carry the same factor and Delta s = Delta sbar holds by construction.
     """
-    print("Warning: Wrong output when Delta s = Delta sbar is assumed")
-    print("Verify that AAC.csv is correctly modified")
      # Define a dictionary that maps the error_type to column indices
     error_mapping = {
         "central": 0,  # The column with the central value
@@ -344,9 +364,13 @@ def polarized_sbar_pdf(x, evolution_order="nlo",error_type="central"):
     -------
     float
         The value of the polarized sbar PDF based on the selected parameters and error type.
+
+    Note
+    ----
+    Uses the Delta_*_sbar rows of the polarized parameter file, which are fitted to the
+    strange data of the input set (JAM22). For a set without strange (GUMP) the s and
+    sbar rows carry the same factor and Delta s = Delta sbar holds by construction.
     """
-    print("Warning: Wrong output when Delta s = Delta sbar is assumed")
-    print("Verify that AAC_Table_2.csv is correctly modified")
      # Define a dictionary that maps the error_type to column indices
     error_mapping = {
         "central": 0,  # The column with the central value
@@ -407,7 +431,7 @@ def polarized_s_plus_pdf(x, evolution_order="nlo",error_type="central"):
     delta_A_s_plus = AAC_PDF["Delta_A_s_plus"][evolution_order][0]
     alpha_s_plus = AAC_PDF["alpha_s_plus"][evolution_order][0] 
     delta_gamma_s_plus = AAC_PDF["Delta_gamma_s_plus"][evolution_order][0]
-    delta_lambda_s_plus = AAC_PDF["Delta_lambda_splus"][evolution_order][0]
+    delta_lambda_s_plus = AAC_PDF["Delta_lambda_s_plus"][evolution_order][0]
     if error_type == "central":
         result = polarized_pdf(x,delta_A_s_plus,alpha_s_plus,delta_lambda_s_plus,delta_gamma_s_plus,evolution_order)*s_plus_pdf(x,evolution_order,"central")
     else :
@@ -415,7 +439,7 @@ def polarized_s_plus_pdf(x, evolution_order="nlo",error_type="central"):
         delta_delta_A_s_plus = AAC_PDF["Delta_A_s_plus"][evolution_order][error_col_index]
         delta_alpha_s_plus = AAC_PDF["alpha_s_plus"][evolution_order][error_col_index]
         delta_delta_gamma_s_plus = AAC_PDF["Delta_gamma_s_plus"][evolution_order][error_col_index]
-        delta_delta_lambda_s_plus = AAC_PDF["Delta_lambda_splus"][evolution_order][error_col_index]
+        delta_delta_lambda_s_plus = AAC_PDF["Delta_lambda_s_plus"][evolution_order][error_col_index]
     
 
         result = polarized_pdf_error(x,delta_A_s_plus,delta_delta_A_s_plus,alpha_s_plus,delta_alpha_s_plus,delta_lambda_s_plus,delta_delta_lambda_s_plus,delta_gamma_s_plus,delta_delta_gamma_s_plus,evolution_order,error_type)*s_plus_pdf(x,evolution_order,"central")

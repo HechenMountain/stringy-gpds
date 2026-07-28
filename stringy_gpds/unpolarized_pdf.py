@@ -1,3 +1,19 @@
+# ################################################
+# Unpolarized input PDFs in the MSTW schema of    #
+# 0901.0002, Eqs. (6)-(12), read from             #
+# pdfs/<PDF_SET>.csv at mu0 = cfg.MU_INPUT.       #
+# The default set is JAM22 (GUMP program, mu0 = 2 #
+# GeV), fitted with fit.fit_input_pdfs.           #
+#                                                 #
+# The normalizations A_u, A_d, A_g and x_0 are    #
+# fixed by the number and momentum sum rules, so  #
+# int uv = 2, int dv = 1, int (s - sbar) = 0 and  #
+# int x [uv + dv + S + g] = 1 hold exactly for    #
+# the parameters in the csv, with                 #
+#   S = 2(ubar + dbar) + s + sbar,                #
+#   Delta = dbar - ubar.                          #
+# ################################################
+
 # Dependencies
 import csv
 import numpy as np
@@ -33,8 +49,7 @@ MSTW_PDF =  {row[0]: {"lo": row[1], "nlo": row[2], "nnlo": row[3]} for row in da
 #################### 
 def get_alpha_s(evolution_order="nlo"):
     """
-    Returns alpha_s at the input scale of 1 GeV from the MSTW PDF best fit.
-    Note that the MSTW best fit obtains alpha_S(mu=1 GeV**2)=0.68183, different from the world average
+    Returns alpha_s at the input scale mu = cfg.MU_INPUT from the input PDF csv (row "alpha_S(Q0^2)").
     Parameters:
     - evolution_order (str. optional): lo, nlo or nnlo
     """
@@ -393,7 +408,7 @@ def s_plus_pdf(x, evolution_order="nlo",error_type="central"):
 
 def Delta_pdf(x, evolution_order="nlo",error_type="central"):
     """
-    Compute the Delta = ubar - dbar PDF and return either its central value or the corresponding value with error.
+    Compute the Delta = dbar - ubar PDF (MSTW convention) and return either its central value or the corresponding value with error.
 
     Parameters
     ----------
