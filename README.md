@@ -260,6 +260,12 @@ These files are provided **for reproducibility purposes only**.
 The maintainer of this package claims **no ownership** of the original data.
 Please cite the original authors if you use this data in scientific work.
 
+## 📊 PDF data
+The included PDF datasets are from published results in the following works:
+- Phys.Rev.D 106 (2022) 3, L031502 • e-Print: 2202.03372 [hep-ph]
+- JHEP 09 (2022) 215 • e-Print: 2207.05768 [hep-ph]
+- Phys.Rev.D 74 (2006) 014015 • e-Print: hep-ph/0603213 [hep-ph]
+- Eur.Phys.J.C 63 (2009) 189-285 • e-Print: 0901.0002 [hep-ph]
 
 
 ## 🐛 Issues & Support
